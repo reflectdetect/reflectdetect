@@ -1,6 +1,7 @@
 name: reflectdetect
 channels:
   - defaults
+  - conda-forge
 dependencies:
   - bzip2=1.0.8=h2bbff1b_6
   - ca-certificates=2024.3.11=haa95532_0
