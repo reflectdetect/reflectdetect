@@ -13,7 +13,7 @@ def test_pytest():
 
 
 def test_main_performance():
-    dataset_path = "../data/example/YOLO_OBB_Dataset"
+    dataset_path = "data/example/YOLO_OBB_Dataset"
     results = run_detection(dataset_path)
     assert len(results) == 5
     overall_metrics = {"dataset": dataset_path, }
@@ -28,7 +28,7 @@ def get_id_from_path(image_path):
 
 
 def get_metrics(image_path, transformed_image_path, extraction_path, detection_path):
-    with open("../data/example/YOLO_OBB_Dataset/annotations/seq1.csv") as annotations_file:
+    with open("data/example/YOLO_OBB_Dataset/annotations/seq1.csv") as annotations_file:
         reader = csv.DictReader(annotations_file, delimiter=',')
         annotations = [row for row in reader]
         identifier = get_id_from_path(image_path)
@@ -84,7 +84,7 @@ def calculate_overlap_metrics(rect1, rect2):
     return metrics
 
 
-def save_metrics(metrics, filename_prefix="../metrics/metrics"):
+def save_metrics(metrics, filename_prefix="metrics/metrics"):
     """
     Saves overlap metrics to a timestamped CSV file.
 

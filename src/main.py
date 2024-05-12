@@ -28,7 +28,6 @@ def run_detection(path):
 
     if template_path.is_dir():
         images_path = (template_path / 'Images/seq1').resolve()
-        annotations_path = (template_path / 'annotations').resolve()
         results = []
         files = []
 
