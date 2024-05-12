@@ -10,11 +10,10 @@ on:
     branches: [ "main" ]
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   build:
-
     runs-on: ubuntu-latest
 
     steps:
@@ -38,6 +37,7 @@ jobs:
       run: |
         pytest
     - name: Commit metric files
+      if: github.event_name != 'pull_request'
       id: commit
       run: |
         git config --local user.email "action@github.com"
@@ -51,7 +51,7 @@ jobs:
         fi
       shell: bash
     - name: Push changes
-      if: steps.commit.outputs.push == 'true'
+      if: github.event_name != 'pull_request' && steps.commit.outputs.push == 'true'
       uses: ad-m/github-push-action@master
       with:
         github_token: ${{ secrets.GITHUB_TOKEN }}
