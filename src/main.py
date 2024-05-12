@@ -38,7 +38,7 @@ def run_detection(path):
             results.append((filename, *(pipeline(images_path.joinpath(filename)))))
         return results
     else:
-        if template_path.endswith(file_endings):
+        if template_path.name.endswith(file_endings):
             return list((template_path, pipeline(template_path)))
         else:
             return []
