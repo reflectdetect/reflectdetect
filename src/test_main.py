@@ -24,7 +24,7 @@ def test_main_performance():
 
 
 def get_id_from_path(image_path):
-    return int(str(image_path).split("/")[0].split("_")[-1].split(".")[0])
+    return int(str(image_path.name).split("/")[0].split("_")[-1].split(".")[0])
 
 
 def get_metrics(image_path, transformed_image_path, extraction_path, detection_path):
