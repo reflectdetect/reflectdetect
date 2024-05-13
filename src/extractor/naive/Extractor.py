@@ -1,20 +1,20 @@
 import json
-import math
+import os
+from pathlib import Path
 
 import cv2
 import numpy as np
 import shapely.geometry as sg
-from matplotlib import pyplot as plt
 from rasterio.features import rasterize
-from shapely import Point
 
 from src.extractor.BaseExtractor import BaseExtractor
+from src.utils.paths import get_image_band, get_extraction_path
 
 
 class Extractor(BaseExtractor):
     def extract(self, image_path: str, detection_path: str, panel_data_path: str) -> str:
         # get band identifier from image path
-        band = int(image_path.split("/")[-1].split(".")[0].split("_")[-1]) - 1
+        band = get_image_band(image_path)
         # Load panel data
         with open(panel_data_path) as f:
             panel_data = json.load(f)
@@ -31,14 +31,14 @@ class Extractor(BaseExtractor):
         # gather radiance values of each detection rect from image
         # load image
 
-        arr = cv2.imread(image_path, cv2.IMREAD_GRAYSCALE)
+        img = cv2.imread(image_path, cv2.IMREAD_UNCHANGED)
         detection_radiance = []
         for detection in detection_data:
             detection = detection[2:]
             polygon = sg.Polygon(list(zip(detection, detection[1:]))[::2])
-            mask = rasterize([polygon], out_shape=arr.shape)
+            mask = rasterize([polygon], out_shape=img.shape)
             # mean the radiance values to get a radiance value for each detection
-            mean = np.ma.array(arr, mask=~(mask.astype(np.bool_))).mean()
+            mean = np.ma.array(img, mask=~(mask.astype(np.bool_))).mean()
             detection_radiance.append(mean)
 
         panels = [panel["bands"][band]["factor"] for panel in panel_data]
@@ -47,7 +47,9 @@ class Extractor(BaseExtractor):
         extraction_data = list(zip(np.sort(detection_radiance), np.sort(panels)))
 
         # save data to file
-        extraction_path = image_path.split(".")[0] + "_extraction.json"
-        with open(extraction_path, 'w', encoding='utf-8') as f:
+        extraction_path, extraction_filename = get_extraction_path(image_path)
+        os.makedirs((Path.cwd() / extraction_path).resolve(), exist_ok=True)
+        filepath = (Path.cwd() / extraction_path / extraction_filename).resolve()
+        with open(filepath, 'w', encoding='utf-8') as f:
             json.dump(extraction_data, f, ensure_ascii=False, indent=4)
-        return extraction_path
+        return filepath
