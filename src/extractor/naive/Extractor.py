@@ -22,7 +22,7 @@ class Extractor(BaseExtractor):
     def get_panel_factors_for_band(self, band):
         return [panel["bands"][band]["factor"] for panel in self.panel_data]
 
-    def extract(self, image_path: str, detection_path: str, _) -> str:
+    def extract(self, image_path: str, detection_path: str, _=None) -> str:
         # get band identifier from image path
         band = get_image_band(image_path)
 
