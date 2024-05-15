@@ -27,15 +27,15 @@ class Transformer(BaseTransformer):
         # poly1d function converts the image to reflectance so 0.0 to 1.0
         float_img = np.vectorize(poly1d_fn)(img)
 
-        # We want to save the image with 4 places of precision so
+        # convert from float to uint for smaller file size
+        # We save the image with 4 places of precision
+        # The image will have to be multiplied by factor in order to get the true reflectance value
         factor = 10000
         transformed_img = (float_img * factor).astype(np.uint16)
-        # The image will have to be multiplied by factor in order to get the reflectance value
 
         # save image
         transformed_img_path, transformed_img_filename = get_transformed_path(image_path)
         os.makedirs((Path.cwd() / transformed_img_path).resolve(), exist_ok=True)
         filepath = (Path.cwd() / transformed_img_path / transformed_img_filename).resolve()
-        print(filepath)
         cv2.imwrite(str(filepath.resolve()), transformed_img)
         return filepath
