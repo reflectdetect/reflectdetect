@@ -10,13 +10,26 @@ from rasterio.features import rasterize
 from src.extractor.BaseExtractor import BaseExtractor
 from src.utils.paths import get_image_band, get_extraction_path
 
+# Expects panel locations to be a list of YOLO_OBB bounding boxes
+# in the form [id, class, x1, y1, x2, y1, x3, y3, x4, y4]
+def get_mean_radiance_values(panel_locations, img):
+    panel_radiance_values = []
+    for detection in panel_locations:
+        # ignore id and class
+        detection = detection[2:]
+        # convert [x1, y1, x2, y2] to [(x1, y1), (x2, y2)] and instantiate polygon
+        polygon = sg.Polygon(list(zip(detection, detection[1:]))[::2])
+        mask = rasterize([polygon], out_shape=img.shape)
+        # mean the radiance values to get a radiance value for the detection
+        mean = np.ma.array(img, mask=~(mask.astype(np.bool_))).mean()
+        panel_radiance_values.append(mean)
+    return panel_radiance_values
+
 
 class Extractor(BaseExtractor):
 
     def __init__(self, panel_data):
         # Load panel data
-        # with open(panel_data_path) as f:
-        #    panel_data = json.load(f)
         self.panel_data = panel_data
 
     def get_panel_factors_for_band(self, band):
@@ -28,31 +41,22 @@ class Extractor(BaseExtractor):
 
         # Load detection results
         with open(detection_path) as f:
-            detection_data = json.load(f)
+            panel_locations = json.load(f)
         # Check if number of panels matches number of detections
         # If false return (naive approach)
-        if len(detection_data) != len(self.panel_data):
+        if len(panel_locations) != len(self.panel_data):
             raise Exception(
                 f"Incorrect number of detections: {len(self.panel_data)} panels specified,"
-                f" but {len(detection_data)} found")
+                f" but {len(panel_locations)} found")
 
-        # gather radiance values of each detection rect from image
-        # load image
+        # gather radiance values of each panel detected in the image
         img = cv2.imread(image_path, cv2.IMREAD_UNCHANGED)
-        detection_radiance = []
-        for detection in detection_data:
-            # ignore id and class
-            detection = detection[2:]
-            polygon = sg.Polygon(list(zip(detection, detection[1:]))[::2])
-            mask = rasterize([polygon], out_shape=img.shape)
-            # mean the radiance values to get a radiance value for each detection
-            mean = np.ma.array(img, mask=~(mask.astype(np.bool_))).mean()
-            detection_radiance.append(mean)
+        radiance_values = get_mean_radiance_values(panel_locations, img)
 
-        factors = self.get_panel_factors_for_band(band)
+        reflectance_values = self.get_panel_factors_for_band(band)
 
         # Assign panel to detection based on ranking of reflectance and radiance (naive)
-        extraction_data = list(zip(np.sort(detection_radiance), np.sort(factors)))
+        extraction_data = list(zip(np.sort(radiance_values), np.sort(reflectance_values)))
 
         # save data to file
         extraction_path, extraction_filename = get_extraction_path(image_path)
