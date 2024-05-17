@@ -11,23 +11,38 @@ from src.transformer.dummy.DummyTransformer import DummyTransformer
 
 logger = logging.getLogger(__name__)
 
+def run_detection(path):
+    detector = DummyDetector()
+    extractor = DummyExtractor()
+    transformer = DummyTransformer()
 
-def run_pipeline_for_each_image(detector: BaseDetector, extractor: BaseExtractor, transformer: BaseTransformer,
-                                image_path: str):
-    def pipeline(path: str):
-        logger.info(f"Transforming image {path} to reflectance")
-        detection_results_path = detector.detect(path)
-        extraction_results_path = extractor.extract(path, detection_results_path)
-        transformed_image_path = transformer.transform(path, extraction_results_path)
+    def pipeline(p: str):
+        logger.info(f"Transforming image {p} to reflectance")
+        detection_results_path = detector.detect(p)
+        extraction_results_path = extractor.extract(p, detection_results_path)
+        transformed_image_path = transformer.transform(p, extraction_results_path)
 
-        return transformed_image_path
+        return transformed_image_path, extraction_results_path, detection_results_path
 
-    template_path = (Path.cwd() / image_path).resolve()
+    template_path = (Path.cwd() / path).resolve()
+
+    file_endings = (".jpg", ".png", ".tif")
+
     if template_path.is_dir():
-        for filename in template_path.glob("*"):
-            pipeline(template_path.joinpath(filename).name)
+        images_path = (template_path / 'Images/seq1').resolve()
+        results = []
+        files = []
+
+        for e in file_endings:
+            files.extend(images_path.glob("*" + e))
+        for filename in files:
+            results.append((filename, *(pipeline(images_path.joinpath(filename)))))
+        return results
     else:
-        pipeline(template_path.name)
+        if template_path.name.endswith(file_endings):
+            return list((template_path, pipeline(template_path)))
+        else:
+            return []
 
 
 if __name__ == '__main__':
@@ -40,8 +55,4 @@ if __name__ == '__main__':
     parser.add_argument("path", help="Path to the image file or image files directory", type=str)
     args = parser.parse_args()
 
-    detector = DummyDetector()
-    extractor = DummyExtractor()
-    transformer = DummyTransformer()
-
-    run_pipeline_for_each_image(detector, extractor, transformer, args.path)
+    run_detection(args.path)
