@@ -13,7 +13,7 @@ def test_naive_batch_transformer():
     try:
         assert (transformer.transform(["data/example/IMG_0040_1.tif"],
                                       "temp_extraction.json")
-                == (Path.cwd() / "data/example/reflectance/IMG_0040_1_transformed.png").resolve())
+                == (Path.cwd() / "data/example/reflectance").resolve())
     finally:
         os.remove("temp_extraction.json")
         os.remove("data/example/reflectance/IMG_0040_1_transformed.png")

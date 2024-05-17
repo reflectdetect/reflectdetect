@@ -11,8 +11,8 @@ def test_naive_batch_extractor():
     extractor = BatchExtractor(panel_data)
     try:
         assert (extractor.extract(["data/example/IMG_0040_1.tif", "data/example/IMG_0040_2.tif"],
-                                  "src/detector/dummy/dummy_detection.json"
+                                  "dummy_detection.json"
                                   )
-                == (Path.cwd() / "data/example/metadata/IMG_0040_1_extraction.json").resolve())
+                == (Path.cwd() / "data/example/metadata/0040_extraction.json").resolve())
     finally:
-        os.remove("data/example/metadata/IMG_0040_1_extraction.json")
+        os.remove("data/example/metadata/0040_extraction.json")

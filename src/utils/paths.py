@@ -4,6 +4,12 @@ def get_extraction_path(image_path: str) -> (str, str):
     return path + "/metadata/", image_filename.split(".")[0] + "_extraction.json"
 
 
+def get_extractions_path(image_path: str) -> (str, str):
+    image_filename = image_path.split("/")[-1]
+    path = "/".join(image_path.split("/")[:-1])
+    return path + "/metadata/", get_image_id(image_path) + "_extraction.json"
+
+
 def get_transformed_path(image_path: str) -> (str, str):
     image_filename = image_path.split("/")[-1]
     path = "/".join(image_path.split("/")[:-1])

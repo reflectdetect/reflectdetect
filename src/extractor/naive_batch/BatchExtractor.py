@@ -7,7 +7,7 @@ import numpy as np
 
 from src.extractor.BaseBatchExtractor import BaseBatchExtractor
 from src.extractor.shared.shared import get_mean_radiance_values
-from src.utils.paths import get_image_band, get_extraction_path
+from src.utils.paths import get_image_band, get_extractions_path
 
 
 class BatchExtractor(BaseBatchExtractor):
@@ -28,17 +28,16 @@ class BatchExtractor(BaseBatchExtractor):
         for image_path in image_paths:
             # get band identifier from image path
             band = get_image_band(image_path)
-
             # Check if number of panels matches number of detections
             # If false return (naive approach)
-            if len(panel_locations[band]) != len(self.panel_data):
+            if len(panel_locations[band]["detections"]) != len(self.panel_data):
                 raise Exception(
                     f"Incorrect number of detections: {len(self.panel_data)} panels specified,"
-                    f" but {len(panel_locations)} found")
+                    f" but {len(panel_locations[band]["detections"])} found")
 
             # gather radiance values of each panel detected in the image
             img = cv2.imread(image_path, cv2.IMREAD_UNCHANGED)
-            radiance_values = get_mean_radiance_values(panel_locations, img)
+            radiance_values = get_mean_radiance_values(panel_locations[band]["detections"], img)
 
             reflectance_values = self.get_panel_factors_for_band(band)
 
@@ -47,8 +46,10 @@ class BatchExtractor(BaseBatchExtractor):
             data.append(extraction_data)
 
         # save data to file
-        extraction_path, extraction_filename = get_extraction_path(image_paths[0])
+        extraction_path, extraction_filename = get_extractions_path(image_paths[0])
+        # make /metadata/ dir
         os.makedirs((Path.cwd() / extraction_path).resolve(), exist_ok=True)
+
         filepath = (Path.cwd() / extraction_path / extraction_filename).resolve()
         with open(filepath, 'w', encoding='utf-8') as f:
             json.dump(data, f, ensure_ascii=False, indent=4)
