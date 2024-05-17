@@ -2,12 +2,14 @@ import argparse
 import logging
 from pathlib import Path
 
+from src.detector.BaseDetector import BaseDetector
 from src.detector.dummy.DummyDetector import DummyDetector
+from src.extractor.BaseExtractor import BaseExtractor
 from src.extractor.dummy.DummyExtractor import DummyExtractor
+from src.transformer.BaseTransformer import BaseTransformer
 from src.transformer.dummy.DummyTransformer import DummyTransformer
 
 logger = logging.getLogger(__name__)
-
 
 def run_detection(path):
     detector = DummyDetector()
