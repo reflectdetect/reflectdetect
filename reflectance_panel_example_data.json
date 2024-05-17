@@ -1,0 +1,52 @@
+[
+  {
+    "shape": "rect",
+    "bands": [
+      {
+        "band_name": "Blue",
+        "factor": 0.67
+      },
+      {
+        "band_name": "Green",
+        "factor": 0.69
+      },
+      {
+        "band_name": "Red",
+        "factor": 0.68
+      },
+      {
+        "band_name": "Red edge",
+        "factor": 0.67
+      },
+      {
+        "band_name": "NIR",
+        "factor": 0.61
+      }
+    ]
+  },
+  {
+    "shape": "rect",
+    "bands": [
+      {
+        "band_name": "Blue",
+        "factor": 0.65
+      },
+      {
+        "band_name": "Green",
+        "factor": 0.67
+      },
+      {
+        "band_name": "Red",
+        "factor": 0.66
+      },
+      {
+        "band_name": "Red edge",
+        "factor": 0.65
+      },
+      {
+        "band_name": "NIR",
+        "factor": 0.59
+      }
+    ]
+  }
+]
