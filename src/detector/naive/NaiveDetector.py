@@ -10,29 +10,46 @@ from src.detector.BaseDetector import BaseDetector
 
 class NaiveDetector(BaseDetector):
 
-    def __init__(self):
+    def __init__(self, path_to_panel_data: str):
+        with open(path_to_panel_data) as f:
+            data = json.load(f)
+            self.panels = data
         # TODO(add function to read from config file)
         # Given/known Camera parameters
-        self.aspect_ration_deviation_threshold = .8  # Threshold for aspect ratio deviation
+        self.boundingbox_closeness = 100.
+        self.aspect_ratio_deviation = .8  # Threshold for aspect ratio deviation
         self.min_solidity = 0.60  # Set a threshold for solidity to filter out non-homogeneous areas
-        self.area_deviation = 0.1
+        self.area_deviation_smaller = 0.5
+        self.area_deviation_larger = 1.2
         self.altitude = 16.3145  # Altitude in meters
         self.resolution = (1456, 1088)  # Image resolution (width, height) in pixels
         self.sensor_size_mm = 6.3  # Sensor diagonal in millimeters
         self.focal_length_mm = 5.5  # Focal length in millimeters
         self.physical_panel_size = (1, 1)  # Physical size of the object in meters (width, height)
 
+    def get_panel_factors_for_band(self, band):
+        return [panel["bands"][band]["factor"] for panel in self.panels]
+
     def load_image(self, path: str):
         image = cv2.imread(path, cv2.IMREAD_GRAYSCALE)
         transformed_image = cv2.normalize(image, None, alpha=0, beta=255, norm_type=cv2.NORM_MINMAX).astype(np.uint8)
         return transformed_image
 
-    def preprocess_image(self, image, blur_kernel_size=41):
+    def preprocess_image(self, image, band, blur_kernel_size=41):
+        # variance filter
         variance = filter_by_variance(image)
         blur = cv2.medianBlur(variance, blur_kernel_size)
         ret, thresh1 = cv2.threshold(blur, 1, 255, cv2.THRESH_BINARY_INV)
 
-        return thresh1
+        images = [thresh1]
+        panels = self.get_panel_factors_for_band(band)
+        for panel in panels:
+            images.append(
+                np.logical_and(image >= 255 * (panel - 0.05), image <= 255 * (panel + 0.05)).astype(np.uint8) * 255)
+            images.append(
+                (~np.logical_and(image >= 255 * (panel - 0.05), image <= 255 * (panel + 0.05))).astype(np.uint8) * 255)
+
+        return images
 
     def detect(self, image_path: str) -> str:
         image = self.load_image(image_path)
@@ -44,11 +61,22 @@ class NaiveDetector(BaseDetector):
             self.physical_panel_size
         )
         kernel_size = (int(panel_size[0] / 8) * 2) + 1  # use 1/4th of the panel size as a blur kernel
-        image = self.preprocess_image(image, blur_kernel_size=kernel_size)
 
-        filtered_contours = self.find_contours(image, panel_size)
-        bounding_boxes = self.convert_contours_to_bboxes(filtered_contours, panel_size)
-        print(len(bounding_boxes))
+        def get_image_band(image_path: str) -> int:
+            # Assumes filenames are *_{band}.* with {band} being the 1 indexed band number
+            return int(image_path.split("/")[-1].split(".")[0].split("_")[-1]) - 1
+
+        band = get_image_band(image_path)
+        images = self.preprocess_image(image, band, blur_kernel_size=kernel_size)
+
+        boxes = []
+        for i in images:
+            found_boxes = self.get_bound_boxes(i, panel_size)
+            boxes = boxes + found_boxes
+
+        # TODO: combine near boxes
+        bounding_boxes = boxes
+
         show_image_with_bboxes(image, [np.array(bbox["coordinates"]) for bbox in bounding_boxes])
         # Save bounding box coordinates to a JSON file
         with open("bounding_boxes.json", "w") as f:
@@ -68,7 +96,7 @@ class NaiveDetector(BaseDetector):
             box = np.intp(box)  # Convert to integer values # TODO(Might not be necessary)
 
             # Split bounding box if necessary and space apart
-            boxes = split_bounding_box(box, expected_aspect_ratio, self.aspect_ration_deviation_threshold, spacing)
+            boxes = split_bounding_box(box, expected_aspect_ratio, self.aspect_ratio_deviation, spacing)
             for bbox in boxes:
                 # Save the bounding box coordinates
                 bounding_box = {
@@ -82,13 +110,19 @@ class NaiveDetector(BaseDetector):
         # Find contours in the binary mask
         contours, _ = cv2.findContours(image, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
         # Filter contours based on size (e.g., minimum area) and solidity
-        min_contour_area = (panel_size[0] * panel_size[1]) * self.area_deviation
-        max_contour_area = (panel_size[0] * panel_size[1]) * 1 + self.area_deviation
+        panel_area = panel_size[0] * panel_size[1]
+        min_contour_area = panel_area - panel_area * self.area_deviation_smaller
+        max_contour_area = panel_area + panel_area * self.area_deviation_larger
         filtered_contours = [c for c in contours if
-                             min_contour_area < cv2.contourArea(c) < max_contour_area
+                             min_contour_area <= cv2.contourArea(c) <= max_contour_area
                              and contour_solidity_by_rect(c) > self.min_solidity
                              ]
         return filtered_contours
+
+    def get_bound_boxes(self, image, panel_size):
+        filtered_contours = self.find_contours(image, panel_size)
+        bounding_boxes = self.convert_contours_to_bboxes(filtered_contours, panel_size)
+        return bounding_boxes
 
 
 def show_image_with_bboxes(image, boxes):
@@ -144,8 +178,7 @@ def split_bounding_box(box, expected_aspect_ratio, threshold=0.1, spacing=10):
         # Determine if width or height should be split
         if width > height:
             new_width = width / 2
-            size1 = (new_width, height)
-            size2 = (new_width, height)
+            size = (new_width, height)
             offset = (spacing / 2) * np.array([np.cos(np.deg2rad(rect[2])), np.sin(np.deg2rad(rect[2]))])
             center1 = (rect[0][0] - new_width / 2 * np.cos(np.deg2rad(rect[2])),
                        rect[0][1] - new_width / 2 * np.sin(np.deg2rad(rect[2]))) - offset
@@ -153,8 +186,7 @@ def split_bounding_box(box, expected_aspect_ratio, threshold=0.1, spacing=10):
                        rect[0][1] + new_width / 2 * np.sin(np.deg2rad(rect[2]))) + offset
         else:
             new_height = height / 2
-            size1 = (width, new_height)
-            size2 = (width, new_height)
+            size = (width, new_height)
             offset = (spacing / 2) * np.array([np.sin(np.deg2rad(rect[2])), -np.cos(np.deg2rad(rect[2]))])
             center1 = (rect[0][0] - new_height / 2 * np.sin(np.deg2rad(rect[2])),
                        rect[0][1] + new_height / 2 * np.cos(np.deg2rad(rect[2]))) - offset
@@ -162,8 +194,8 @@ def split_bounding_box(box, expected_aspect_ratio, threshold=0.1, spacing=10):
                        rect[0][1] - new_height / 2 * np.cos(np.deg2rad(rect[2]))) + offset
 
         # Create two new bounding boxes
-        box1 = cv2.boxPoints((center1, size1, rect[2]))
-        box2 = cv2.boxPoints((center2, size2, rect[2]))
+        box1 = cv2.boxPoints((center1, size, rect[2]))
+        box2 = cv2.boxPoints((center2, size, rect[2]))
 
         return [np.intp(box1), np.intp(box2)]
 
