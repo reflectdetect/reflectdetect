@@ -86,7 +86,7 @@ class NaiveDetector(BaseDetector):
         max_contour_area = (panel_size[0] * panel_size[1]) * 1 + self.area_deviation
         filtered_contours = [c for c in contours if
                              min_contour_area < cv2.contourArea(c) < max_contour_area
-                             and contour_solidity(c) > self.min_solidity
+                             and contour_solidity_by_rect(c) > self.min_solidity
                              ]
         return filtered_contours
 
@@ -105,6 +105,15 @@ def contour_solidity(contour):
     if hull_area == 0:
         return 0
     return float(area) / hull_area
+
+
+def contour_solidity_by_rect(contour):
+    area = cv2.contourArea(contour)
+    rect = cv2.minAreaRect(contour)
+    rect_area = cv2.contourArea(cv2.boxPoints(rect))
+    if rect_area == 0:
+        return 0
+    return float(area) / rect_area
 
 
 def split_bounding_box(box, expected_aspect_ratio, threshold=0.1, spacing=10):
