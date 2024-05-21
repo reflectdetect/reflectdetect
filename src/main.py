@@ -4,6 +4,7 @@ import os.path
 from pathlib import Path
 
 from src.detector.dummy.DummyDetector import DummyDetector
+from src.detector.naive.NaiveDetector import NaiveDetector
 from src.extractor.dummy.DummyExtractor import DummyExtractor
 from src.transformer.dummy.DummyTransformer import DummyTransformer
 
@@ -19,7 +20,7 @@ if __name__ == '__main__':
     parser.add_argument("path", help="Path to the image file or image files directory", type=str)
     args = parser.parse_args()
 
-    detector = DummyDetector()
+    detector = NaiveDetector()
     extractor = DummyExtractor()
     transformer = DummyTransformer()
 
@@ -36,6 +37,6 @@ if __name__ == '__main__':
     template_path = (Path.cwd() / args.path).resolve()
     if template_path.is_dir():
         for filename in template_path.glob("*"):
-            pipeline(template_path.joinpath(filename))
+            pipeline(template_path.joinpath(filename).name)
     else:
-        pipeline(template_path)
+        pipeline(template_path.name)
