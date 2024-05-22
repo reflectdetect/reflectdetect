@@ -10,6 +10,9 @@ from src.utils.paths import get_transformed_path
 
 
 class Transformer(BaseTransformer):
+    def get_name(self) -> str:
+        return "naive"
+
     def transform(self, image_path, extraction_path) -> str:
         # Load extraction data
         with open(extraction_path) as f:
@@ -25,7 +28,7 @@ class Transformer(BaseTransformer):
         img = cv2.imread(image_path, cv2.IMREAD_UNCHANGED)
 
         # poly1d function converts the image to reflectance so 0.0 to 1.0
-        float_img = np.vectorize(poly1d_fn)(img)
+        float_img = poly1d_fn(img)
 
         # convert from float to uint for smaller file size
         # We save the image with 4 places of precision

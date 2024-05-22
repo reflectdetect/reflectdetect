@@ -1,11 +1,16 @@
 import csv
 import json
 import os
+import shutil
 from datetime import datetime
 
 import shapely.geometry as sg
 
-from src.main import run_detection
+from src.detector.dummy.DummyDetector import DummyDetector
+from src.extractor.naive.Extractor import Extractor
+from src.main import run_pipeline_for_each_image
+from src.transformer.naive.Transformer import Transformer
+from src.utils.paths import get_image_id, get_image_band
 
 
 def test_pytest():
@@ -14,25 +19,44 @@ def test_pytest():
 
 def test_main_performance():
     dataset_path = "data/example/YOLO_OBB_Dataset"
-    results = run_detection(dataset_path)
-    assert len(results) == 5
-    overall_metrics = {"dataset": dataset_path, }
-    for image_path, transformed_image_path, extraction_path, detection_path in results:
-        overall_metrics[str(get_id_from_path(image_path))] = get_metrics(image_path, transformed_image_path,
-                                                                         extraction_path, detection_path)
-    save_metrics(overall_metrics)
+    detector = DummyDetector()
+    extractor = Extractor("reflectance_panel_example_data.json")
+    transformer = Transformer()
+    try:
+        results = run_pipeline_for_each_image(detector, extractor, transformer, dataset_path)
+        assert len(results) == 5
+        overall_metrics = {"dataset": dataset_path,
+                           "detector": detector.get_name(),
+                           "extractor": extractor.get_name(),
+                           "transformer": transformer.get_name()
+                           }
+        last_image_id = None
+        metrics = {}
+        for image_path, transformed_image_path, extraction_path, detection_path in results:
+            if get_image_id(image_path) != last_image_id:
+                if last_image_id is not None:
+                    overall_metrics[str(last_image_id)] = metrics
+                metrics = {}
+            metrics[str(get_image_band(image_path))] = get_metrics(dataset_path, image_path, transformed_image_path,
+                                                                   extraction_path,
+                                                                   detection_path)
+            last_image_id = get_image_id(image_path)
+        overall_metrics[str(last_image_id)] = metrics
+        save_metrics(overall_metrics)
+    finally:
+        shutil.rmtree("data/example/YOLO_OBB_Dataset/Images/seq1/reflectance")
+        shutil.rmtree("data/example/YOLO_OBB_Dataset/Images/seq1/metadata")
 
 
-def get_id_from_path(image_path):
-    return int(str(image_path.name).split("/")[0].split("_")[-1].split(".")[0])
-
-
-def get_metrics(image_path, transformed_image_path, extraction_path, detection_path):
-    with open("data/example/YOLO_OBB_Dataset/annotations/seq1.csv") as annotations_file:
+def get_metrics(dataset_path, image_path, transformed_image_path, extraction_path, detection_path):
+    with open(dataset_path + "/annotations/seq1.csv") as annotations_file:
         reader = csv.DictReader(annotations_file, delimiter=',')
         annotations = [row for row in reader]
-        identifier = get_id_from_path(image_path)
-        ground_truth_annotations = [row for row in annotations if int(row["id"]) == identifier]
+        identifier = get_image_id(image_path)
+        band = get_image_band(image_path)
+        ground_truth_annotations = [row for row in annotations if
+                                    int(row["id"]) == int(identifier) and int(row["band"]) == band]
+
         metrics = []
         # Detection_metric
         with open(detection_path) as f:
