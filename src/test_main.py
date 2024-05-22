@@ -9,6 +9,7 @@ from src.detector.dummy.DummyDetector import DummyDetector
 from src.extractor.naive.Extractor import Extractor
 from src.main import run_pipeline_for_each_image
 from src.transformer.naive.Transformer import Transformer
+from src.utils.paths import get_image_id, get_image_band
 
 
 def test_pytest():
@@ -22,29 +23,33 @@ def test_main_performance():
     transformer = Transformer()
     results = run_pipeline_for_each_image(detector, extractor, transformer, dataset_path)
     assert len(results) == 5
-    overall_metrics = {"dataset": dataset_path, }
+    overall_metrics = {"dataset": dataset_path,
+                       "detector": detector.get_name(),
+                       "extractor": extractor.get_name(),
+                       "transformer": transformer.get_name()
+                       }
+    last_image_id = None
+    metrics = {}
     for image_path, transformed_image_path, extraction_path, detection_path in results:
-        overall_metrics[str(get_id_from_path(image_path))] = get_metrics(image_path, transformed_image_path,
-                                                                         extraction_path, detection_path).append(
-            {
-                "detector": detector.get_name(),
-                "extractor": extractor.get_name(),
-                "transformer": transformer.get_name()
-            }
-        )
+        if get_image_id(image_path) != last_image_id:
+            if last_image_id is not None:
+                overall_metrics[str(last_image_id)] = metrics
+            metrics = {}
+        metrics[str(get_image_band(image_path))] = get_metrics(dataset_path, image_path, transformed_image_path, extraction_path,
+                                                                   detection_path)
+        last_image_id = get_image_id(image_path)
+    overall_metrics[str(last_image_id)] = metrics
     save_metrics(overall_metrics)
 
 
-def get_id_from_path(image_path):
-    return str(image_path.name).split("/")[-1]
-
-
-def get_metrics(image_path, transformed_image_path, extraction_path, detection_path):
-    with open("data/example/YOLO_OBB_Dataset/annotations/seq1.csv") as annotations_file:
+def get_metrics(dataset_path, image_path, transformed_image_path, extraction_path, detection_path):
+    with open(dataset_path + "/annotations/seq1.csv") as annotations_file:
         reader = csv.DictReader(annotations_file, delimiter=',')
         annotations = [row for row in reader]
-        identifier = get_id_from_path(image_path)
-        ground_truth_annotations = [row for row in annotations if int(row["id"]) == identifier]
+        identifier = get_image_id(image_path)
+        band = get_image_band(image_path)
+        ground_truth_annotations = [row for row in annotations if int(row["id"]) == int(identifier) and int(row["band"]) == band]
+
         metrics = []
         # Detection_metric
         with open(detection_path) as f:

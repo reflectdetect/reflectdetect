@@ -56,7 +56,6 @@ class Extractor(BaseExtractor):
 
         # gather radiance values of each panel detected in the image
         img = cv2.imread(image_path, cv2.IMREAD_UNCHANGED)
-        print(image_path)
         radiance_values = get_mean_radiance_values(panel_locations, img)
 
         reflectance_values = self.get_panel_factors_for_band(band)

@@ -30,7 +30,7 @@ def run_pipeline_for_each_image(detector: BaseDetector, extractor: BaseExtractor
 
         for e in file_endings:
             for filename in images_path.glob("*" + e):
-                results.append((filename, *(pipeline(filename.absolute().as_posix()))))
+                results.append((filename.absolute().as_posix(), *(pipeline(filename.absolute().as_posix()))))
         return results
     else:
         if template_path.name.endswith(file_endings):
