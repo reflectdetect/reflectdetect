@@ -36,7 +36,7 @@ class BatchExtractor(BaseBatchExtractor):
             if len(panel_locations[band]["detections"]) != len(self.panel_data):
                 raise Exception(
                     f"Incorrect number of detections: {len(self.panel_data)} panels specified,"
-                    f" but {len(panel_locations[band]["detections"])} found")
+                    f" but {len(panel_locations[band]['detections'])} found")
 
             # gather radiance values of each panel detected in the image
             img = cv2.imread(image_path, cv2.IMREAD_UNCHANGED)
