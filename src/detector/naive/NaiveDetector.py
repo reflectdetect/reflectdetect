@@ -1,5 +1,6 @@
 import json
 import math
+import os
 
 import cv2
 import numpy as np
@@ -7,7 +8,7 @@ from matplotlib import pyplot as plt
 
 from src.detector.BaseDetector import BaseDetector
 from src.utils.panel_utils import get_panel_factors_for_band
-from src.utils.paths import get_image_band
+from src.utils.paths import get_image_band, get_detection_path
 
 
 def load_image(path: str):
@@ -17,6 +18,9 @@ def load_image(path: str):
 
 
 class NaiveDetector(BaseDetector):
+
+    def get_name(self) -> str:
+        return "naive"
 
     def __init__(self, path_to_panel_data: str):
         with open(path_to_panel_data) as f:
@@ -69,14 +73,16 @@ class NaiveDetector(BaseDetector):
             found_boxes = self.get_bound_boxes(i, panel_size)
             boxes = boxes + found_boxes
 
-        # TODO: combine near boxes
-        bounding_boxes = self.combine_bounding_boxes(boxes, panel_size[0]/2)
+        bounding_boxes = self.combine_bounding_boxes(boxes, panel_size[0] / 2)
 
-        show_image_with_bboxes(image, [np.array(bbox["coordinates"]) for bbox in bounding_boxes])
+        # show_image_with_bboxes(image, [np.array(bbox["coordinates"]) for bbox in bounding_boxes])
+
         # Save bounding box coordinates to a JSON file
-        with open("bounding_boxes.json", "w") as f:
+        path, filename = get_detection_path(image_path)
+        os.makedirs(path, exist_ok=True)
+        with open(path + filename, "w") as f:
             json.dump(bounding_boxes, f, indent=4)
-        return "bounding_boxes.json"
+        return path + filename
 
     def convert_contours_to_bboxes(self, filtered_contours, panel_size):
         # Expected aspect ratio based on physical panel size

@@ -1,0 +1,288 @@
+{
+    "dataset": "data/example/YOLO_OBB_Dataset",
+    "detector": "naive",
+    "extractor": "naive",
+    "transformer": "naive",
+    "40": {
+        "0": [
+            {
+                "area": 0,
+                "overlap_percentage_rect1": 0.0,
+                "overlap_percentage_rect2": 0.0,
+                "iou": 0.0
+            },
+            {
+                "area": 0,
+                "overlap_percentage_rect1": 0.0,
+                "overlap_percentage_rect2": 0.0,
+                "iou": 0.0
+            },
+            {
+                "area": 0,
+                "overlap_percentage_rect1": 0.0,
+                "overlap_percentage_rect2": 0.0,
+                "iou": 0.0
+            },
+            {
+                "area": 2071.6160695302615,
+                "overlap_percentage_rect1": 11.794671313654415,
+                "overlap_percentage_rect2": 3.620558782335042,
+                "iou": 2.849128588247233
+            },
+            {
+                "area": 2243.6694352812497,
+                "overlap_percentage_rect1": 12.77425094102283,
+                "overlap_percentage_rect2": 3.193002649884054,
+                "iou": 2.6214566131453747
+            },
+            {
+                "area": 0,
+                "overlap_percentage_rect1": 0.0,
+                "overlap_percentage_rect2": 0.0,
+                "iou": 0.0
+            },
+            {
+                "area": 6107.623574665529,
+                "overlap_percentage_rect1": 35.01073989490129,
+                "overlap_percentage_rect2": 10.674280093543562,
+                "iou": 8.909019563617385
+            },
+            {
+                "area": 17113.697964239345,
+                "overlap_percentage_rect1": 98.10087683714156,
+                "overlap_percentage_rect2": 24.354783324969524,
+                "iou": 24.240493918745468
+            },
+            {
+                "area": 12727.583835803365,
+                "overlap_percentage_rect1": 72.9583481559379,
+                "overlap_percentage_rect2": 15.180482779659831,
+                "iou": 14.371840937036776
+            }
+        ],
+        "1": [
+            {
+                "area": 0,
+                "overlap_percentage_rect1": 0.0,
+                "overlap_percentage_rect2": 0.0,
+                "iou": 0.0
+            },
+            {
+                "area": 0,
+                "overlap_percentage_rect1": 0.0,
+                "overlap_percentage_rect2": 0.0,
+                "iou": 0.0
+            },
+            {
+                "area": 0,
+                "overlap_percentage_rect1": 0.0,
+                "overlap_percentage_rect2": 0.0,
+                "iou": 0.0
+            },
+            {
+                "area": 2085.7349726874736,
+                "overlap_percentage_rect1": 8.703254632536924,
+                "overlap_percentage_rect2": 3.9506933515119553,
+                "iou": 2.7931426102300096
+            },
+            {
+                "area": 15240.368278484373,
+                "overlap_percentage_rect1": 63.594276146398386,
+                "overlap_percentage_rect2": 23.40420312781759,
+                "iou": 20.638960064269472
+            },
+            {
+                "area": 23285.562492099143,
+                "overlap_percentage_rect1": 97.16487582766177,
+                "overlap_percentage_rect2": 30.7913976526031,
+                "iou": 30.517216807733348
+            },
+            {
+                "area": 4013.148452080978,
+                "overlap_percentage_rect1": 18.103340184414375,
+                "overlap_percentage_rect2": 7.601502163929283,
+                "iou": 5.656384679780205
+            },
+            {
+                "area": 10176.283663391267,
+                "overlap_percentage_rect1": 45.90528538159178,
+                "overlap_percentage_rect2": 15.627431410600154,
+                "iou": 13.197134254993395
+            },
+            {
+                "area": 1591.2764684155807,
+                "overlap_percentage_rect1": 7.178259059976455,
+                "overlap_percentage_rect2": 2.1042062664725876,
+                "iou": 1.654128030462264
+            }
+        ],
+        "2": [
+            {
+                "area": 0,
+                "overlap_percentage_rect1": 0.0,
+                "overlap_percentage_rect2": 0.0,
+                "iou": 0.0
+            },
+            {
+                "area": 0,
+                "overlap_percentage_rect1": 0.0,
+                "overlap_percentage_rect2": 0.0,
+                "iou": 0.0
+            },
+            {
+                "area": 0,
+                "overlap_percentage_rect1": 0.0,
+                "overlap_percentage_rect2": 0.0,
+                "iou": 0.0
+            },
+            {
+                "area": 3572.786931955259,
+                "overlap_percentage_rect1": 13.815347171243413,
+                "overlap_percentage_rect2": 6.9308977871451685,
+                "iou": 4.838755203884087
+            },
+            {
+                "area": 17314.320645739994,
+                "overlap_percentage_rect1": 66.95147382444605,
+                "overlap_percentage_rect2": 27.997255934618337,
+                "iou": 24.59783939028856
+            },
+            {
+                "area": 24634.282163973603,
+                "overlap_percentage_rect1": 95.25649496915666,
+                "overlap_percentage_rect2": 32.78464022382693,
+                "iou": 32.258001668920386
+            },
+            {
+                "area": 3470.9359069027887,
+                "overlap_percentage_rect1": 16.362691370195822,
+                "overlap_percentage_rect2": 6.733315603376848,
+                "iou": 5.009270079897504
+            },
+            {
+                "area": 8837.065611347376,
+                "overlap_percentage_rect1": 41.65970824441898,
+                "overlap_percentage_rect2": 14.289534813067034,
+                "iou": 11.906846575037418
+            },
+            {
+                "area": 453.8365658880021,
+                "overlap_percentage_rect1": 2.1394770342392557,
+                "overlap_percentage_rect2": 0.6039903429706944,
+                "iou": 0.4732474287128334
+            }
+        ],
+        "3": [
+            {
+                "area": 0,
+                "overlap_percentage_rect1": 0.0,
+                "overlap_percentage_rect2": 0.0,
+                "iou": 0.0
+            },
+            {
+                "area": 0,
+                "overlap_percentage_rect1": 0.0,
+                "overlap_percentage_rect2": 0.0,
+                "iou": 0.0
+            },
+            {
+                "area": 0,
+                "overlap_percentage_rect1": 0.0,
+                "overlap_percentage_rect2": 0.0,
+                "iou": 0.0
+            },
+            {
+                "area": 3485.3716645534982,
+                "overlap_percentage_rect1": 13.984559100242741,
+                "overlap_percentage_rect2": 6.76718480436255,
+                "iou": 4.778301742302392
+            },
+            {
+                "area": 17351.878497264108,
+                "overlap_percentage_rect1": 69.62194959380535,
+                "overlap_percentage_rect2": 27.94117060279861,
+                "iou": 24.904883533323915
+            },
+            {
+                "area": 23458.00633380682,
+                "overlap_percentage_rect1": 94.12192085144974,
+                "overlap_percentage_rect2": 30.984169067225892,
+                "iou": 30.396001651574668
+            },
+            {
+                "area": 4750.9759404511315,
+                "overlap_percentage_rect1": 19.142881078433955,
+                "overlap_percentage_rect2": 9.2244774114303,
+                "iou": 6.638080179627942
+            },
+            {
+                "area": 8578.192679955937,
+                "overlap_percentage_rect1": 34.56370320509272,
+                "overlap_percentage_rect2": 13.813187152740749,
+                "iou": 10.949703533609108
+            },
+            {
+                "area": 227.40631146968508,
+                "overlap_percentage_rect1": 0.9162774199475596,
+                "overlap_percentage_rect2": 0.3003663440646498,
+                "iou": 0.22672444923518068
+            }
+        ],
+        "4": [
+            {
+                "area": 7182.7162824721945,
+                "overlap_percentage_rect1": 31.11219233089552,
+                "overlap_percentage_rect2": 13.114184814920979,
+                "iou": 10.163112870017683
+            },
+            {
+                "area": 20769.12517645785,
+                "overlap_percentage_rect1": 89.96220811494963,
+                "overlap_percentage_rect2": 30.839797539148428,
+                "iou": 29.813889949215334
+            },
+            {
+                "area": 15567.017814412002,
+                "overlap_percentage_rect1": 67.42909412172483,
+                "overlap_percentage_rect2": 19.591887043292616,
+                "iou": 17.898075399956383
+            },
+            {
+                "area": 4454.881802518201,
+                "overlap_percentage_rect1": 20.62922807371244,
+                "overlap_percentage_rect2": 8.13371167526387,
+                "iou": 6.195018750618122
+            },
+            {
+                "area": 2932.7767342254283,
+                "overlap_percentage_rect1": 13.580813772750306,
+                "overlap_percentage_rect2": 4.354841137630556,
+                "iou": 3.409910934386166
+            },
+            {
+                "area": 0,
+                "overlap_percentage_rect1": 0.0,
+                "overlap_percentage_rect2": 0.0,
+                "iou": 0.0
+            },
+            {
+                "area": 10.565695999696148,
+                "overlap_percentage_rect1": 0.0431658128026153,
+                "overlap_percentage_rect2": 0.01929082043466095,
+                "iou": 0.013334291903024448
+            },
+            {
+                "area": 0,
+                "overlap_percentage_rect1": 0.0,
+                "overlap_percentage_rect2": 0.0,
+                "iou": 0.0
+            },
+            {
+                "area": 0,
+                "overlap_percentage_rect1": 0.0,
+                "overlap_percentage_rect2": 0.0,
+                "iou": 0.0
+            }
+        ]
+    }
+}

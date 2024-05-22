@@ -4,23 +4,23 @@
     "bands": [
       {
         "band_name": "Blue",
-        "factor": 0.67
+        "factor": 1.0
       },
       {
         "band_name": "Green",
-        "factor": 0.69
+        "factor": 1.0
       },
       {
         "band_name": "Red",
-        "factor": 0.68
+        "factor": 1.0
       },
       {
         "band_name": "Red edge",
-        "factor": 0.67
+        "factor": 0.72
       },
       {
         "band_name": "NIR",
-        "factor": 0.61
+        "factor": 0.91
       }
     ]
   },
@@ -29,23 +29,48 @@
     "bands": [
       {
         "band_name": "Blue",
-        "factor": 0.65
+        "factor": 1.0
       },
       {
         "band_name": "Green",
-        "factor": 0.67
+        "factor": 0.43
       },
       {
         "band_name": "Red",
-        "factor": 0.66
+        "factor": 0.70
       },
       {
         "band_name": "Red edge",
-        "factor": 0.65
+        "factor": 0.35
       },
       {
         "band_name": "NIR",
-        "factor": 0.59
+        "factor": 0.4
+      }
+    ]
+  },
+  {
+    "shape": "rect",
+    "bands": [
+      {
+        "band_name": "Blue",
+        "factor": 0.17
+      },
+      {
+        "band_name": "Green",
+        "factor": 0.09
+      },
+      {
+        "band_name": "Red",
+        "factor": 0.12
+      },
+      {
+        "band_name": "Red edge",
+        "factor": 0.12
+      },
+      {
+        "band_name": "NIR",
+        "factor": 0.10
       }
     ]
   }
