@@ -6,9 +6,7 @@ from src.extractor.naive.Extractor import Extractor
 
 
 def test_naive_extractor():
-    with open("reflectance_panel_example_data.json") as f:
-        panel_data = json.load(f)
-    extractor = Extractor(panel_data)
+    extractor = Extractor("reflectance_panel_example_data.json")
     try:
         assert (extractor.extract("data/example/IMG_0040_1.tif",
                                   "src/detector/dummy/dummy_detection.json"

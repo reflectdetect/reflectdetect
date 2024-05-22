@@ -5,7 +5,10 @@ from datetime import datetime
 
 import shapely.geometry as sg
 
-from src.main import run_detection
+from src.detector.dummy.DummyDetector import DummyDetector
+from src.extractor.naive.Extractor import Extractor
+from src.main import run_pipeline_for_each_image
+from src.transformer.naive.Transformer import Transformer
 
 
 def test_pytest():
@@ -14,17 +17,26 @@ def test_pytest():
 
 def test_main_performance():
     dataset_path = "data/example/YOLO_OBB_Dataset"
-    results = run_detection(dataset_path)
+    detector = DummyDetector()
+    extractor = Extractor("reflectance_panel_example_data.json")
+    transformer = Transformer()
+    results = run_pipeline_for_each_image(detector, extractor, transformer, dataset_path)
     assert len(results) == 5
     overall_metrics = {"dataset": dataset_path, }
     for image_path, transformed_image_path, extraction_path, detection_path in results:
         overall_metrics[str(get_id_from_path(image_path))] = get_metrics(image_path, transformed_image_path,
-                                                                         extraction_path, detection_path)
+                                                                         extraction_path, detection_path).append(
+            {
+                "detector": detector.get_name(),
+                "extractor": extractor.get_name(),
+                "transformer": transformer.get_name()
+            }
+        )
     save_metrics(overall_metrics)
 
 
 def get_id_from_path(image_path):
-    return int(str(image_path.name).split("/")[0].split("_")[-1].split(".")[0])
+    return str(image_path.name).split("/")[-1]
 
 
 def get_metrics(image_path, transformed_image_path, extraction_path, detection_path):

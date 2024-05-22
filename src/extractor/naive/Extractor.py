@@ -10,6 +10,7 @@ from rasterio.features import rasterize
 from src.extractor.BaseExtractor import BaseExtractor
 from src.utils.paths import get_image_band, get_extraction_path
 
+
 # Expects panel locations to be a list of YOLO_OBB bounding boxes
 # in the form [id, class, x1, y1, x2, y1, x3, y3, x4, y4]
 def get_mean_radiance_values(panel_locations, img):
@@ -28,14 +29,18 @@ def get_mean_radiance_values(panel_locations, img):
 
 class Extractor(BaseExtractor):
 
-    def __init__(self, panel_data):
+    def get_name(self) -> str:
+        return "naive"
+
+    def __init__(self, panel_data_path: str):
         # Load panel data
-        self.panel_data = panel_data
+        with open(panel_data_path) as f:
+            self.panel_data = json.load(f)
 
     def get_panel_factors_for_band(self, band):
         return [panel["bands"][band]["factor"] for panel in self.panel_data]
 
-    def extract(self, image_path: str, detection_path: str, _=None) -> str:
+    def extract(self, image_path: str, detection_path: str) -> str:
         # get band identifier from image path
         band = get_image_band(image_path)
 
@@ -51,6 +56,7 @@ class Extractor(BaseExtractor):
 
         # gather radiance values of each panel detected in the image
         img = cv2.imread(image_path, cv2.IMREAD_UNCHANGED)
+        print(image_path)
         radiance_values = get_mean_radiance_values(panel_locations, img)
 
         reflectance_values = self.get_panel_factors_for_band(band)
