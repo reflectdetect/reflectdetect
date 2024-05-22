@@ -23,14 +23,26 @@ def run_pipeline_for_each_image(detector: BaseDetector, extractor: BaseExtractor
         extraction_results_path = extractor.extract(path, detection_results_path)
         transformed_image_path = transformer.transform(path, extraction_results_path)
 
-        return transformed_image_path
+        return transformed_image_path, extraction_results_path, detection_results_path
+
 
     template_path = (Path.cwd() / image_path).resolve()
+    file_endings = (".jpg", ".png", ".tif")
     if template_path.is_dir():
-        for filename in template_path.glob("*"):
-            pipeline(template_path.joinpath(filename).name)
+        images_path = (template_path / 'Images/seq1').resolve()
+        results = []
+        files = []
+
+        for e in file_endings:
+            files.extend(images_path.glob("*" + e))
+        for filename in files:
+            results.append((filename, *(pipeline(images_path.joinpath(filename).name))))
+        return results
     else:
-        pipeline(template_path.name)
+        if template_path.name.endswith(file_endings):
+            return list((template_path, pipeline(template_path.name)))
+        else:
+            return []
 
 
 def run_pipeline_for_batch(detector: BaseBatchDetector,
