@@ -22,18 +22,15 @@ def run_pipeline_for_each_image(detector: BaseDetector, extractor: BaseExtractor
 
         return transformed_image_path, extraction_results_path, detection_results_path
 
-
     template_path = (Path.cwd() / image_path).resolve()
     file_endings = (".jpg", ".png", ".tif")
     if template_path.is_dir():
         images_path = (template_path / 'Images/seq1').resolve()
         results = []
-        files = []
 
         for e in file_endings:
-            files.extend(images_path.glob("*" + e))
-        for filename in files:
-            results.append((filename, *(pipeline(images_path.joinpath(filename).name))))
+            for filename in images_path.glob("*" + e):
+                results.append((filename.absolute().as_posix(), *(pipeline(filename.absolute().as_posix()))))
         return results
     else:
         if template_path.name.endswith(file_endings):
