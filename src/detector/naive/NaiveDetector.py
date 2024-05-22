@@ -6,6 +6,14 @@ import numpy as np
 from matplotlib import pyplot as plt
 
 from src.detector.BaseDetector import BaseDetector
+from src.utils.panel_utils import get_panel_factors_for_band
+from src.utils.paths import get_image_band
+
+
+def load_image(path: str):
+    image = cv2.imread(path, cv2.IMREAD_GRAYSCALE)
+    transformed_image = cv2.normalize(image, None, alpha=0, beta=255, norm_type=cv2.NORM_MINMAX).astype(np.uint8)
+    return transformed_image
 
 
 class NaiveDetector(BaseDetector):
@@ -16,7 +24,6 @@ class NaiveDetector(BaseDetector):
             self.panels = data
         # TODO(add function to read from config file)
         # Given/known Camera parameters
-        self.boundingbox_closeness = 100.
         self.aspect_ratio_deviation = .8  # Threshold for aspect ratio deviation
         self.min_solidity = 0.60  # Set a threshold for solidity to filter out non-homogeneous areas
         self.area_deviation_smaller = 0.5
@@ -27,14 +34,6 @@ class NaiveDetector(BaseDetector):
         self.focal_length_mm = 5.5  # Focal length in millimeters
         self.physical_panel_size = (1, 1)  # Physical size of the object in meters (width, height)
 
-    def get_panel_factors_for_band(self, band):
-        return [panel["bands"][band]["factor"] for panel in self.panels]
-
-    def load_image(self, path: str):
-        image = cv2.imread(path, cv2.IMREAD_GRAYSCALE)
-        transformed_image = cv2.normalize(image, None, alpha=0, beta=255, norm_type=cv2.NORM_MINMAX).astype(np.uint8)
-        return transformed_image
-
     def preprocess_image(self, image, band, blur_kernel_size=41):
         # variance filter
         variance = filter_by_variance(image)
@@ -42,7 +41,7 @@ class NaiveDetector(BaseDetector):
         ret, thresh1 = cv2.threshold(blur, 1, 255, cv2.THRESH_BINARY_INV)
 
         images = [thresh1]
-        panels = self.get_panel_factors_for_band(band)
+        panels = get_panel_factors_for_band(self.panels, band)
         for panel in panels:
             images.append(
                 np.logical_and(image >= 255 * (panel - 0.05), image <= 255 * (panel + 0.05)).astype(np.uint8) * 255)
@@ -52,7 +51,7 @@ class NaiveDetector(BaseDetector):
         return images
 
     def detect(self, image_path: str) -> str:
-        image = self.load_image(image_path)
+        image = load_image(image_path)
         panel_size = calculate_panel_size_in_pixels(
             self.altitude,
             self.resolution,
@@ -61,10 +60,6 @@ class NaiveDetector(BaseDetector):
             self.physical_panel_size
         )
         kernel_size = (int(panel_size[0] / 8) * 2) + 1  # use 1/4th of the panel size as a blur kernel
-
-        def get_image_band(image_path: str) -> int:
-            # Assumes filenames are *_{band}.* with {band} being the 1 indexed band number
-            return int(image_path.split("/")[-1].split(".")[0].split("_")[-1]) - 1
 
         band = get_image_band(image_path)
         images = self.preprocess_image(image, band, blur_kernel_size=kernel_size)
@@ -75,7 +70,7 @@ class NaiveDetector(BaseDetector):
             boxes = boxes + found_boxes
 
         # TODO: combine near boxes
-        bounding_boxes = boxes
+        bounding_boxes = self.combine_bounding_boxes(boxes, panel_size[0]/2)
 
         show_image_with_bboxes(image, [np.array(bbox["coordinates"]) for bbox in bounding_boxes])
         # Save bounding box coordinates to a JSON file
@@ -123,6 +118,18 @@ class NaiveDetector(BaseDetector):
         filtered_contours = self.find_contours(image, panel_size)
         bounding_boxes = self.convert_contours_to_bboxes(filtered_contours, panel_size)
         return bounding_boxes
+
+    def combine_bounding_boxes(self, boxes, closeness: int):
+        combined_boxes = []
+        for index, box in enumerate(boxes):
+            for box2 in boxes[index + 1:]:
+                center = np.array(box["coordinates"]).mean(0)
+                center2 = np.array(box2["coordinates"]).mean(0)
+                if math.dist(center, center2) < closeness:
+                    break
+            else:
+                combined_boxes.append(box)
+        return combined_boxes
 
 
 def show_image_with_bboxes(image, boxes):

@@ -8,6 +8,7 @@ import shapely.geometry as sg
 from rasterio.features import rasterize
 
 from src.extractor.BaseExtractor import BaseExtractor
+from src.utils.panel_utils import get_panel_factors_for_band
 from src.utils.paths import get_image_band, get_extraction_path
 
 # Expects panel locations to be a list of YOLO_OBB bounding boxes
@@ -32,9 +33,6 @@ class Extractor(BaseExtractor):
         # Load panel data
         self.panel_data = panel_data
 
-    def get_panel_factors_for_band(self, band):
-        return [panel["bands"][band]["factor"] for panel in self.panel_data]
-
     def extract(self, image_path: str, detection_path: str, _=None) -> str:
         # get band identifier from image path
         band = get_image_band(image_path)
@@ -53,7 +51,7 @@ class Extractor(BaseExtractor):
         img = cv2.imread(image_path, cv2.IMREAD_UNCHANGED)
         radiance_values = get_mean_radiance_values(panel_locations, img)
 
-        reflectance_values = self.get_panel_factors_for_band(band)
+        reflectance_values = get_panel_factors_for_band(self.panel_data, band)
 
         # Assign panel to detection based on ranking of reflectance and radiance (naive)
         extraction_data = list(zip(np.sort(radiance_values), np.sort(reflectance_values)))
