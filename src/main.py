@@ -1,14 +1,46 @@
 import argparse
 import logging
-import os.path
 from pathlib import Path
 
+from src.detector.BaseDetector import BaseDetector
 from src.detector.dummy.DummyDetector import DummyDetector
-from src.detector.naive.NaiveDetector import NaiveDetector
+from src.extractor.BaseExtractor import BaseExtractor
 from src.extractor.dummy.DummyExtractor import DummyExtractor
+from src.transformer.BaseTransformer import BaseTransformer
 from src.transformer.dummy.DummyTransformer import DummyTransformer
 
 logger = logging.getLogger(__name__)
+
+
+def run_pipeline_for_each_image(detector: BaseDetector, extractor: BaseExtractor, transformer: BaseTransformer,
+                                image_path: str):
+    def pipeline(path: str):
+        logger.info(f"Transforming image {path} to reflectance")
+        detection_results_path = detector.detect(path)
+        extraction_results_path = extractor.extract(path, detection_results_path)
+        transformed_image_path = transformer.transform(path, extraction_results_path)
+
+        return transformed_image_path, extraction_results_path, detection_results_path
+
+
+    template_path = (Path.cwd() / image_path).resolve()
+    file_endings = (".jpg", ".png", ".tif")
+    if template_path.is_dir():
+        images_path = (template_path / 'Images/seq1').resolve()
+        results = []
+        files = []
+
+        for e in file_endings:
+            files.extend(images_path.glob("*" + e))
+        for filename in files:
+            results.append((filename, *(pipeline(images_path.joinpath(filename).name))))
+        return results
+    else:
+        if template_path.name.endswith(file_endings):
+            return list((template_path, pipeline(template_path.name)))
+        else:
+            return []
+
 
 if __name__ == '__main__':
     logging.basicConfig(level=logging.INFO)
@@ -20,23 +52,8 @@ if __name__ == '__main__':
     parser.add_argument("path", help="Path to the image file or image files directory", type=str)
     args = parser.parse_args()
 
-    detector = NaiveDetector()
+    detector = DummyDetector()
     extractor = DummyExtractor()
     transformer = DummyTransformer()
 
-
-    def pipeline(path: str):
-        logger.info(f"Transforming image {path} to reflectance")
-        detection_results_path = detector.detect(path)
-        extraction_results_path = extractor.extract(path, detection_results_path)
-        transformed_image_path = transformer.transform(path, extraction_results_path)
-
-        return transformed_image_path
-
-
-    template_path = (Path.cwd() / args.path).resolve()
-    if template_path.is_dir():
-        for filename in template_path.glob("*"):
-            pipeline(template_path.joinpath(filename).name)
-    else:
-        pipeline(template_path.name)
+    run_pipeline_for_each_image(detector, extractor, transformer, args.path)
