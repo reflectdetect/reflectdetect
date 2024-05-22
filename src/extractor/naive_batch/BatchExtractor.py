@@ -12,6 +12,9 @@ from src.utils.paths import get_image_band, get_extractions_path
 
 class BatchExtractor(BaseBatchExtractor):
 
+    def get_name(self) -> str:
+        return "naive_batch"
+
     def __init__(self, panel_data):
         # Load panel data
         self.panel_data = panel_data

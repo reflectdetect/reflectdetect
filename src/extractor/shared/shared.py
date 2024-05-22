@@ -1,6 +1,6 @@
 import numpy as np
-from rasterio.features import rasterize
 import shapely as sg
+from rasterio.features import rasterize
 
 
 # Expects panel locations to be a list of YOLO_OBB bounding boxes

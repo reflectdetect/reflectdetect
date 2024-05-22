@@ -12,14 +12,18 @@ from src.utils.paths import get_image_band, get_extraction_path
 
 class Extractor(BaseExtractor):
 
-    def __init__(self, panel_data):
+    def get_name(self) -> str:
+        return "naive"
+
+    def __init__(self, panel_data_path: str):
         # Load panel data
-        self.panel_data = panel_data
+        with open(panel_data_path) as f:
+            self.panel_data = json.load(f)
 
     def get_panel_factors_for_band(self, band):
         return [panel["bands"][band]["factor"] for panel in self.panel_data]
 
-    def extract(self, image_path: str, detection_path: str, _=None) -> str:
+    def extract(self, image_path: str, detection_path: str) -> str:
         # get band identifier from image path
         band = get_image_band(image_path)
 

@@ -10,9 +10,13 @@ def test_naive_batch_extractor():
         panel_data = json.load(f)
     extractor = BatchExtractor(panel_data)
     try:
-        assert (extractor.extract(["data/example/IMG_0040_1.tif", "data/example/IMG_0040_2.tif"],
+        assert (extractor.extract(["data/example/YOLO_OBB_Dataset/Images/seq1/seq1_00040_00.jpg",
+                                   "data/example/YOLO_OBB_Dataset/Images/seq1/seq1_00040_01.jpg"],
                                   "dummy_detection.json"
                                   )
-                == (Path.cwd() / "data/example/metadata/0040_extraction.json").resolve())
+                == (
+                            Path.cwd() / "data/example/YOLO_OBB_Dataset/Images/seq1/metadata/40_extraction.json").resolve())
     finally:
-        os.remove("data/example/metadata/0040_extraction.json")
+        path = "data/example/YOLO_OBB_Dataset/Images/seq1/metadata/40_extraction.json"
+        if os.path.exists(path):
+            os.remove(path)

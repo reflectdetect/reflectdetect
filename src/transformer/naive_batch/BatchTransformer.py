@@ -27,7 +27,7 @@ class BatchTransformer(BaseBatchTransformer):
             img = cv2.imread(image_path, cv2.IMREAD_UNCHANGED)
 
             # poly1d function converts the image to reflectance so 0.0 to 1.0
-            float_img = np.vectorize(poly1d_fn)(img)
+            float_img = poly1d_fn(img)
 
             # convert from float to uint for smaller file size
             # We save the image with 4 places of precision
