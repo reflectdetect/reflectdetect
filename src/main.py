@@ -1,72 +1,65 @@
 import argparse
+import json
 import logging
-from itertools import groupby
 from pathlib import Path
-
-from src.detector.BaseBatchDetector import BaseBatchDetector
-from src.detector.BaseDetector import BaseDetector
-from src.detector.dummy.DummyDetector import DummyDetector
-from src.extractor.BaseExtractor import BaseExtractor
-from src.extractor.dummy.DummyExtractor import DummyExtractor
-from src.transformer.BaseTransformer import BaseTransformer
-from src.transformer.dummy.DummyTransformer import DummyTransformer
-from src.utils.paths import get_image_id
 
 logger = logging.getLogger(__name__)
 
 
-def run_pipeline_for_each_image(detector: BaseDetector, extractor: BaseExtractor, transformer: BaseTransformer,
-                                image_path: str):
-    def pipeline(path: str):
-        logger.info(f"Transforming image {path} to reflectance")
-        detection_results_path = detector.detect(path)
-        extraction_results_path = extractor.extract(path, detection_results_path)
-        transformed_image_path = transformer.transform(path, extraction_results_path)
-
-        return transformed_image_path, extraction_results_path, detection_results_path
-
-    template_path = (Path.cwd() / image_path).resolve()
-    file_endings = (".jpg", ".png", ".tif")
-    if template_path.is_dir():
-        images_path = (template_path / 'Images/seq1').resolve()
-        results = []
-
-        for e in file_endings:
-            for filename in images_path.glob("*" + e):
-                results.append((filename.absolute().as_posix(), *(pipeline(filename.absolute().as_posix()))))
-        return results
-    else:
-        if template_path.name.endswith(file_endings):
-            return list((template_path, pipeline(template_path.name)))
-        else:
-            return []
+def detect(orthophoto, panel_locations: list) -> bool:
+    # use panel locations to check if a panel lies inside the orthophoto
+    # return True if all panels are in the image
+    pass
 
 
-def run_pipeline_for_batch(detector: BaseBatchDetector,
-                           extractor: BaseExtractor,
-                           transformer: BaseTransformer,
-                           image_path: str):
-    def pipeline(image_paths: [str]):
-        logger.info(f"Transforming images {get_image_id(image_paths[0])}_* to reflectance")
-        detection_results_path = detector.detect(image_paths)
-        extraction_results_path = extractor.extract(image_paths, detection_results_path)
-        transformed_image_path = transformer.transform(image_paths, extraction_results_path)
+def extract(orthphoto, panel_locations) -> list:
+    # assumes that the panels are present inside the orthophoto
+    # extract mean intensity for each panel using the location
+    # returns intensity for each panel
+    pass
 
-        return transformed_image_path
 
-    # create batches
-    batches = []
-    template_path = (Path.cwd() / image_path).resolve()
-    if template_path.is_dir():
-        # TODO: filter for only images
-        # group image paths by image id
-        grouped_images = [list(v) for i, v in groupby(template_path.glob("*"), lambda x: get_image_id(x))]
-        batches.append(*grouped_images)
-    else:
-        batches.append([template_path])
+def fit(panel_intensities, panel_properties) -> list:
+    # Use collected intensities and expected properites of the panels
+    # to fit a function which converts the DNs to reflectance.
+    #coef = np.polyfit(x, y, 1)
+    pass
 
-    for batch in batches:
-        pipeline(batch)
+def interpolate(coefficients) -> dict:
+    # Takes a list of linear function coefficients for each image
+    # or None if the image did not contain the panels in temporal order
+    # Creates missing coefficients by linearly interpolating between the coefficients
+    pass
+
+def convert(filename: str, coeffs: list):
+    # converts a photo based on a linear transformation.
+    pass
+
+def load_orthophoto():
+    pass
+
+
+def run_pipeline_for_orthophotos(orthophotos_dir: str, panel_properties_file: str):
+    template_path = (Path.cwd() / orthophotos_dir).resolve()
+    with open(panel_properties_file) as f:
+        panel_properties = json.load(f)
+        panel_locations = [panel["location"] for panel in panel_properties]
+    coefficients = {}
+    for filename in template_path.glob("*"):
+        photo = load_orthophoto()
+        # detect which orthophotos contain panels
+        if not detect(photo, panel_locations):
+            continue
+        # extract panel intensity for each image with panels
+        panel_intensities = extract(filename, panel_locations)
+        # fit linear function for each image with panels
+        coeffs = fit(panel_intensities, panel_properties)
+        coefficients[filename] = coeffs
+    # interpolate between linear functions for images without panels
+    coefficients = interpolate(coefficients)
+    # convert orthophotos
+    for file, coeffs in coefficients.items():
+        convert(file, coeffs)
 
 
 if __name__ == '__main__':
@@ -76,11 +69,9 @@ if __name__ == '__main__':
         description='Automatically detect reflection calibration panels in images and transform the given images to '
                     'reflectance',
         epilog='If you have any questions, please contact')
-    parser.add_argument("path", help="Path to the image file or image files directory", type=str)
+    parser.add_argument("path", help="Path to the image files", type=str)
+    parser.add_argument("panel_properties", help="Path to the property file of the panels", type=str)
+    parser.add_argument("--no-georef", help="", type=bool)
     args = parser.parse_args()
 
-    d = DummyDetector()
-    e = DummyExtractor()
-    t = DummyTransformer()
-
-    run_pipeline_for_each_image(d, e, t, args.path)
+    run_pipeline_for_orthophotos(args.path, args.panel_properties)
