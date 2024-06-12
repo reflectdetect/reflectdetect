@@ -3,58 +3,75 @@ import json
 import logging
 from pathlib import Path
 
+import numpy as np
+
 logger = logging.getLogger(__name__)
 
 
-def detect(orthophoto, panel_locations: list) -> bool:
+def detect(orthophoto, panel_location) -> bool:
     # use panel locations to check if a panel lies inside the orthophoto
-    # return True if all panels are in the image
     pass
 
 
-def extract(orthphoto, panel_locations) -> list:
-    # assumes that the panels are present inside the orthophoto
-    # extract mean intensity for each panel using the location
-    # returns intensity for each panel
+def extract(image, panel_location) -> float:
+    # image is one band of the orthophoto
+    # assumes that the panel is present inside the image
+    # extract mean intensity
     pass
 
 
-def fit(panel_intensities, panel_properties) -> list:
-    # Use collected intensities and expected properites of the panels
+def fit(intensities, expected_reflectances) -> list:
+    # Use collected intensities and expected properties of the panels
     # to fit a function which converts the DNs to reflectance.
-    #coef = np.polyfit(x, y, 1)
-    pass
+    coeffs = np.polyfit(intensities, expected_reflectances, 1)
+    return coeffs.tolist()
+
 
 def interpolate(coefficients) -> dict:
-    # Takes a list of linear function coefficients for each image
-    # or None if the image did not contain the panels in temporal order
-    # Creates missing coefficients by linearly interpolating between the coefficients
+    # Takes a list of linear function coefficients
+    # or None in temporal order
+    # Creates missing coefficients (None) by linearly interpolating between the coefficients
     pass
 
-def convert(filename: str, coeffs: list):
+
+def convert(orthophoto, coeffs_for_each_band):
     # converts a photo based on a linear transformation.
     pass
 
+
 def load_orthophoto():
+    pass
+
+
+def get_bands(orthophoto) -> list:
+    # split the orthophoto into bands
+    pass
+
+
+def get_band_reflectance(panels, band_index) -> list:
+    # return the reflectance values of each panel at a given band
     pass
 
 
 def run_pipeline_for_orthophotos(orthophotos_dir: str, panel_properties_file: str):
     template_path = (Path.cwd() / orthophotos_dir).resolve()
     with open(panel_properties_file) as f:
-        panel_properties = json.load(f)
-        panel_locations = [panel["location"] for panel in panel_properties]
+        panels = json.load(f)
+
     coefficients = {}
     for filename in template_path.glob("*"):
         photo = load_orthophoto()
-        # detect which orthophotos contain panels
-        if not detect(photo, panel_locations):
+        # detect which orthophotos contain all panels
+        if not np.array([detect(photo, panel["location"]) for panel in panels]).any():
             continue
-        # extract panel intensity for each image with panels
-        panel_intensities = extract(filename, panel_locations)
-        # fit linear function for each image with panels
-        coeffs = fit(panel_intensities, panel_properties)
-        coefficients[filename] = coeffs
+
+        # Calculate the coefficients for each band
+        coefficients[filename] = []
+        for band, band_index in get_bands(photo):
+            # extract panel intensity for each image with panels
+            panel_intensities = [extract(band, panel["location"]) for panel in panels]
+            coefficients[filename].append(fit(panel_intensities, get_band_reflectance(panels, band_index)))
+            # fit linear function for each image with panels
     # interpolate between linear functions for images without panels
     coefficients = interpolate(coefficients)
     # convert orthophotos
