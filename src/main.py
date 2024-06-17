@@ -39,7 +39,7 @@ def convert(orthophoto, coeffs_for_each_band):
     pass
 
 
-def load_orthophoto():
+def load_orthophoto(filename):
     pass
 
 
@@ -53,29 +53,35 @@ def get_band_reflectance(panels, band_index) -> list:
     pass
 
 
+def get_coefficients_for_orthophoto(filename, panels):
+    photo = load_orthophoto(filename)
+    # detect which orthophotos contain all panels
+    if not np.array([detect(photo, panel["location"]) for panel in panels]).any():
+        return None
+    
+
+    # Calculate the coefficients for each band
+    coefficients = []
+    for band, band_index in get_bands(photo):
+        # extract panel intensity for each image with panels
+        panel_intensities = [extract(band, panel["location"]) for panel in panels]
+        coefficients[band_index] = fit(panel_intensities, get_band_reflectance(panels, band_index))
+        # fit linear function for each image with panels
+    return coefficients
+
+
 def run_pipeline_for_orthophotos(orthophotos_dir: str, panel_properties_file: str):
     template_path = (Path.cwd() / orthophotos_dir).resolve()
     with open(panel_properties_file) as f:
         panels = json.load(f)
 
-    coefficients = {}
+    sparse_coefficients = {}
     for filename in template_path.glob("*"):
-        photo = load_orthophoto()
-        # detect which orthophotos contain all panels
-        if not np.array([detect(photo, panel["location"]) for panel in panels]).any():
-            continue
-
-        # Calculate the coefficients for each band
-        coefficients[filename] = []
-        for band, band_index in get_bands(photo):
-            # extract panel intensity for each image with panels
-            panel_intensities = [extract(band, panel["location"]) for panel in panels]
-            coefficients[filename].append(fit(panel_intensities, get_band_reflectance(panels, band_index)))
-            # fit linear function for each image with panels
+        sparse_coefficients[filename.name] = get_coefficients_for_orthophoto(filename, panels)
     # interpolate between linear functions for images without panels
-    coefficients = interpolate(coefficients)
+    dense_coefficients = interpolate(sparse_coefficients)
     # convert orthophotos
-    for file, coeffs in coefficients.items():
+    for file, coeffs in dense_coefficients.items():
         convert(file, coeffs)
 
 
