@@ -28,10 +28,45 @@ def fit(intensities, expected_reflectances) -> list:
 
 
 def interpolate(coefficients) -> dict:
+    # Creates missing coefficients (None) by linearly interpolating between the coefficients
+    # `coefficients` is a dict {filename: [slope, intersect]}
     # Takes a list of linear function coefficients
     # or None in temporal order
-    # Creates missing coefficients (None) by linearly interpolating between the coefficients
-    pass
+    # TODO: Make global sorting function
+    filenames = list(sorted(coefficients.keys()))  # Assuming alphabetical order makes sense
+    values = [coefficients[filename] for filename in filenames]
+    is_none = [v is None for v in values]  # Track which indices have value None
+    non_none_vals = [(i, v) for i, v in enumerate(values) if v is not None]
+
+    for i, _ in enumerate(values):
+        if is_none[i]:  # If our value is None, interpolate
+            # Find the closest indices with value on either side
+            lower_idx = max(idx for idx, v in non_none_vals if idx < i)
+            upper_idx = min(idx for idx, v in non_none_vals if idx > i)
+
+            lower_coeffs = values[lower_idx]
+            upper_coeffs = values[upper_idx]
+
+            # This might be confusing as we are linearly interpolating linear functions
+            # First we interpolate the slopes,
+            # then the intercepts by calculating a slope and intercept for the calculation
+
+            # Interpolate slopes
+            slope = (upper_coeffs[0] - lower_coeffs[0]) / (upper_idx - lower_idx)
+            intercept = lower_coeffs[0] - slope * lower_idx
+
+            interpolated_slopes = [slope * i + intercept for i in range(lower_idx, upper_idx + 1)]
+
+            # Interpolate intercepts
+            slope = (upper_coeffs[1] - lower_coeffs[1]) / (upper_idx - lower_idx)
+            intercept = lower_coeffs[1] - slope * lower_idx
+
+            interpolated_intercepts = [slope * i + intercept for i in range(lower_idx, upper_idx + 1)]
+            interpolated_values = list(zip(interpolated_slopes, interpolated_intercepts))
+            # Update the values array with the interpolated values
+            for j in range(lower_idx, upper_idx + 1):
+                values[j] = interpolated_values[j - lower_idx]
+    return dict(zip(filenames, values))
 
 
 def convert(orthophoto, coeffs_for_each_band):
@@ -58,7 +93,6 @@ def get_coefficients_for_orthophoto(filename, panels):
     # detect which orthophotos contain all panels
     if not np.array([detect(photo, panel["location"]) for panel in panels]).any():
         return None
-    
 
     # Calculate the coefficients for each band
     coefficients = []
