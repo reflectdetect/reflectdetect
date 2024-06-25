@@ -1,7 +1,6 @@
 import argparse
 import fiona
 import json
-import geojson
 import pandas as pd
 import rasterio
 import logging
@@ -15,8 +14,7 @@ from shapely.geometry import Point, Polygon
 logger = logging.getLogger(__name__)
 
 
-def detect(orthophoto_dir, geopoints_gdf, shape, side_length_meters=None):
-    template_path = (Path.cwd() / orthophoto_dir).resolve()
+def detect(filepaths, geopoints_gdf, shape, side_length_meters=None):
     result_files = []
 
     if shape not in ['sq', 'rect', 'circ']:
@@ -35,11 +33,10 @@ def detect(orthophoto_dir, geopoints_gdf, shape, side_length_meters=None):
 
     def extract_panel_location_from_image(result_files, shape, side_length_meters):
         panel_locations = []
-
+        # TODO: Check if its a display problem with matplotlib otherwise add distortion correction
+        #  (See test.ipynb)
         for filepath in result_files:
             with rasterio.open(filepath) as dataset:
-                # TODO: Check if its a display problem with matplotlib otherwise add distortion correction
-                #  (See test.ipynb)
                 if shape == 'sq' and side_length_meters is not None:
                     pixel_size = dataset.res[0]  # Assuming square pixels
                     side_length_pixels = side_length_meters / pixel_size
@@ -77,9 +74,7 @@ def detect(orthophoto_dir, geopoints_gdf, shape, side_length_meters=None):
                                         row_d, col_d = dataset.index(point_d.x, point_d.y)
 
                                         # Check if all points are within the image bounds
-                                        if all(0 <= coord < dataset.width for coord in
-                                               [col_a, col_b, col_c, col_d]) and all(
-                                                0 <= coord < dataset.height for coord in [row_a, row_b, row_c, row_d]):
+                                        if all(0 <= coord < dataset.width for coord in [col_a, col_b, col_c, col_d]) and all(0 <= coord < dataset.height for coord in [row_a, row_b, row_c, row_d]):
                                             panel_locations.append({
                                                 "file": str(filepath),
                                                 "points": [
@@ -91,18 +86,18 @@ def detect(orthophoto_dir, geopoints_gdf, shape, side_length_meters=None):
                                             })
                                             used_points.update([i, j])
                                             break
-                elif shape == 'rect':
-                    # TODO: Implement rectangle detection
+                elif shape == "rect":
+                    # TODO: Implement rect detection
                     pass
-                elif shape == 'circ':
-                    # TODO: Implement circle detection
+                elif shape == "circ":
+                    # TODO: Implement circ detection
                     pass
 
         with open('panel_locations.json', 'w') as f:
             json.dump(panel_locations, f, indent=4)
 
     # Load each orthophoto
-    for filepath in template_path.glob("*.tif"):
+    for filepath in filepaths:
         with rasterio.open(filepath) as dataset:
             # Get the bounds of the orthophoto
             bounds = BoundingBox(*dataset.bounds)
@@ -114,7 +109,7 @@ def detect(orthophoto_dir, geopoints_gdf, shape, side_length_meters=None):
                         (bounds.left, bounds.top),
                         (bounds.right, bounds.top),
                         (bounds.right, bounds.bottom)])
-                ]
+                    ]
                 }
             )
             # Check if all points from geopoints_gdf are within the bounds
@@ -157,17 +152,23 @@ def convert(orthophoto, coeffs_for_each_band):
 
 
 def load_orthophoto(orthophoto_dir):
-    template_path = (Path.cwd() / orthophoto_dir).resolve()
-    for filepath in template_path.glob("*"):
-        yield filepath, gpd.read_file(filepath)
+    template_path = Path(orthophoto_dir).resolve()
+    return [filepath for filepath in template_path.glob("*.tif")]
 
+def load_orthophoto_with_data(orthophoto_dir):
+    template_path = Path(orthophoto_dir).resolve()
+    photos = []
+    for filepath in template_path.glob("*.tif"):
+        with rasterio.open(filepath) as dataset:
+            photos.append((filepath, dataset.read()))
+    return photos
 
-def load_geopackage(filepath):
+def load_geopackage(geopackage_dir):
     geopoints = []
     with fiona.Env():
-        layers = fiona.listlayers(filepath)
+        layers = fiona.listlayers(geopackage_dir)
         for layer in layers:
-            gdf = gpd.read_file(filepath, layer=layer)
+            gdf = gpd.read_file(geopackage_dir, layer=layer)
             geopoints.append(gdf)
     return geopoints
 
@@ -183,7 +184,7 @@ def get_band_reflectance(panels, band_index) -> list:
 
 
 def run_pipeline_for_orthophotos(orthophotos_dir: str, panel_properties_file: str, geopackage_file: str, shape: str,
-                                 side_length_meters: float):
+                                side_length_meters: float):
     with open(panel_properties_file) as f:
         panels = json.load(f)
 
@@ -191,10 +192,19 @@ def run_pipeline_for_orthophotos(orthophotos_dir: str, panel_properties_file: st
     geopoints_gdf = gpd.GeoDataFrame(pd.concat(geopoints, ignore_index=True))
     geopoints_gdf.to_file('geopoints.geojson', driver='GeoJSON')
 
+    # Load orthophoto paths
+    orthophoto_files = load_orthophoto(orthophotos_dir)
+
+    # Detect panels in the orthophotos
+    matching_files = detect(orthophoto_files, geopoints_gdf, shape, side_length_meters)
+    print(matching_files)
+
+    # Load orthophotos with data for further processing
+    orthophoto_data = load_orthophoto_with_data(orthophotos_dir)
+
     coefficients = {}
-    for filename, photo in load_orthophoto(orthophotos_dir):
-        result_files = detect(filename, geopoints_gdf, shape, side_length_meters)
-        if not result_files:
+    for filename, photo in orthophoto_data:
+        if filename not in matching_files:
             continue
 
         coefficients[filename] = []
