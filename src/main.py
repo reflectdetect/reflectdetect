@@ -2,24 +2,25 @@ import argparse
 import json
 import logging
 from pathlib import Path
+from typing import List, Tuple, Dict
 
 import fiona
 import geopandas as gpd
 import numpy as np
-import pandas as pd
 import rasterio
+from geopandas import GeoDataFrame
 from rasterio.coords import BoundingBox
 from shapely.geometry import Polygon
 
 logger = logging.getLogger(__name__)
 
 
-def filter_images_with_all_panels(filepaths, geopoints_gdfs):
-    result_files = []
+def filter_images_with_all_panels(filepaths: List[Path], geopoints_gdfs: List[GeoDataFrame]) -> List[Path]:
+    result_files: List[Path] = []
     for panel_gdf in geopoints_gdfs:
         for filepath in filepaths:
             with rasterio.open(filepath) as orthophoto:
-                # TODO: robust check wether panels are in image
+                # TODO: robust check whether panels are in image
                 bounds = BoundingBox(*orthophoto.bounds)
                 orthophoto_box = gpd.GeoDataFrame({'geometry': [Polygon(
                     [(bounds.left, bounds.bottom), (bounds.left, bounds.top), (bounds.right, bounds.top),
@@ -38,19 +39,19 @@ def filter_images_with_all_panels(filepaths, geopoints_gdfs):
     return result_files
 
 
-def extract(image, panel_location) -> float:
+def extract(image: Path, panel_location: GeoDataFrame) -> float:
     # image is one band of the orthophoto
     # assumes that the panel is present inside the image
     # extract mean intensity
     raise NotImplementedError
 
 
-def fit(intensities, expected_reflectances) -> list:
-    coeffs = np.polyfit(intensities, expected_reflectances, 1)
-    return coeffs.tolist()
+def fit(intensities: List[float], expected_reflectances: List[float]) -> Tuple[float, float]:
+    slope, intersect = np.polyfit(intensities, expected_reflectances, 1)
+    return slope, intersect
 
 
-def interpolate(coefficients) -> dict:
+def interpolate(coefficients: Dict[Path, List[Tuple[float, float]]]) -> Dict[Path, List[Tuple[float, float]]]:
     # Creates missing coefficients (None) by linearly interpolating between the coefficients
     # `coefficients` is a dict {filename: [slope, intersect]}
     # Takes a list of linear function coefficients
@@ -92,27 +93,29 @@ def interpolate(coefficients) -> dict:
     return dict(zip(filenames, values))
 
 
-def convert(orthophoto, coeffs_for_each_band):
+def convert(image: Path, coeffs_for_each_band: List[Tuple[float, float]]):
     # converts a photo based on a linear transformation.
     raise NotImplementedError
 
 
-def load_orthophotos(orthophoto_dir):
+def load_orthophotos(orthophoto_dir: str) -> List[Path]:
     template_path = Path(orthophoto_dir).resolve()
     return [filepath for filepath in template_path.glob("*.tif")]
 
 
-def load_geopackage(geopackage_dir):
+def load_geopackage(geopackage_dir) -> List[GeoDataFrame]:
     geopoints = []
     with fiona.Env():
         layers = fiona.listlayers(geopackage_dir)
         for layer in layers:
+            if layer == "android_metadata":
+                continue
             gdf = gpd.read_file(geopackage_dir, layer=layer)
             geopoints.append(gdf)
     return geopoints
 
 
-def get_bands(orthophoto) -> list:
+def get_bands(image: Path) -> list:
     # split the orthophoto into bands
     raise NotImplementedError
 
@@ -122,31 +125,30 @@ def get_band_reflectance(panels, band_index) -> list:
     raise NotImplementedError
 
 
-def run_pipeline_for_orthophotos(orthophotos_dir: str, panel_properties_file: str, geopackage_file: str, shape: str,
-                                 side_length_meters: float):
+def run_pipeline_for_orthophotos(orthophotos_dir: str, panel_properties_file: str, geopackage_file: str):
     with open(panel_properties_file) as f:
         panels = json.load(f)
 
     geopoints = load_geopackage(geopackage_file)
-    geopoints_gdf = gpd.GeoDataFrame(pd.concat(geopoints, ignore_index=True))
-    geopoints_gdf.to_file('geopoints.geojson', driver='GeoJSON')
 
     # Load orthophoto paths
     orthophoto_files = load_orthophotos(orthophotos_dir)
 
     # Detect panels in the orthophotos
-    matching_files = filter_images_with_all_panels(orthophoto_files, geopoints_gdf)
+    matching_files = filter_images_with_all_panels(orthophoto_files, geopoints)
     print("Found all panels in ", len(matching_files), "/", len(orthophoto_files), "files")
 
     # Load orthophotos with data for further processing
-    coefficients = {}
+    coefficients: Dict[Path, List[Tuple[float, float]] | None] = {}
+    for filename in orthophoto_files:
+        coefficients[filename] = None
     for filename in matching_files:
         with rasterio.open(filename) as dataset:
             photo = dataset.read()
-            coefficients[filename] = []
-            for band, band_index in get_bands(photo):
-                panel_intensities = [extract(band, panel["location"]) for panel in panels]
-                coefficients[filename].append(fit(panel_intensities, get_band_reflectance(panels, band_index)))
+        coefficients[filename] = []
+        for band, band_index in get_bands(photo):
+            panel_intensities = [extract(band, panel["location"]) for panel in panels]
+            coefficients[filename].append(fit(panel_intensities, get_band_reflectance(panels, band_index)))
 
     coefficients = interpolate(coefficients)
     for file, coeffs in coefficients.items():
@@ -160,12 +162,9 @@ if __name__ == '__main__':
         description='Automatically detect reflection calibration panels in images and transform the given images to '
                     'reflectance',
         epilog='If you have any questions, please contact')
-    parser.add_argument("path", help="Path to the image files", type=str)
+    parser.add_argument("images", help="Path to the image files", type=str)
     parser.add_argument("panel_properties", help="Path to the property file of the panels", type=str)
-    parser.add_argument("geopackage_file", help="Path to the GeoPackage file", type=str)
-    parser.add_argument("shape", help="Shape of the panels (sq, rect, circ)", type=str)
-    parser.add_argument("side_length_meters", help="Side length of the panels in meters", type=float)
+    parser.add_argument("panel_corners", help="Path to the GeoPackage file", type=str)
     args = parser.parse_args()
 
-    run_pipeline_for_orthophotos(args.path, args.panel_properties, args.geopackage_file, args.shape,
-                                 args.side_length_meters)
+    run_pipeline_for_orthophotos(args.images, args.panel_properties, args.panel_corners)
