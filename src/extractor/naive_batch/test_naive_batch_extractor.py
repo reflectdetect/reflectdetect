@@ -12,10 +12,11 @@ def test_naive_batch_extractor():
     try:
         assert (extractor.extract(["data/example/YOLO_OBB_Dataset/Images/seq1/seq1_00040_00.jpg",
                                    "data/example/YOLO_OBB_Dataset/Images/seq1/seq1_00040_01.jpg"],
-                                  "dummy_detection.json"
+                                  ["src/detector/dummy/dummy_detection.json",
+                                   "src/detector/dummy/dummy_detection.json", ]
                                   )
                 == (
-                            Path.cwd() / "data/example/YOLO_OBB_Dataset/Images/seq1/metadata/40_extraction.json").resolve())
+                        Path.cwd() / "data/example/YOLO_OBB_Dataset/Images/seq1/metadata/40_extraction.json").resolve())
     finally:
         path = "data/example/YOLO_OBB_Dataset/Images/seq1/metadata/40_extraction.json"
         if os.path.exists(path):
