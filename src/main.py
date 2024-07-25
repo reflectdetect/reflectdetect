@@ -17,25 +17,40 @@ logger = logging.getLogger(__name__)
 
 def filter_images_with_all_panels(filepaths: List[Path], geopoints_gdfs: List[GeoDataFrame]) -> List[Path]:
     result_files: List[Path] = []
-    for panel_gdf in geopoints_gdfs:
-        for filepath in filepaths:
-            with rasterio.open(filepath) as orthophoto:
-                # TODO: robust check whether panels are in image
-                bounds = BoundingBox(*orthophoto.bounds)
-                orthophoto_box = gpd.GeoDataFrame({'geometry': [Polygon(
-                    [(bounds.left, bounds.bottom), (bounds.left, bounds.top), (bounds.right, bounds.top),
-                     (bounds.right, bounds.bottom)])]})
 
-                # TODO: also get panel data from images with only some panels visible
-                all_points_within = True
-                for _, point in panel_gdf.iterrows():
-                    if 'geometry' in point and point.geometry is not None:
-                        if not orthophoto_box.contains(point.geometry).all():
-                            all_points_within = False
-                            break
+    for filepath in filepaths:
+        with (rasterio.open(filepath) as orthophoto):
+            # Extract the bounding box of the orthophoto
+            bounds = BoundingBox(*orthophoto.bounds)
+            orthophoto_polygon = Polygon([
+                (bounds.left, bounds.bottom),
+                (bounds.left, bounds.top),
+                (bounds.right, bounds.top),
+                (bounds.right, bounds.bottom)
+            ])
+            # TODO: add input for alternative crs
+            # Create a GeoDataFrame for the orthophoto polygon with its CRS
+            orthophoto_box = gpd.GeoDataFrame({
+                'geometry': [orthophoto_polygon]},
+                crs="EPSG:4326"
+            )
+
+            layers_found = 0
+            for panel_gdf in geopoints_gdfs:
+                if panel_gdf.empty:
+                    continue
+
+                # Ensure the GeoDataframe has the same CRS as the orthophoto box
+                if panel_gdf.crs != orthophoto_box.crs:
+                    panel_gdf = panel_gdf.to_crs(orthophoto_box.crs)
+                # Check if all points in the layer are within the orthophots bounds
+                all_points_within = panel_gdf.within(orthophoto_polygon).all()
                 if all_points_within:
-                    result_files.append(filepath)
-                # Further processing for each geopoints_gdf
+                    layers_found += 1
+                    if layers_found >= 2:  # minimum for Panels for later calibration
+                        result_files.append(filepath)
+                        break
+    # Further processing for each geopoints_gdf
     return result_files
 
 
