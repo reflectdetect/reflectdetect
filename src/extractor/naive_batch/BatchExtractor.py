@@ -22,25 +22,24 @@ class BatchExtractor(BaseBatchExtractor):
     def get_panel_factors_for_band(self, band):
         return [panel["bands"][band]["factor"] for panel in self.panel_data]
 
-    def extract(self, image_paths: [str], detection_path: str, _=None) -> str:
-        # Load detection results
-        with open(detection_path) as f:
-            panel_locations = json.load(f)
-
+    def extract(self, image_paths: [str], detection_paths: [str], _=None) -> str:
         data = []
-        for image_path in image_paths:
+        for image_path, detection_path in zip(image_paths, detection_paths):
+            # Load detection results
+            with open(detection_path) as f:
+                panel_locations = json.load(f)
             # get band identifier from image path
             band = get_image_band(image_path)
             # Check if number of panels matches number of detections
             # If false return (naive approach)
-            if len(panel_locations[band]["detections"]) != len(self.panel_data):
+            if len(panel_locations) != len(self.panel_data):
                 raise Exception(
                     f"Incorrect number of detections: {len(self.panel_data)} panels specified,"
                     f" but {len(panel_locations[band]['detections'])} found")
 
             # gather radiance values of each panel detected in the image
             img = cv2.imread(image_path, cv2.IMREAD_UNCHANGED)
-            radiance_values = get_mean_radiance_values(panel_locations[band]["detections"], img)
+            radiance_values = get_mean_radiance_values(panel_locations, img)
 
             reflectance_values = self.get_panel_factors_for_band(band)
 
