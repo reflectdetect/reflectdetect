@@ -1,72 +1,158 @@
 import argparse
+import json
 import logging
-from itertools import groupby
 from pathlib import Path
+from typing import List, Tuple, Dict
 
-from src.detector.BaseBatchDetector import BaseBatchDetector
-from src.detector.BaseDetector import BaseDetector
-from src.detector.dummy.DummyDetector import DummyDetector
-from src.extractor.BaseExtractor import BaseExtractor
-from src.extractor.dummy.DummyExtractor import DummyExtractor
-from src.transformer.BaseTransformer import BaseTransformer
-from src.transformer.dummy.DummyTransformer import DummyTransformer
-from src.utils.paths import get_image_id
+import fiona
+import geopandas as gpd
+import numpy as np
+import rasterio
+from geopandas import GeoDataFrame
+from rasterio.coords import BoundingBox
+from shapely.geometry import Polygon
 
 logger = logging.getLogger(__name__)
 
 
-def run_pipeline_for_each_image(detector: BaseDetector, extractor: BaseExtractor, transformer: BaseTransformer,
-                                image_path: str):
-    def pipeline(path: str):
-        logger.info(f"Transforming image {path} to reflectance")
-        detection_results_path = detector.detect(path)
-        extraction_results_path = extractor.extract(path, detection_results_path)
-        transformed_image_path = transformer.transform(path, extraction_results_path)
+def filter_images_with_all_panels(filepaths: List[Path], geopoints_gdfs: List[GeoDataFrame]) -> List[Path]:
+    result_files: List[Path] = []
+    for panel_gdf in geopoints_gdfs:
+        for filepath in filepaths:
+            with rasterio.open(filepath) as orthophoto:
+                # TODO: robust check whether panels are in image
+                bounds = BoundingBox(*orthophoto.bounds)
+                orthophoto_box = gpd.GeoDataFrame({'geometry': [Polygon(
+                    [(bounds.left, bounds.bottom), (bounds.left, bounds.top), (bounds.right, bounds.top),
+                     (bounds.right, bounds.bottom)])]})
 
-        return transformed_image_path, extraction_results_path, detection_results_path
-
-    template_path = (Path.cwd() / image_path).resolve()
-    file_endings = (".jpg", ".png", ".tif")
-    if template_path.is_dir():
-        images_path = (template_path / 'Images/seq1').resolve()
-        results = []
-
-        for e in file_endings:
-            for filename in images_path.glob("*" + e):
-                results.append((filename.absolute().as_posix(), *(pipeline(filename.absolute().as_posix()))))
-        return results
-    else:
-        if template_path.name.endswith(file_endings):
-            return list((template_path, pipeline(template_path.name)))
-        else:
-            return []
+                # TODO: also get panel data from images with only some panels visible
+                all_points_within = True
+                for _, point in panel_gdf.iterrows():
+                    if 'geometry' in point and point.geometry is not None:
+                        if not orthophoto_box.contains(point.geometry).all():
+                            all_points_within = False
+                            break
+                if all_points_within:
+                    result_files.append(filepath)
+                # Further processing for each geopoints_gdf
+    return result_files
 
 
-def run_pipeline_for_batch(detector: BaseBatchDetector,
-                           extractor: BaseExtractor,
-                           transformer: BaseTransformer,
-                           image_path: str):
-    def pipeline(image_paths: [str]):
-        logger.info(f"Transforming images {get_image_id(image_paths[0])}_* to reflectance")
-        detection_results_path = detector.detect(image_paths)
-        extraction_results_path = extractor.extract(image_paths, detection_results_path)
-        transformed_image_path = transformer.transform(image_paths, extraction_results_path)
+def extract(image: Path, panel_location: GeoDataFrame) -> float:
+    # image is one band of the orthophoto
+    # assumes that the panel is present inside the image
+    # extract mean intensity
+    raise NotImplementedError
 
-        return transformed_image_path
 
-    # create batches
-    batches = []
-    template_path = (Path.cwd() / image_path).resolve()
-    if template_path.is_dir():
-        # TODO: filter for only images
-        # group image paths by image id
-        grouped_images = [list(v) for i, v in groupby(template_path.glob("*"), lambda x: get_image_id(x))]
-        batches.append(*grouped_images)
-    else:
-        batches.append([template_path])
+def fit(intensities: List[float], expected_reflectances: List[float]) -> Tuple[float, float]:
+    slope, intersect = np.polyfit(intensities, expected_reflectances, 1)
+    return slope, intersect
 
-    for batch in batches:
-        pipeline(batch)
+
+def interpolate(coefficients: Dict[Path, List[Tuple[float, float]]]) -> Dict[Path, List[Tuple[float, float]]]:
+    # Creates missing coefficients (None) by linearly interpolating between the coefficients
+    # `coefficients` is a dict {filename: [slope, intersect]}
+    # Takes a list of linear function coefficients
+    # or None in temporal order
+    # TODO: Make global sorting function
+    filenames = list(sorted(coefficients.keys()))  # Assuming alphabetical order makes sense
+    values = [coefficients[filename] for filename in filenames]
+    is_none = [v is None for v in values]  # Track which indices have value None
+    non_none_vals = [(i, v) for i, v in enumerate(values) if v is not None]
+
+    for i, _ in enumerate(values):
+        if is_none[i]:  # If our value is None, interpolate
+            # Find the closest indices with value on either side
+            lower_idx = max(idx for idx, v in non_none_vals if idx < i)
+            upper_idx = min(idx for idx, v in non_none_vals if idx > i)
+
+            lower_coeffs = values[lower_idx]
+            upper_coeffs = values[upper_idx]
+
+            # This might be confusing as we are linearly interpolating linear functions
+            # First we interpolate the slopes,
+            # then the intercepts by calculating a slope and intercept for the calculation
+
+            # Interpolate slopes
+            slope = (upper_coeffs[0] - lower_coeffs[0]) / (upper_idx - lower_idx)
+            intercept = lower_coeffs[0] - slope * lower_idx
+
+            interpolated_slopes = [slope * i + intercept for i in range(lower_idx, upper_idx + 1)]
+
+            # Interpolate intercepts
+            slope = (upper_coeffs[1] - lower_coeffs[1]) / (upper_idx - lower_idx)
+            intercept = lower_coeffs[1] - slope * lower_idx
+
+            interpolated_intercepts = [slope * i + intercept for i in range(lower_idx, upper_idx + 1)]
+            interpolated_values = list(zip(interpolated_slopes, interpolated_intercepts))
+            # Update the values array with the interpolated values
+            for j in range(lower_idx, upper_idx + 1):
+                values[j] = interpolated_values[j - lower_idx]
+    return dict(zip(filenames, values))
+
+
+def convert(image: Path, coeffs_for_each_band: List[Tuple[float, float]]):
+    # converts a photo based on a linear transformation.
+    raise NotImplementedError
+
+
+def load_orthophotos(orthophoto_dir: str) -> List[Path]:
+    template_path = Path(orthophoto_dir).resolve()
+    return [filepath for filepath in template_path.glob("*.tif")]
+
+
+def load_geopackage(geopackage_dir) -> List[GeoDataFrame]:
+    geopoints = []
+    with fiona.Env():
+        layers = fiona.listlayers(geopackage_dir)
+        for layer in layers:
+            if layer == "android_metadata":
+                continue
+            gdf = gpd.read_file(geopackage_dir, layer=layer)
+            geopoints.append(gdf)
+    return geopoints
+
+
+def get_bands(image: Path) -> list:
+    # split the orthophoto into bands
+    raise NotImplementedError
+
+
+def get_band_reflectance(panels, band_index) -> list:
+    # return the reflectance values of each panel at a given band
+    raise NotImplementedError
+
+
+def run_pipeline_for_orthophotos(orthophotos_dir: str, panel_properties_file: str, geopackage_file: str):
+    with open(panel_properties_file) as f:
+        panels = json.load(f)
+
+    geopoints = load_geopackage(geopackage_file)
+
+    # Load orthophoto paths
+    orthophoto_files = load_orthophotos(orthophotos_dir)
+
+    # Detect panels in the orthophotos
+    matching_files = filter_images_with_all_panels(orthophoto_files, geopoints)
+    print("Found all panels in ", len(matching_files), "/", len(orthophoto_files), "files")
+
+    # Load orthophotos with data for further processing
+    coefficients: Dict[Path, List[Tuple[float, float]] | None] = {}
+    for filename in orthophoto_files:
+        coefficients[filename] = None
+    for filename in matching_files:
+        with rasterio.open(filename) as dataset:
+            photo = dataset.read()
+        coefficients[filename] = []
+        for band, band_index in get_bands(photo):
+            panel_intensities = [extract(band, panel["location"]) for panel in panels]
+            coefficients[filename].append(fit(panel_intensities, get_band_reflectance(panels, band_index)))
+
+    coefficients = interpolate(coefficients)
+    for file, coeffs in coefficients.items():
+        convert(file, coeffs)
 
 
 if __name__ == '__main__':
@@ -76,11 +162,9 @@ if __name__ == '__main__':
         description='Automatically detect reflection calibration panels in images and transform the given images to '
                     'reflectance',
         epilog='If you have any questions, please contact')
-    parser.add_argument("path", help="Path to the image file or image files directory", type=str)
+    parser.add_argument("images", help="Path to the image files", type=str)
+    parser.add_argument("panel_properties", help="Path to the property file of the panels", type=str)
+    parser.add_argument("panel_corners", help="Path to the GeoPackage file", type=str)
     args = parser.parse_args()
 
-    d = DummyDetector()
-    e = DummyExtractor()
-    t = DummyTransformer()
-
-    run_pipeline_for_each_image(d, e, t, args.path)
+    run_pipeline_for_orthophotos(args.images, args.panel_properties, args.panel_corners)
