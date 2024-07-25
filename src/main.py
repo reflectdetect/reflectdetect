@@ -15,27 +15,25 @@ from shapely.geometry import Polygon
 logger = logging.getLogger(__name__)
 
 
-def filter_images_with_all_panels(filepaths: List[Path], geopoints_gdfs: List[GeoDataFrame]) -> List[Path]:
+def filter_images_with_all_panels(filepaths: List[Path], geopoints_gdfs:
+List[GeoDataFrame]) -> Tuple[List[Path], Dict[Path, List[GeoDataFrame]]]:
     result_files: List[Path] = []
+    panel_locations: Dict[Path, List[GeoDataFrame]] = {}
 
     for filepath in filepaths:
         with (rasterio.open(filepath) as orthophoto):
-            # Extract the bounding box of the orthophoto
             bounds = BoundingBox(*orthophoto.bounds)
             orthophoto_polygon = Polygon([
-                (bounds.left, bounds.bottom),
-                (bounds.left, bounds.top),
-                (bounds.right, bounds.top),
-                (bounds.right, bounds.bottom)
+                (bounds.left, bounds.bottom), (bounds.left, bounds.top),
+                (bounds.right, bounds.top), (bounds.right, bounds.bottom)
             ])
+
             # TODO: add input for alternative crs
             # Create a GeoDataFrame for the orthophoto polygon with its CRS
-            orthophoto_box = gpd.GeoDataFrame({
-                'geometry': [orthophoto_polygon]},
-                crs="EPSG:4326"
-            )
+            orthophoto_box = gpd.GeoDataFrame({'geometry': [orthophoto_polygon]}, crs="EPSG:4326")
 
             layers_found = 0
+            mathing_panels = []
             for panel_gdf in geopoints_gdfs:
                 if panel_gdf.empty:
                     continue
@@ -43,15 +41,18 @@ def filter_images_with_all_panels(filepaths: List[Path], geopoints_gdfs: List[Ge
                 # Ensure the GeoDataframe has the same CRS as the orthophoto box
                 if panel_gdf.crs != orthophoto_box.crs:
                     panel_gdf = panel_gdf.to_crs(orthophoto_box.crs)
+
                 # Check if all points in the layer are within the orthophots bounds
                 all_points_within = panel_gdf.within(orthophoto_polygon).all()
                 if all_points_within:
                     layers_found += 1
-                    if layers_found >= 2:  # minimum for Panels for later calibration
-                        result_files.append(filepath)
-                        break
-    # Further processing for each geopoints_gdf
-    return result_files
+                    mathing_panels.append(panel_gdf)
+
+            if layers_found >= 2:  # minimum for Panels for later calibration
+                result_files.append(filepath)
+                panel_locations[filepath] = mathing_panels
+
+    return result_files, panel_locations
 
 
 def extract(image: Path, panel_location: GeoDataFrame) -> float:
@@ -150,7 +151,7 @@ def run_pipeline_for_orthophotos(orthophotos_dir: str, panel_properties_file: st
     orthophoto_files = load_orthophotos(orthophotos_dir)
 
     # Detect panels in the orthophotos
-    matching_files = filter_images_with_all_panels(orthophoto_files, geopoints)
+    matching_files, panel_locations = filter_images_with_all_panels(orthophoto_files, geopoints)
     print("Found all panels in ", len(matching_files), "/", len(orthophoto_files), "files")
 
     # Load orthophotos with data for further processing
@@ -162,7 +163,8 @@ def run_pipeline_for_orthophotos(orthophotos_dir: str, panel_properties_file: st
             photo = dataset.read()
         coefficients[filename] = []
         for band, band_index in get_bands(photo):
-            panel_intensities = [extract(band, panel["location"]) for panel in panels]
+            panel_gdfs = panel_locations[filename]
+            panel_intensities = [extract(band, panel_gdf) for panel_gdf in panel_gdfs]
             coefficients[filename].append(fit(panel_intensities, get_band_reflectance(panels, band_index)))
 
     coefficients = interpolate(coefficients)
