@@ -1,6 +1,10 @@
 [
   {
     "shape": "rect",
+    "location": {
+      "lat": 0.0,
+      "lon": 0.0
+    },
     "bands": [
       {
         "band_name": "Blue",
@@ -26,6 +30,10 @@
   },
   {
     "shape": "rect",
+    "location": {
+      "lat": 0.0,
+      "lon": 0.0
+    },
     "bands": [
       {
         "band_name": "Blue",
