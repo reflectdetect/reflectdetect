@@ -8,10 +8,8 @@ from rasterio.features import rasterize
 def get_mean_radiance_values(panel_locations, img):
     panel_radiance_values = []
     for detection in panel_locations:
-        # ignore id and class
-        detection = detection[2:]
-        # convert [x1, y1, x2, y2] to [(x1, y1), (x2, y2)] and instantiate polygon
-        polygon = sg.Polygon(list(zip(detection, detection[1:]))[::2])
+        detection = detection['coordinates']
+        polygon = sg.Polygon(detection)
         mask = rasterize([polygon], out_shape=img.shape)
         # mean the radiance values to get a radiance value for the detection
         mean = np.ma.array(img, mask=~(mask.astype(np.bool_))).mean()

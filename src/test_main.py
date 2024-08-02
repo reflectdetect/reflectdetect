@@ -7,6 +7,7 @@ from datetime import datetime
 import shapely.geometry as sg
 
 from src.detector.dummy.DummyDetector import DummyDetector
+from src.detector.naive.NaiveDetector import NaiveDetector
 from src.extractor.naive.Extractor import Extractor
 from src.main import run_pipeline_for_each_image
 from src.transformer.naive.Transformer import Transformer
@@ -19,7 +20,7 @@ def test_pytest():
 
 def test_main_performance():
     dataset_path = "data/example/YOLO_OBB_Dataset"
-    detector = DummyDetector()
+    detector = NaiveDetector("reflectance_panel_example_data.json")
     extractor = Extractor("reflectance_panel_example_data.json")
     transformer = Transformer()
     try:
@@ -56,7 +57,7 @@ def get_metrics(dataset_path, image_path, transformed_image_path, extraction_pat
         band = get_image_band(image_path)
         ground_truth_annotations = [row for row in annotations if
                                     int(row["id"]) == int(identifier) and int(row["band"]) == band]
-
+        bounding_boxes = []
         metrics = []
         # Detection_metric
         with open(detection_path) as f:
@@ -65,8 +66,7 @@ def get_metrics(dataset_path, image_path, transformed_image_path, extraction_pat
                 for gt in ground_truth_annotations:
                     gt_list = list(gt.values())[2:]
                     gt_list = list(zip(gt_list, gt_list[1:]))[::2]
-                    detection_list = detection[2:]
-                    detection_list = list(zip(detection_list, detection_list[1:]))[::2]
+                    detection_list = detection['coordinates']
                     metrics.append(calculate_overlap_metrics(detection_list, gt_list))
         return metrics
 
