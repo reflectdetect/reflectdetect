@@ -10,6 +10,7 @@ import numpy as np
 import rasterio
 from geopandas import GeoDataFrame
 from rasterio.coords import BoundingBox
+from rasterio.windows import from_bounds
 from shapely.geometry import Polygon
 
 logger = logging.getLogger(__name__)
@@ -48,18 +49,31 @@ List[GeoDataFrame]) -> Tuple[List[Path], Dict[Path, List[GeoDataFrame]]]:
                     layers_found += 1
                     mathing_panels.append(panel_gdf)
 
-            if layers_found >= 2:  # minimum for Panels for later calibration
+            if layers_found >= 2:  # minimum Panels per image for later calibration
                 result_files.append(filepath)
                 panel_locations[filepath] = mathing_panels
 
     return result_files, panel_locations
 
 
-def extract(image: Path, panel_location: GeoDataFrame) -> float:
-    # image is one band of the orthophoto
-    # assumes that the panel is present inside the image
-    # extract mean intensity
-    raise NotImplementedError
+def extract(image: Path, panel_location: GeoDataFrame) -> Dict[int, float]:
+    # TODO: Check if bounding are correct.
+    # TODO: Check layers QGIS reporting 3. Getting 6 here for single image.
+    # TODO: Add panel numeration consistency for dict
+    with rasterio.open(image) as src:
+        results = {}
+        for i in range(1, src.count + 1):  # Iterate through each band
+            band = src.read(i)
+            panel_means = []
+            for idx, row in panel_location.iterrows():
+                # Extract the bounding box from the coordinates
+                panel_bounds = row.geometry.bounds
+                window = from_bounds(*panel_bounds, src.transform)
+                panel_data = band[window.toslices()]
+                panel_mean_intensity = panel_data.mean()
+                panel_means.append(panel_mean_intensity)
+            results[i] = np.mean(panel_means)
+    return results
 
 
 def fit(intensities: List[float], expected_reflectances: List[float]) -> Tuple[float, float]:
