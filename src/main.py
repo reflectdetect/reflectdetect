@@ -2,7 +2,7 @@ import argparse
 import json
 import logging
 from pathlib import Path
-from typing import List, Tuple, Dict, Any
+from typing import List, Tuple
 
 import fiona
 import geopandas as gpd
@@ -10,7 +10,7 @@ import numpy as np
 import pandas as pd
 import rasterio
 from geopandas import GeoDataFrame
-from numpy import ndarray, dtype
+from numpy import ndarray
 from rasterio.coords import BoundingBox
 from rasterio.windows import from_bounds
 from shapely.geometry import Polygon
@@ -43,7 +43,6 @@ def is_panel_in_orthophoto(orthophoto_path: Path, panel: GeoDataFrame) -> bool:
         return panel.within(orthophoto_polygon).all()
 
 
-
 def extract(band_image, panel_location: GeoDataFrame) -> float:
     # TODO: Check if bounding are correct.
     panel_bounds = panel_location.geometry.bounds
@@ -57,14 +56,13 @@ def fit(intensities: List[float], expected_reflectances: List[float]) -> Tuple[f
     return slope, intersect
 
 
-def interpolate(intensities: dict[Path, ndarray[Any, dtype[Any]]]) -> dict[Path, ndarray[Any, dtype[Any]]]:
-    # Creates missing intensities (None) by linearly interpolating between the intensities
-    # Takes a list of intensities or None in temporal order
-    # TODO: Make global sorting function
-    filenames = list(sorted(intensities.keys()))  # Assuming alphabetical order makes sense
-    values = [intensities[filename] for filename in filenames]
-    is_none = [v is None for v in values]  # Track which indices have value None
-    non_none_vals = [(i, v) for i, v in enumerate(values) if v is not None]
+def interpolate(values: ndarray[float]) -> ndarray[float]:
+    is_none = [np.isnan(v) for v in values]
+    non_none_vals = [(i, v) for i, v in enumerate(values) if not np.isnan(v)]
+
+    if len(non_none_vals) <= 0:
+        print('No values found for interpolation.')
+        return values
 
     for i, _ in enumerate(values):
         if is_none[i]:  # If our value is None, interpolate
@@ -72,29 +70,18 @@ def interpolate(intensities: dict[Path, ndarray[Any, dtype[Any]]]) -> dict[Path,
             lower_idx = max(idx for idx, v in non_none_vals if idx < i)
             upper_idx = min(idx for idx, v in non_none_vals if idx > i)
 
-            lower_coeffs = values[lower_idx]
-            upper_coeffs = values[upper_idx]
+            lower_value = values[lower_idx]
+            upper_value = values[upper_idx]
 
-            # This might be confusing as we are linearly interpolating linear functions
-            # First we interpolate the slopes,
-            # then the intercepts by calculating a slope and intercept for the calculation
+            slope = (upper_value - lower_value) / (upper_idx - lower_idx)
+            intercept = lower_value - slope * lower_idx
 
-            # Interpolate slopes
-            slope = (upper_coeffs[0] - lower_coeffs[0]) / (upper_idx - lower_idx)
-            intercept = lower_coeffs[0] - slope * lower_idx
+            interpolated_values = [slope * i + intercept for i in range(lower_idx, upper_idx + 1)]
 
-            interpolated_slopes = [slope * i + intercept for i in range(lower_idx, upper_idx + 1)]
-
-            # Interpolate intercepts
-            slope = (upper_coeffs[1] - lower_coeffs[1]) / (upper_idx - lower_idx)
-            intercept = lower_coeffs[1] - slope * lower_idx
-
-            interpolated_intercepts = [slope * i + intercept for i in range(lower_idx, upper_idx + 1)]
-            interpolated_values = list(zip(interpolated_slopes, interpolated_intercepts))
             # Update the values array with the interpolated values
             for j in range(lower_idx, upper_idx + 1):
                 values[j] = interpolated_values[j - lower_idx]
-    return dict(zip(filenames, values))
+    return values
 
 
 def convert(image: Path, coeffs_for_each_band: List[Tuple[float, float]]):
