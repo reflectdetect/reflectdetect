@@ -12,6 +12,7 @@ import rasterio
 from geopandas import GeoDataFrame
 from numpy import ndarray, dtype
 from rasterio.coords import BoundingBox
+from rasterio.windows import from_bounds
 from shapely.geometry import Polygon
 
 logger = logging.getLogger(__name__)
@@ -42,8 +43,13 @@ def is_panel_in_orthophoto(orthophoto_path: Path, panel: GeoDataFrame) -> bool:
         return panel.within(orthophoto_polygon).all()
 
 
-def extract(image, panel_location: GeoDataFrame) -> float:
-    raise NotImplementedError
+
+def extract(band_image, panel_location: GeoDataFrame) -> float:
+    # TODO: Check if bounding are correct.
+    panel_bounds = panel_location.geometry.bounds
+    window = from_bounds(*panel_bounds, band_image.transform)
+    panel_data = band_image[window.toslices()]
+    return panel_data.mean()
 
 
 def fit(intensities: List[float], expected_reflectances: List[float]) -> Tuple[float, float]:
