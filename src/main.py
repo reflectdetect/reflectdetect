@@ -43,21 +43,12 @@ def is_panel_in_orthophoto(orthophoto_path: Path, panel: GeoDataFrame) -> bool:
         return panel.within(orthophoto_polygon).all()
 
 
-def extract(band_image, panel_location: GeoDataFrame) -> float:
-    # TODO: Check if bounding are correct.
-    total_intensity = 0
-    total_points = 0
+def extract(image, panel_location: GeoDataFrame) -> List[float]:
+    # Extracts the mean intensity per band at the panel location
+    panel_polygon = panel_location.unary_union.convex_hull
+    out_image, out_transform = rasterio.mask.mask(image, [panel_polygon], crop=True, nodata=0)
 
-    for idx, row in panel_location.iterrows():
-        panel_polygon = row.geometry.convex_hull
-        out_image, out_transform = rasterio.mask.mask(band_image, [panel_polygon], crop=True, nodata=0)
-        panel_data = out_image[0]  # mask returns a 3D array, so select the first band (0-indexed)
-        valid_data = panel_data[panel_data > 0]
-        total_intensity += valid_data.sum()
-        total_points += valid_data.size
-
-    mean_intensity = total_intensity / total_points if total_points > 0 else 0
-    return mean_intensity
+    return [panel_band[panel_band > 0].mean() for panel_band in out_image]
 
 
 def fit(intensities: List[float], expected_reflectances: List[float]) -> Tuple[float, float]:
@@ -69,15 +60,19 @@ def interpolate(values: ndarray[float]) -> ndarray[float]:
     is_none = [np.isnan(v) for v in values]
     non_none_vals = [(i, v) for i, v in enumerate(values) if not np.isnan(v)]
 
-    if len(non_none_vals) <= 0:
+    if len(non_none_vals) < 2:
         print('No values found for interpolation.')
         return values
 
     for i, _ in enumerate(values):
         if is_none[i]:  # If our value is None, interpolate
             # Find the closest indices with value on either side
-            lower_idx = max(idx for idx, v in non_none_vals if idx < i)
-            upper_idx = min(idx for idx, v in non_none_vals if idx > i)
+            lower = list(idx for idx, v in non_none_vals if idx < i)
+            upper = list(idx for idx, v in non_none_vals if idx > i)
+            if len(lower) == 0 or len(upper) == 0:
+                continue
+            lower_idx = max(lower)
+            upper_idx = min(upper)
 
             lower_value = values[lower_idx]
             upper_value = values[upper_idx]
@@ -93,9 +88,13 @@ def interpolate(values: ndarray[float]) -> ndarray[float]:
     return values
 
 
-def convert(image: Path, coeffs_for_each_band: List[Tuple[float, float]]):
+def convert(band_image, coeffs: Tuple[float, float]):
     # converts a photo based on a linear transformation.
-    raise NotImplementedError
+    return np.poly1d(coeffs)(band_image)
+
+def combine(band_images):
+    # Combine bands back into one image
+    return band_images
 
 
 def get_orthophoto_paths(orthophoto_dir: str) -> List[Path]:
@@ -121,7 +120,7 @@ def get_bands(image: Path) -> list:
 
 def get_band_reflectance(panels, band_index) -> list:
     # return the reflectance values of each panel at a given band
-    raise NotImplementedError
+    return [reflectances['bands'][band_index]['factor'] for reflectances in panels]
 
 
 def load_panel_properties(panel_properties_file):
@@ -150,9 +149,11 @@ def run_pipeline_for_orthophotos(orthophotos_dir: str, panel_properties_file: st
             if photo is None:
                 with rasterio.open(orthophoto_path) as orthophoto:
                     photo = orthophoto.read()
+
+            panel_intensities_per_band = extract(photo, panel)
+            print(panel_intensities_per_band)
             for band, band_index in get_bands(photo):
-                panel_intensity = extract(band, panel)
-                intensities[orthophoto_path][panel_index][band_index] = panel_intensity
+                intensities[orthophoto_path][panel_index][band_index] = panel_intensities_per_band[band_index]
 
     intensities = interpolate(intensities)
     for file, intensities_per_band in intensities.items():
