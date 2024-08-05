@@ -17,7 +17,7 @@ from orthophoto_utils import load_panel_properties, load_panel_locations, get_or
 logger = logging.getLogger(__name__)
 
 
-def extract_intensities(paths: list[tuple[Path, list[bool]]], panel_occurrence: dict[Path, list[bool]]) -> ndarray[
+def extract_intensities(batch_of_orthophotos: list[tuple[Path, list[bool]]]) -> ndarray[
     Any, dtype[floating[_64Bit] | float_]]:
     """
     This function extracts intensities from the orthophotos.
@@ -29,19 +29,17 @@ def extract_intensities(paths: list[tuple[Path, list[bool]]], panel_occurrence: 
     to extract the mean intensity of the panel in that band for that photo
     :return: The extracted intensities for all orthophotos, with np.Nan for values that could not be found.
     """
-    intensities = np.zeros((len(paths), len(panel_locations), number_of_bands))
-    for photo_index, (orthophoto_path, panel_occurrence) in enumerate(tqdm(paths)):
-        orthophoto: DatasetReader
-        with rasterio.open(orthophoto_path) as orthophoto:
-            # photo is a ndarray of shape (bands, width, height)
-            photo: ndarray = orthophoto.read()
-            for panel_index, panel_location in enumerate(panel_locations):
-                if not panel_occurrence[panel_index]:
-                    intensities[photo_index][panel_index] = np.full(len(photo), np.NaN)
-                    continue
-                # extract the mean intensity for each band at that panel location
+    intensities = np.zeros((len(batch_of_orthophotos), len(panel_locations), number_of_bands))
+    for photo_index, (orthophoto_path, panel_occurrence) in enumerate(tqdm(batch_of_orthophotos)):
+        for panel_index, panel_location in enumerate(panel_locations):
+            if not panel_occurrence[panel_index]:
+                intensities[photo_index][panel_index] = np.full(number_of_bands, np.NaN)
+                continue
+            # extract the mean intensity for each band at that panel location
+            orthophoto: DatasetReader
+            with rasterio.open(orthophoto_path) as orthophoto:
                 panel_intensities_per_band = extract(orthophoto, panel_location)
-                intensities[photo_index][panel_index] = panel_intensities_per_band
+            intensities[photo_index][panel_index] = panel_intensities_per_band
     return intensities
 
 
@@ -63,7 +61,8 @@ def interpolate_intensities(intensities: ndarray[Any, dtype[floating[_64Bit] | f
     return intensities
 
 
-def convert_photos_to_reflectance(intensities: ndarray[Any, dtype[floating[_64Bit] | float_]]) -> list[list[ndarray]]:
+def convert_photos_to_reflectance(paths: list[Path], intensities: ndarray[Any, dtype[floating[_64Bit] | float_]]) -> \
+        list[list[ndarray]]:
     """
     This function converts the intensity values to reflectance values.
     For each photo we convert each band separately
@@ -71,12 +70,13 @@ def convert_photos_to_reflectance(intensities: ndarray[Any, dtype[floating[_64Bi
     The intensities are then combined with the known reflectance values of the panels
     at the given band to fit a linear function (Empirical Line Method).
     Read more about ELM: https://www.asprs.org/wp-content/uploads/2015/05/3E%5B5%5D-paper.pdf
+    :param paths: List of orthophoto paths
     :param intensities: intensity values matrix of shape (photo, panel, band)
     :return: List of reflectance photos, each photo is a list of bands, each band is a ndarray of shape (width, height)
     """
     unconverted_photos = []
     converted_photos = []
-    for photo_index, orthophoto_path in enumerate(tqdm(orthophoto_paths)):
+    for photo_index, orthophoto_path in enumerate(tqdm(paths)):
         converted_bands = []
         orthophoto: DatasetReader
         with rasterio.open(orthophoto_path) as orthophoto:
@@ -100,12 +100,14 @@ def convert_photos_to_reflectance(intensities: ndarray[Any, dtype[floating[_64Bi
     return converted_photos
 
 
-def save_photos(converted_photos: list[list[ndarray]]) -> None:
+def save_photos(paths: list[Path], converted_photos: list[list[ndarray]]) -> None:
     """
     This function saves the converted photos as .tif files into a new "/transformed/" directory in the images folder
-    :param converted_photos: List of reflectance photos, each photo is a list of bands, each band is a ndarray of shape (width, height)
+    :param paths: List of orthophoto paths
+    :param converted_photos: List of reflectance photos, each photo is a list of bands,
+    each band is a ndarray of shape (width, height)
     """
-    for path, photo in zip(orthophoto_paths, converted_photos):
+    for path, photo in zip(paths, converted_photos):
         if photo is None:
             continue
         filename = path.as_posix().split("/")[-1].split(".")[0] + "_reflectance.tif"
@@ -176,5 +178,10 @@ if __name__ == '__main__':
         # --- Run pipeline
         i = extract_intensities(batch)
         i = interpolate_intensities(i)
-        c = convert_photos_to_reflectance(i)
-        save_photos(c)
+        paths = [path for (path, _) in batch]
+        c = convert_photos_to_reflectance(paths, i)
+        del i
+        save_photos(paths, c)
+        del c
+        del batch
+        del paths
