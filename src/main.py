@@ -2,9 +2,13 @@ import argparse
 import logging
 import os
 from pathlib import Path
+from typing import Any, List
 
 import numpy as np
 import rasterio
+from numpy import ndarray, dtype, floating, float_
+from numpy._typing import _64Bit
+from rasterio import DatasetReader
 from tqdm import tqdm
 
 from orthophoto_utils import load_panel_properties, load_panel_locations, get_orthophoto_paths, is_panel_in_orthophoto, \
@@ -13,49 +17,93 @@ from orthophoto_utils import load_panel_properties, load_panel_locations, get_or
 logger = logging.getLogger(__name__)
 
 
-def extract_intensities():
+def extract_intensities() -> ndarray[Any, dtype[floating[_64Bit] | float_]]:
+    """
+    This function extracts intensities from the orthophotos.
+    It does so by looking at each photo and determining which panels are visible in the photo.
+    If a panel is not visible in the image it is not visible in any of the bands
+    as the photos are assumed to rectified and aligned.
+    Therefore, extraction is skipped for that panel with `np.Nan` values saved in the output.
+    Otherwise, the function uses the recorded gps location of the panel given by `panel_locations`
+    to extract the mean intensity of the panel in that band for that photo
+    :return: The extracted intensities for all orthophotos, with np.Nan for values that could not be found.
+    """
     intensities = np.zeros((len(orthophoto_paths), len(panel_locations), number_of_bands))
     for photo_index, orthophoto_path in enumerate(tqdm(orthophoto_paths)):
+        orthophoto: DatasetReader
         with rasterio.open(orthophoto_path) as orthophoto:
-            photo = orthophoto.read()
-            for panel_index, panel in enumerate(panel_locations):
-                if not is_panel_in_orthophoto(orthophoto_path, panel):
+            # photo is a ndarray of shape (bands, width, height)
+            photo: ndarray = orthophoto.read()
+            for panel_index, panel_location in enumerate(panel_locations):
+                if not is_panel_in_orthophoto(orthophoto_path, panel_location):
                     intensities[photo_index][panel_index] = np.full(len(photo), np.NaN)
                     continue
-                panel_intensities_per_band = extract(orthophoto, panel)
+                # extract the mean intensity for each band at that panel location
+                panel_intensities_per_band = extract(orthophoto, panel_location)
                 intensities[photo_index][panel_index] = panel_intensities_per_band
     return intensities
 
 
-def interpolate_intensities(intensities):
+def interpolate_intensities(intensities: ndarray[Any, dtype[floating[_64Bit] | float_]]) -> ndarray[
+    Any, dtype[floating[_64Bit] | float_]]:
+    """
+    This function is used to piecewise linearly interpolate the intensity values to fill the `np.Nan` gaps in the data.
+    To interpolate we select all the values captured in all the images for a given panel and band.
+    Only for photos where the panel was visible we have a value for the given band.
+    8Bit Data might look like this: [np.NaN, np.NaN, 240.0, 241.0, 240.0, np.NaN, 242.0, np.NaN, np.NaN]
+    After interpolation: [240.0, 240.0, 240.0, 241.0, 240.0, 241.0, 240.0, 240.0, 240.0]
+    :rtype: ndarray[Any, dtype[floating[_64Bit] | float_]]
+    :param intensities: intensity values matrix of shape (photo, panel, band) with some values being np.NaN.
+    :return: The interpolated intensity values
+    """
     for panel_index, panel in enumerate(panel_locations):
         for band_index in range(0, number_of_bands):
             intensities[:, panel_index, band_index] = interpolate(intensities[:, panel_index, band_index])
     return intensities
 
 
-def convert_photos(intensities):
-    unconvertable_photos = []
+def convert_photos_to_reflectance(intensities: ndarray[Any, dtype[floating[_64Bit] | float_]]) -> list[list[ndarray]]:
+    """
+    This function converts the intensity values to reflectance values.
+    For each photo we convert each band separately
+    by collecting all the intensities of the panels for the given photo and band.
+    The intensities are then combined with the known reflectance values of the panels
+    at the given band to fit a linear function (Empirical Line Method).
+    Read more about ELM: https://www.asprs.org/wp-content/uploads/2015/05/3E%5B5%5D-paper.pdf
+    :param intensities: intensity values matrix of shape (photo, panel, band)
+    :return: List of reflectance photos, each photo is a list of bands, each band is a ndarray of shape (width, height)
+    """
+    unconverted_photos = []
     converted_photos = []
     for photo_index, orthophoto_path in enumerate(tqdm(orthophoto_paths)):
         converted_bands = []
+        orthophoto: DatasetReader
         with rasterio.open(orthophoto_path) as orthophoto:
-            photo = orthophoto.read()
+            photo: ndarray = orthophoto.read()
         for band_index, band in enumerate(photo):
             intensities_of_panels = intensities[photo_index, :, band_index]
             if np.isnan(intensities_of_panels).any():
-                unconvertable_photos.append((photo_index, band_index))
+                # If for some reason not all intensities are present, we save the indices for debugging purposes
+                # A None value is appended to the converted photos to not lose
+                # the connection between orthophotos and converted photos based on the index
+                unconverted_photos.append((photo_index, band_index))
                 converted_photos.append(None)
                 break
-            coeffs = fit(intensities_of_panels, get_band_reflectance(panel_properties, band_index))
-            converted_bands.append(convert(band, coeffs))
+            coefficients = fit(intensities_of_panels, get_band_reflectance(panel_properties, band_index))
+            converted_bands.append(convert(band, coefficients))
         else:
-            # for loop did not break, all bands were converted
+            # For loop did not break, therefore all bands were converted
             converted_photos.append(converted_bands)
+    if len(unconverted_photos) > 0:
+        print("WARNING: Could not convert", len(unconverted_photos), "photos")
     return converted_photos
 
 
-def save_images(converted_photos):
+def save_photos(converted_photos: list[list[ndarray]]) -> None:
+    """
+    This function saves the converted photos as .tif files into a new "/transformed/" directory in the images folder
+    :param converted_photos: List of reflectance photos, each photo is a list of bands, each band is a ndarray of shape (width, height)
+    """
     for path, photo in zip(orthophoto_paths, converted_photos):
         if photo is None:
             continue
@@ -72,6 +120,7 @@ def save_images(converted_photos):
 
 
 if __name__ == '__main__':
+    # --- Get input arguments from user
     logging.basicConfig(level=logging.INFO)
     parser = argparse.ArgumentParser(
         prog='ReflectDetect',
@@ -85,21 +134,20 @@ if __name__ == '__main__':
 
     # python src/main.py "data/20240529_uav_multispectral_orthos_20m/orthophotos" "reflectance_panel_example_data.json" "data/20240529_uav_multispectral_orthos_20m/20240529_tarps_locations.gpkg"
 
-    # panel_properties_file = "../reflectance_panel_example_data.json"
-    # geopackage_file = "../data/20240529_uav_multispectral_orthos_20m/20240529_tarps_locations.gpkg"
-    # orthophotos_dir = "../data/20240529_uav_multispectral_orthos_20m/orthophotos"
-
     panel_properties = load_panel_properties(args.panel_properties)
     panel_locations = load_panel_locations(Path(args.panel_locations))
     orthophoto_paths = list(sorted(get_orthophoto_paths(args.images)))
 
-    with rasterio.open(orthophoto_paths[0]) as orthophoto:
-        number_of_bands = len(orthophoto.read())
+    ophoto: DatasetReader
+    with rasterio.open(orthophoto_paths[0]) as ophoto:
+        number_of_bands = len(ophoto.read())
 
+    # --- Input validation
     assert len(panel_properties) == len(panel_locations)
     assert number_of_bands == len(panel_properties[0]['bands'])
 
+    # --- Run pipeline
     i = extract_intensities()
     i = interpolate_intensities(i)
-    c = convert_photos(i)
-    save_images(c)
+    c = convert_photos_to_reflectance(i)
+    save_photos(c)

@@ -1,6 +1,6 @@
 import json
 from pathlib import Path
-from typing import List, Tuple
+from typing import List, Tuple, Any
 
 import fiona
 import geopandas as gpd
@@ -8,6 +8,7 @@ import numpy as np
 import rasterio
 from geopandas import GeoDataFrame
 from numpy import ndarray
+from numpy._typing import _64Bit
 from rasterio.coords import BoundingBox
 from rasterio.mask import mask
 from shapely.geometry import Polygon
@@ -46,7 +47,7 @@ def extract(image, panel_location: GeoDataFrame) -> List[float]:
     return [panel_band[panel_band > 0].mean() for panel_band in out_image]
 
 
-def fit(intensities: List[float], expected_reflectances: List[float]) -> Tuple[float, float]:
+def fit(intensities: ndarray[Any, np.dtype[np.floating[_64Bit] | np.float_]], expected_reflectances: List[float]) -> Tuple[float, float]:
     slope, intersect = np.polyfit(intensities, expected_reflectances, 1)
     return slope, intersect
 
@@ -93,7 +94,7 @@ def interpolate(values: ndarray) -> ndarray:
     return values
 
 
-def convert(band_image, coeffs: Tuple[float, float]):
+def convert(band_image: ndarray, coeffs: Tuple[float, float]) -> ndarray:
     # converts a photo based on a linear transformation.
     return np.poly1d(coeffs)(band_image)
 
