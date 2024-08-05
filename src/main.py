@@ -2,7 +2,7 @@ import argparse
 import logging
 import os
 from pathlib import Path
-from typing import Any, List
+from typing import Any
 
 import numpy as np
 import rasterio
@@ -11,13 +11,14 @@ from numpy._typing import _64Bit
 from rasterio import DatasetReader
 from tqdm import tqdm
 
-from orthophoto_utils import load_panel_properties, load_panel_locations, get_orthophoto_paths, is_panel_in_orthophoto, \
-    extract, interpolate, fit, get_band_reflectance, convert, save
+from orthophoto_utils import load_panel_properties, load_panel_locations, get_orthophoto_paths, extract, interpolate, \
+    fit, get_band_reflectance, convert, save, is_panel_in_orthophoto
 
 logger = logging.getLogger(__name__)
 
 
-def extract_intensities() -> ndarray[Any, dtype[floating[_64Bit] | float_]]:
+def extract_intensities(paths: list[tuple[Path, list[bool]]], panel_occurrence: dict[Path, list[bool]]) -> ndarray[
+    Any, dtype[floating[_64Bit] | float_]]:
     """
     This function extracts intensities from the orthophotos.
     It does so by looking at each photo and determining which panels are visible in the photo.
@@ -28,14 +29,14 @@ def extract_intensities() -> ndarray[Any, dtype[floating[_64Bit] | float_]]:
     to extract the mean intensity of the panel in that band for that photo
     :return: The extracted intensities for all orthophotos, with np.Nan for values that could not be found.
     """
-    intensities = np.zeros((len(orthophoto_paths), len(panel_locations), number_of_bands))
-    for photo_index, orthophoto_path in enumerate(tqdm(orthophoto_paths)):
+    intensities = np.zeros((len(paths), len(panel_locations), number_of_bands))
+    for photo_index, (orthophoto_path, panel_occurrence) in enumerate(tqdm(paths)):
         orthophoto: DatasetReader
         with rasterio.open(orthophoto_path) as orthophoto:
             # photo is a ndarray of shape (bands, width, height)
             photo: ndarray = orthophoto.read()
             for panel_index, panel_location in enumerate(panel_locations):
-                if not is_panel_in_orthophoto(orthophoto_path, panel_location):
+                if not panel_occurrence[panel_index]:
                     intensities[photo_index][panel_index] = np.full(len(photo), np.NaN)
                     continue
                 # extract the mean intensity for each band at that panel location
@@ -119,6 +120,30 @@ def save_photos(converted_photos: list[list[ndarray]]) -> None:
         save(output_path, photo, meta)
 
 
+def build_batches(orthophoto_paths: list[Path]) -> list[(list[Path], dict[Path, list[bool]])]:
+    batches = []
+    current_batch = []
+    for path in tqdm(orthophoto_paths):
+        panels_visible = np.array(
+            [is_panel_in_orthophoto(path, panel) for panel in panel_locations]
+        )
+        current_batch.append((path, panels_visible))
+
+        all_panels_visible = panels_visible.sum() == len(panel_locations)
+        if all_panels_visible:
+            batches.append(current_batch)
+            # This results in photos at the end of a batch being also in the next batch.
+            # Therefore they are calculated twice, but otherwise the interpolation would lose their information.
+            # The next batch could start with a images without panels in it,
+            # which would need the image with panels before it to be interpolated correctly
+            # There might be a smarter way of doing this, where they do not need to be run twice, but that is TODO()
+            # (Lookahead to next image panel occurrence)
+            current_batch = [(path, panels_visible)]
+    if len(current_batch) > 0:
+        batches.append(current_batch)
+    return batches
+
+
 if __name__ == '__main__':
     # --- Get input arguments from user
     logging.basicConfig(level=logging.INFO)
@@ -146,8 +171,10 @@ if __name__ == '__main__':
     assert len(panel_properties) == len(panel_locations)
     assert number_of_bands == len(panel_properties[0]['bands'])
 
-    # --- Run pipeline
-    i = extract_intensities()
-    i = interpolate_intensities(i)
-    c = convert_photos_to_reflectance(i)
-    save_photos(c)
+    batches = build_batches(orthophoto_paths)
+    for batch in batches:
+        # --- Run pipeline
+        i = extract_intensities(batch)
+        i = interpolate_intensities(i)
+        c = convert_photos_to_reflectance(i)
+        save_photos(c)
