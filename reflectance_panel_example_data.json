@@ -7,6 +7,10 @@
     },
     "bands": [
       {
+        "band_name": "Purple",
+        "factor": 0.9
+      },
+      {
         "band_name": "Blue",
         "factor": 1.0
       },
@@ -36,6 +40,10 @@
     },
     "bands": [
       {
+        "band_name": "Purple",
+        "factor": 0.9
+      },
+      {
         "band_name": "Blue",
         "factor": 1.0
       },
@@ -60,6 +68,10 @@
   {
     "shape": "rect",
     "bands": [
+      {
+        "band_name": "Purple",
+        "factor": 0.9
+      },
       {
         "band_name": "Blue",
         "factor": 0.17
