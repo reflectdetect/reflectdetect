@@ -4,11 +4,13 @@ import os
 from pathlib import Path
 from typing import Any
 
+import cv2
 import numpy as np
 import rasterio
 from numpy import ndarray, dtype, floating, float_
 from numpy._typing import _64Bit
 from rasterio import DatasetReader
+from robotpy_apriltag import AprilTagDetector
 from tqdm import tqdm
 
 from orthophoto_utils import load_panel_properties, load_panel_locations, get_orthophoto_paths, extract, interpolate, \
@@ -149,19 +151,7 @@ def build_batches(orthophoto_paths: list[Path]) -> list[(list[Path], dict[Path, 
     return batches
 
 
-if __name__ == '__main__':
-    # --- Get input arguments from user
-    logging.basicConfig(level=logging.INFO)
-    parser = argparse.ArgumentParser(
-        prog='ReflectDetect',
-        description='Automatically detect reflection calibration panels in images and transform the given images to '
-                    'reflectance',
-        epilog='If you have any questions, please contact')
-    parser.add_argument("images", help="Path to the image files", type=str)
-    parser.add_argument("panel_properties", help="Path to the property file of the panels", type=str)
-    parser.add_argument("panel_locations", help="Path to the GeoPackage file", type=str)
-    args = parser.parse_args()
-
+def orthophoto_main():
     # python src/main.py "data/20240529_uav_multispectral_orthos_20m/orthophotos" "reflectance_panel_example_data.json" "data/20240529_uav_multispectral_orthos_20m/20240529_tarps_locations.gpkg"
 
     panel_properties = load_panel_properties(args.panel_properties)
@@ -188,3 +178,48 @@ if __name__ == '__main__':
         save_photos(paths, c)
         del c
         del paths
+
+
+def apriltag_main():
+    d = AprilTagDetector()
+    d.addFamily(args.family)
+    config = AprilTagDetector.Config()
+    config.quadDecimate = 1.0
+    config.numThreads = 4
+    config.refineEdges = 1.0
+    d.setConfig(config)
+
+    for path in args.images:
+        img = cv2.imread(path, cv2.IMREAD_GRAYSCALE)
+
+    if args.detection_type == 'apriltag_edges':
+        raise NotImplementedError
+    if args.detection_type == 'apriltag_single':
+        raise NotImplementedError
+
+
+if __name__ == '__main__':
+    # --- Get input arguments from user
+    logging.basicConfig(level=logging.INFO)
+    parser = argparse.ArgumentParser(
+        prog='ReflectDetect',
+        description='Automatically detect reflection calibration panels in images and transform the given images to '
+                    'reflectance',
+        epilog='If you have any questions, please contact')
+    parser.add_argument("images", help="Path to the image files", type=str)
+    parser.add_argument("detection_type", help="Type of detection ('apriltag_edges', 'apriltag_single', 'geolocation')",
+                        type=str)
+    parser.add_argument("panel_properties", help="Path to the property file of the panels", type=str)
+    parser.add_argument("panel_locations", help="Path to the GeoPackage file", type=str)
+    parser.add_argument("family", help="Name of the apriltag family ('tag25h9', 'tagStandard41h12', ...)", type=str)
+    args = parser.parse_args()
+
+    detection_type: str = args.detection_type
+
+    if detection_type not in ['apriltag_edges', 'apriltag_single', 'geolocation']:
+        raise ValueError('detection_type', detection_type, 'unknown')
+
+    if detection_type.startswith("apriltag_"):
+        apriltag_main()
+    if detection_type == 'geolocation':
+        orthophoto_main()
