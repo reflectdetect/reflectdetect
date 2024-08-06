@@ -1,7 +1,6 @@
 import argparse
 import logging
 import os
-import tracemalloc
 from pathlib import Path
 from typing import Any
 
@@ -162,9 +161,6 @@ if __name__ == '__main__':
     parser.add_argument("panel_properties", help="Path to the property file of the panels", type=str)
     parser.add_argument("panel_locations", help="Path to the GeoPackage file", type=str)
     args = parser.parse_args()
-
-    # starting the monitoring
-    tracemalloc.start()
 
     # python src/main.py "data/20240529_uav_multispectral_orthos_20m/orthophotos" "reflectance_panel_example_data.json" "data/20240529_uav_multispectral_orthos_20m/20240529_tarps_locations.gpkg"
 
