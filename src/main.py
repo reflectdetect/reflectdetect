@@ -1,6 +1,7 @@
 import argparse
 import logging
 import os
+import tracemalloc
 from pathlib import Path
 from typing import Any
 
@@ -13,6 +14,7 @@ from tqdm import tqdm
 
 from orthophoto_utils import load_panel_properties, load_panel_locations, get_orthophoto_paths, extract, interpolate, \
     fit, get_band_reflectance, convert, save, is_panel_in_orthophoto
+from utils.iterators import get_next
 
 logger = logging.getLogger(__name__)
 
@@ -125,7 +127,7 @@ def save_photos(paths: list[Path], converted_photos: list[list[ndarray]]) -> Non
 def build_batches(orthophoto_paths: list[Path]) -> list[(list[Path], dict[Path, list[bool]])]:
     batches = []
     current_batch = []
-    for path in tqdm(orthophoto_paths):
+    for path, next_path in tqdm(get_next(orthophoto_paths)):
         panels_visible = np.array(
             [is_panel_in_orthophoto(path, panel) for panel in panel_locations]
         )
@@ -134,15 +136,17 @@ def build_batches(orthophoto_paths: list[Path]) -> list[(list[Path], dict[Path, 
         all_panels_visible = panels_visible.sum() == len(panel_locations)
         if all_panels_visible:
             batches.append(current_batch)
-            # This results in photos at the end of a batch being also in the next batch.
-            # Therefore they are calculated twice, but otherwise the interpolation would lose their information.
-            # The next batch could start with a images without panels in it,
-            # which would need the image with panels before it to be interpolated correctly
-            # There might be a smarter way of doing this, where they do not need to be run twice, but that is TODO()
-            # (Lookahead to next image panel occurrence)
-            current_batch = [(path, panels_visible)]
-    if len(current_batch) > 0:
-        batches.append(current_batch)
+
+            if np.array([is_panel_in_orthophoto(next_path, panel) for panel in panel_locations]).sum() == len(
+                    panel_locations):
+                current_batch = []
+            else:
+                # This results in photos at the end of a batch being also in the next batch.
+                # Therefore they are calculated twice, but otherwise the interpolation would lose their information.
+                # The next batch could start with a images without panels in it,
+                # which would need the image with panels before it to be interpolated correctly
+                current_batch = [(path, panels_visible)]
+    batches.append(current_batch)
     return batches
 
 
@@ -159,6 +163,9 @@ if __name__ == '__main__':
     parser.add_argument("panel_locations", help="Path to the GeoPackage file", type=str)
     args = parser.parse_args()
 
+    # starting the monitoring
+    tracemalloc.start()
+
     # python src/main.py "data/20240529_uav_multispectral_orthos_20m/orthophotos" "reflectance_panel_example_data.json" "data/20240529_uav_multispectral_orthos_20m/20240529_tarps_locations.gpkg"
 
     panel_properties = load_panel_properties(args.panel_properties)
@@ -174,6 +181,7 @@ if __name__ == '__main__':
     assert number_of_bands == len(panel_properties[0]['bands'])
 
     batches = build_batches(orthophoto_paths)
+
     for batch in batches:
         # --- Run pipeline
         i = extract_intensities(batch)
@@ -183,5 +191,4 @@ if __name__ == '__main__':
         del i
         save_photos(paths, c)
         del c
-        del batch
         del paths

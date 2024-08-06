@@ -56,7 +56,7 @@ def interpolate(values: ndarray) -> ndarray:
     is_none = [np.isnan(v) for v in values]
     non_none_vals = [(i, v) for i, v in enumerate(values) if not np.isnan(v)]
 
-    if len(non_none_vals) < 2:
+    if len(non_none_vals) < 1:
         print('No values found for interpolation.')
         return values
 
