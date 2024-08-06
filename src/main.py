@@ -1,161 +1,156 @@
 import argparse
-import json
 import logging
+import os
 from pathlib import Path
-from typing import List, Tuple, Dict
+from typing import Any
 
-import fiona
-import geopandas as gpd
 import numpy as np
 import rasterio
-from geopandas import GeoDataFrame
-from rasterio.coords import BoundingBox
-from shapely.geometry import Polygon
+from numpy import ndarray, dtype, floating, float_
+from numpy._typing import _64Bit
+from rasterio import DatasetReader
+from tqdm import tqdm
+
+from orthophoto_utils import load_panel_properties, load_panel_locations, get_orthophoto_paths, extract, interpolate, \
+    fit, get_band_reflectance, convert, save, is_panel_in_orthophoto
+from utils.iterators import get_next
 
 logger = logging.getLogger(__name__)
 
 
-def filter_images_with_all_panels(filepaths: List[Path], geopoints_gdfs: List[GeoDataFrame]) -> List[Path]:
-    result_files: List[Path] = []
-    for panel_gdf in geopoints_gdfs:
-        for filepath in filepaths:
-            with rasterio.open(filepath) as orthophoto:
-                # TODO: robust check whether panels are in image
-                bounds = BoundingBox(*orthophoto.bounds)
-                orthophoto_box = gpd.GeoDataFrame({'geometry': [Polygon(
-                    [(bounds.left, bounds.bottom), (bounds.left, bounds.top), (bounds.right, bounds.top),
-                     (bounds.right, bounds.bottom)])]})
-
-                # TODO: also get panel data from images with only some panels visible
-                all_points_within = True
-                for _, point in panel_gdf.iterrows():
-                    if 'geometry' in point and point.geometry is not None:
-                        if not orthophoto_box.contains(point.geometry).all():
-                            all_points_within = False
-                            break
-                if all_points_within:
-                    result_files.append(filepath)
-                # Further processing for each geopoints_gdf
-    return result_files
-
-
-def extract(image: Path, panel_location: GeoDataFrame) -> float:
-    # image is one band of the orthophoto
-    # assumes that the panel is present inside the image
-    # extract mean intensity
-    raise NotImplementedError
-
-
-def fit(intensities: List[float], expected_reflectances: List[float]) -> Tuple[float, float]:
-    slope, intersect = np.polyfit(intensities, expected_reflectances, 1)
-    return slope, intersect
-
-
-def interpolate(coefficients: Dict[Path, List[Tuple[float, float]]]) -> Dict[Path, List[Tuple[float, float]]]:
-    # Creates missing coefficients (None) by linearly interpolating between the coefficients
-    # `coefficients` is a dict {filename: [slope, intersect]}
-    # Takes a list of linear function coefficients
-    # or None in temporal order
-    # TODO: Make global sorting function
-    filenames = list(sorted(coefficients.keys()))  # Assuming alphabetical order makes sense
-    values = [coefficients[filename] for filename in filenames]
-    is_none = [v is None for v in values]  # Track which indices have value None
-    non_none_vals = [(i, v) for i, v in enumerate(values) if v is not None]
-
-    for i, _ in enumerate(values):
-        if is_none[i]:  # If our value is None, interpolate
-            # Find the closest indices with value on either side
-            lower_idx = max(idx for idx, v in non_none_vals if idx < i)
-            upper_idx = min(idx for idx, v in non_none_vals if idx > i)
-
-            lower_coeffs = values[lower_idx]
-            upper_coeffs = values[upper_idx]
-
-            # This might be confusing as we are linearly interpolating linear functions
-            # First we interpolate the slopes,
-            # then the intercepts by calculating a slope and intercept for the calculation
-
-            # Interpolate slopes
-            slope = (upper_coeffs[0] - lower_coeffs[0]) / (upper_idx - lower_idx)
-            intercept = lower_coeffs[0] - slope * lower_idx
-
-            interpolated_slopes = [slope * i + intercept for i in range(lower_idx, upper_idx + 1)]
-
-            # Interpolate intercepts
-            slope = (upper_coeffs[1] - lower_coeffs[1]) / (upper_idx - lower_idx)
-            intercept = lower_coeffs[1] - slope * lower_idx
-
-            interpolated_intercepts = [slope * i + intercept for i in range(lower_idx, upper_idx + 1)]
-            interpolated_values = list(zip(interpolated_slopes, interpolated_intercepts))
-            # Update the values array with the interpolated values
-            for j in range(lower_idx, upper_idx + 1):
-                values[j] = interpolated_values[j - lower_idx]
-    return dict(zip(filenames, values))
-
-
-def convert(image: Path, coeffs_for_each_band: List[Tuple[float, float]]):
-    # converts a photo based on a linear transformation.
-    raise NotImplementedError
-
-
-def load_orthophotos(orthophoto_dir: str) -> List[Path]:
-    template_path = Path(orthophoto_dir).resolve()
-    return [filepath for filepath in template_path.glob("*.tif")]
-
-
-def load_geopackage(geopackage_dir) -> List[GeoDataFrame]:
-    geopoints = []
-    with fiona.Env():
-        layers = fiona.listlayers(geopackage_dir)
-        for layer in layers:
-            if layer == "android_metadata":
+def extract_intensities(batch_of_orthophotos: list[tuple[Path, list[bool]]]) -> ndarray[
+    Any, dtype[floating[_64Bit] | float_]]:
+    """
+    This function extracts intensities from the orthophotos.
+    It does so by looking at each photo and determining which panels are visible in the photo.
+    If a panel is not visible in the image it is not visible in any of the bands
+    as the photos are assumed to rectified and aligned.
+    Therefore, extraction is skipped for that panel with `np.Nan` values saved in the output.
+    Otherwise, the function uses the recorded gps location of the panel given by `panel_locations`
+    to extract the mean intensity of the panel in that band for that photo
+    :return: The extracted intensities for all orthophotos, with np.Nan for values that could not be found.
+    """
+    intensities = np.zeros((len(batch_of_orthophotos), len(panel_locations), number_of_bands))
+    for photo_index, (orthophoto_path, panel_occurrence) in enumerate(tqdm(batch_of_orthophotos)):
+        for panel_index, panel_location in enumerate(panel_locations):
+            if not panel_occurrence[panel_index]:
+                intensities[photo_index][panel_index] = np.full(number_of_bands, np.NaN)
                 continue
-            gdf = gpd.read_file(geopackage_dir, layer=layer)
-            geopoints.append(gdf)
-    return geopoints
+            # extract the mean intensity for each band at that panel location
+            orthophoto: DatasetReader
+            with rasterio.open(orthophoto_path) as orthophoto:
+                panel_intensities_per_band = extract(orthophoto, panel_location)
+            intensities[photo_index][panel_index] = panel_intensities_per_band
+    return intensities
 
 
-def get_bands(image: Path) -> list:
-    # split the orthophoto into bands
-    raise NotImplementedError
+def interpolate_intensities(intensities: ndarray[Any, dtype[floating[_64Bit] | float_]]) -> ndarray[
+    Any, dtype[floating[_64Bit] | float_]]:
+    """
+    This function is used to piecewise linearly interpolate the intensity values to fill the `np.Nan` gaps in the data.
+    To interpolate we select all the values captured in all the images for a given panel and band.
+    Only for photos where the panel was visible we have a value for the given band.
+    8Bit Data might look like this: [np.NaN, np.NaN, 240.0, 241.0, 240.0, np.NaN, 242.0, np.NaN, np.NaN]
+    After interpolation: [240.0, 240.0, 240.0, 241.0, 240.0, 241.0, 240.0, 240.0, 240.0]
+    :rtype: ndarray[Any, dtype[floating[_64Bit] | float_]]
+    :param intensities: intensity values matrix of shape (photo, panel, band) with some values being np.NaN.
+    :return: The interpolated intensity values
+    """
+    for panel_index, panel in enumerate(panel_locations):
+        for band_index in range(0, number_of_bands):
+            intensities[:, panel_index, band_index] = interpolate(intensities[:, panel_index, band_index])
+    return intensities
 
 
-def get_band_reflectance(panels, band_index) -> list:
-    # return the reflectance values of each panel at a given band
-    raise NotImplementedError
+def convert_photos_to_reflectance(paths: list[Path], intensities: ndarray[Any, dtype[floating[_64Bit] | float_]]) -> \
+        list[list[ndarray]]:
+    """
+    This function converts the intensity values to reflectance values.
+    For each photo we convert each band separately
+    by collecting all the intensities of the panels for the given photo and band.
+    The intensities are then combined with the known reflectance values of the panels
+    at the given band to fit a linear function (Empirical Line Method).
+    Read more about ELM: https://www.asprs.org/wp-content/uploads/2015/05/3E%5B5%5D-paper.pdf
+    :param paths: List of orthophoto paths
+    :param intensities: intensity values matrix of shape (photo, panel, band)
+    :return: List of reflectance photos, each photo is a list of bands, each band is a ndarray of shape (width, height)
+    """
+    unconverted_photos = []
+    converted_photos = []
+    for photo_index, orthophoto_path in enumerate(tqdm(paths)):
+        converted_bands = []
+        orthophoto: DatasetReader
+        with rasterio.open(orthophoto_path) as orthophoto:
+            photo: ndarray = orthophoto.read()
+        for band_index, band in enumerate(photo):
+            intensities_of_panels = intensities[photo_index, :, band_index]
+            if np.isnan(intensities_of_panels).any():
+                # If for some reason not all intensities are present, we save the indices for debugging purposes
+                # A None value is appended to the converted photos to not lose
+                # the connection between orthophotos and converted photos based on the index
+                unconverted_photos.append((photo_index, band_index))
+                converted_photos.append(None)
+                break
+            coefficients = fit(intensities_of_panels, get_band_reflectance(panel_properties, band_index))
+            converted_bands.append(convert(band, coefficients))
+        else:
+            # For loop did not break, therefore all bands were converted
+            converted_photos.append(converted_bands)
+    if len(unconverted_photos) > 0:
+        print("WARNING: Could not convert", len(unconverted_photos), "photos")
+    return converted_photos
 
 
-def run_pipeline_for_orthophotos(orthophotos_dir: str, panel_properties_file: str, geopackage_file: str):
-    with open(panel_properties_file) as f:
-        panels = json.load(f)
+def save_photos(paths: list[Path], converted_photos: list[list[ndarray]]) -> None:
+    """
+    This function saves the converted photos as .tif files into a new "/transformed/" directory in the images folder
+    :param paths: List of orthophoto paths
+    :param converted_photos: List of reflectance photos, each photo is a list of bands,
+    each band is a ndarray of shape (width, height)
+    """
+    for path, photo in zip(paths, converted_photos):
+        if photo is None:
+            continue
+        filename = path.as_posix().split("/")[-1].split(".")[0] + "_reflectance.tif"
+        output_folder = "/".join(path.as_posix().split("/")[:-1]) + "/transformed/"
+        os.makedirs(output_folder, exist_ok=True)
+        output_path = output_folder + filename
+        with rasterio.open(path) as original:
+            meta = original.meta
+        meta.update(
+            dtype=rasterio.float32,
+        )
+        save(output_path, photo, meta)
 
-    geopoints = load_geopackage(geopackage_file)
 
-    # Load orthophoto paths
-    orthophoto_files = load_orthophotos(orthophotos_dir)
+def build_batches(orthophoto_paths: list[Path]) -> list[(list[Path], dict[Path, list[bool]])]:
+    batches = []
+    current_batch = []
+    for path, next_path in tqdm(get_next(orthophoto_paths)):
+        panels_visible = np.array(
+            [is_panel_in_orthophoto(path, panel) for panel in panel_locations]
+        )
+        current_batch.append((path, panels_visible))
 
-    # Detect panels in the orthophotos
-    matching_files = filter_images_with_all_panels(orthophoto_files, geopoints)
-    print("Found all panels in ", len(matching_files), "/", len(orthophoto_files), "files")
+        all_panels_visible = panels_visible.sum() == len(panel_locations)
+        if all_panels_visible:
+            batches.append(current_batch)
 
-    # Load orthophotos with data for further processing
-    coefficients: Dict[Path, List[Tuple[float, float]] | None] = {}
-    for filename in orthophoto_files:
-        coefficients[filename] = None
-    for filename in matching_files:
-        with rasterio.open(filename) as dataset:
-            photo = dataset.read()
-        coefficients[filename] = []
-        for band, band_index in get_bands(photo):
-            panel_intensities = [extract(band, panel["location"]) for panel in panels]
-            coefficients[filename].append(fit(panel_intensities, get_band_reflectance(panels, band_index)))
-
-    coefficients = interpolate(coefficients)
-    for file, coeffs in coefficients.items():
-        convert(file, coeffs)
+            if np.array([is_panel_in_orthophoto(next_path, panel) for panel in panel_locations]).sum() == len(
+                    panel_locations):
+                current_batch = []
+            else:
+                # This results in photos at the end of a batch being also in the next batch.
+                # Therefore they are calculated twice, but otherwise the interpolation would lose their information.
+                # The next batch could start with a images without panels in it,
+                # which would need the image with panels before it to be interpolated correctly
+                current_batch = [(path, panels_visible)]
+    batches.append(current_batch)
+    return batches
 
 
 if __name__ == '__main__':
+    # --- Get input arguments from user
     logging.basicConfig(level=logging.INFO)
     parser = argparse.ArgumentParser(
         prog='ReflectDetect',
@@ -164,7 +159,32 @@ if __name__ == '__main__':
         epilog='If you have any questions, please contact')
     parser.add_argument("images", help="Path to the image files", type=str)
     parser.add_argument("panel_properties", help="Path to the property file of the panels", type=str)
-    parser.add_argument("panel_corners", help="Path to the GeoPackage file", type=str)
+    parser.add_argument("panel_locations", help="Path to the GeoPackage file", type=str)
     args = parser.parse_args()
 
-    run_pipeline_for_orthophotos(args.images, args.panel_properties, args.panel_corners)
+    # python src/main.py "data/20240529_uav_multispectral_orthos_20m/orthophotos" "reflectance_panel_example_data.json" "data/20240529_uav_multispectral_orthos_20m/20240529_tarps_locations.gpkg"
+
+    panel_properties = load_panel_properties(args.panel_properties)
+    panel_locations = load_panel_locations(Path(args.panel_locations))
+    orthophoto_paths = list(sorted(get_orthophoto_paths(args.images)))
+
+    ophoto: DatasetReader
+    with rasterio.open(orthophoto_paths[0]) as ophoto:
+        number_of_bands = len(ophoto.read())
+
+    # --- Input validation
+    assert len(panel_properties) == len(panel_locations)
+    assert number_of_bands == len(panel_properties[0]['bands'])
+
+    batches = build_batches(orthophoto_paths)
+
+    for batch in batches:
+        # --- Run pipeline
+        i = extract_intensities(batch)
+        i = interpolate_intensities(i)
+        paths = [path for (path, _) in batch]
+        c = convert_photos_to_reflectance(paths, i)
+        del i
+        save_photos(paths, c)
+        del c
+        del paths
