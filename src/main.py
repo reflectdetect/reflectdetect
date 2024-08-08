@@ -7,12 +7,15 @@ from typing import Any
 import cv2
 import numpy as np
 import rasterio
+from geopandas import GeoDataFrame
 from numpy import ndarray, dtype, floating, float_
 from numpy._typing import _64Bit
 from rasterio import DatasetReader
-from robotpy_apriltag import AprilTagDetector
+from rasterio.features import rasterize
+from robotpy_apriltag import AprilTagDetector, AprilTagPoseEstimator
 from tqdm import tqdm
 
+from apriltags_utils import pose_estimate_tags, detect_tags, extract_edges
 from orthophoto_utils import load_panel_properties, load_panel_locations, get_orthophoto_paths, extract, interpolate, \
     fit, get_band_reflectance, convert, save, is_panel_in_orthophoto
 from utils.iterators import get_next
@@ -20,7 +23,8 @@ from utils.iterators import get_next
 logger = logging.getLogger(__name__)
 
 
-def extract_intensities(batch_of_orthophotos: list[tuple[Path, list[bool]]]) -> ndarray[
+def extract_intensities(batch_of_orthophotos: list[tuple[Path, list[bool]]], panel_locations: list[GeoDataFrame],
+                        number_of_bands: int) -> ndarray[
     Any, dtype[floating[_64Bit] | float_]]:
     """
     This function extracts intensities from the orthophotos.
@@ -30,6 +34,7 @@ def extract_intensities(batch_of_orthophotos: list[tuple[Path, list[bool]]]) -> 
     Therefore, extraction is skipped for that panel with `np.Nan` values saved in the output.
     Otherwise, the function uses the recorded gps location of the panel given by `panel_locations`
     to extract the mean intensity of the panel in that band for that photo
+    :type number_of_bands: int
     :return: The extracted intensities for all orthophotos, with np.Nan for values that could not be found.
     """
     intensities = np.zeros((len(batch_of_orthophotos), len(panel_locations), number_of_bands))
@@ -46,7 +51,9 @@ def extract_intensities(batch_of_orthophotos: list[tuple[Path, list[bool]]]) -> 
     return intensities
 
 
-def interpolate_intensities(intensities: ndarray[Any, dtype[floating[_64Bit] | float_]]) -> ndarray[
+def interpolate_intensities(intensities: ndarray[Any, dtype[floating[_64Bit] | float_]],
+                            panel_locations: list[GeoDataFrame],
+                            number_of_bands: int) -> ndarray[
     Any, dtype[floating[_64Bit] | float_]]:
     """
     This function is used to piecewise linearly interpolate the intensity values to fill the `np.Nan` gaps in the data.
@@ -54,6 +61,8 @@ def interpolate_intensities(intensities: ndarray[Any, dtype[floating[_64Bit] | f
     Only for photos where the panel was visible we have a value for the given band.
     8Bit Data might look like this: [np.NaN, np.NaN, 240.0, 241.0, 240.0, np.NaN, 242.0, np.NaN, np.NaN]
     After interpolation: [240.0, 240.0, 240.0, 241.0, 240.0, 241.0, 240.0, 240.0, 240.0]
+    :param number_of_bands: number of bands in the images
+    :param panel_locations: location of the edges of the panels
     :rtype: ndarray[Any, dtype[floating[_64Bit] | float_]]
     :param intensities: intensity values matrix of shape (photo, panel, band) with some values being np.NaN.
     :return: The interpolated intensity values
@@ -64,7 +73,8 @@ def interpolate_intensities(intensities: ndarray[Any, dtype[floating[_64Bit] | f
     return intensities
 
 
-def convert_photos_to_reflectance(paths: list[Path], intensities: ndarray[Any, dtype[floating[_64Bit] | float_]]) -> \
+def convert_photos_to_reflectance(paths: list[Path], intensities: ndarray[Any, dtype[floating[_64Bit] | float_]],
+                                  panel_properties: list[dict]) -> \
         list[list[ndarray]]:
     """
     This function converts the intensity values to reflectance values.
@@ -73,6 +83,7 @@ def convert_photos_to_reflectance(paths: list[Path], intensities: ndarray[Any, d
     The intensities are then combined with the known reflectance values of the panels
     at the given band to fit a linear function (Empirical Line Method).
     Read more about ELM: https://www.asprs.org/wp-content/uploads/2015/05/3E%5B5%5D-paper.pdf
+    :param panel_properties: list of intensities for each band for each panel
     :param paths: List of orthophoto paths
     :param intensities: intensity values matrix of shape (photo, panel, band)
     :return: List of reflectance photos, each photo is a list of bands, each band is a ndarray of shape (width, height)
@@ -125,7 +136,8 @@ def save_photos(paths: list[Path], converted_photos: list[list[ndarray]]) -> Non
         save(output_path, photo, meta)
 
 
-def build_batches(orthophoto_paths: list[Path]) -> list[(list[Path], dict[Path, list[bool]])]:
+def build_batches(orthophoto_paths: list[Path], panel_locations: list[GeoDataFrame]) -> list[
+    (list[Path], dict[Path, list[bool]])]:
     batches = []
     current_batch = []
     for path, next_path in tqdm(get_next(orthophoto_paths)):
@@ -154,7 +166,6 @@ def build_batches(orthophoto_paths: list[Path]) -> list[(list[Path], dict[Path, 
 def orthophoto_main():
     # python src/main.py "data/20240529_uav_multispectral_orthos_20m/orthophotos" "reflectance_panel_example_data.json" "data/20240529_uav_multispectral_orthos_20m/20240529_tarps_locations.gpkg"
 
-    panel_properties = load_panel_properties(args.panel_properties)
     panel_locations = load_panel_locations(Path(args.panel_locations))
     orthophoto_paths = list(sorted(get_orthophoto_paths(args.images)))
 
@@ -166,14 +177,14 @@ def orthophoto_main():
     assert len(panel_properties) == len(panel_locations)
     assert number_of_bands == len(panel_properties[0]['bands'])
 
-    batches = build_batches(orthophoto_paths)
+    batches = build_batches(orthophoto_paths, panel_locations)
 
     for batch in batches:
         # --- Run pipeline
-        i = extract_intensities(batch)
-        i = interpolate_intensities(i)
+        i = extract_intensities(batch, panel_locations, number_of_bands)
+        i = interpolate_intensities(i, panel_locations, number_of_bands)
         paths = [path for (path, _) in batch]
-        c = convert_photos_to_reflectance(paths, i)
+        c = convert_photos_to_reflectance(paths, i, panel_properties)
         del i
         save_photos(paths, c)
         del c
@@ -181,21 +192,59 @@ def orthophoto_main():
 
 
 def apriltag_main():
-    d = AprilTagDetector()
-    d.addFamily(args.family)
-    config = AprilTagDetector.Config()
-    config.quadDecimate = 1.0
-    config.numThreads = 4
-    config.refineEdges = 1.0
-    d.setConfig(config)
+    detector_config = AprilTagDetector.Config()
+    detector_config.quadDecimate = 1.0
+    detector_config.numThreads = 4
+    detector_config.refineEdges = 1.0
+
+    # TODO: add to args
+    horizontal_focal_length_pixels = 1581.7867974691412
+    horizontal_focal_center_pixels = 678.6724626822399
+    vertical_focal_length_pixels = 1581.7867974691412
+    vertical_focal_center_pixels = 529.4318832108801
+    tag_size = 0.2
+
+    estimator_config = AprilTagPoseEstimator.Config(tag_size, horizontal_focal_length_pixels,
+                                                    vertical_focal_length_pixels,
+                                                    horizontal_focal_center_pixels, vertical_focal_center_pixels)
 
     for path in args.images:
         img = cv2.imread(path, cv2.IMREAD_GRAYSCALE)
 
-    if args.detection_type == 'apriltag_edges':
-        raise NotImplementedError
-    if args.detection_type == 'apriltag_single':
-        raise NotImplementedError
+        if args.detection_type == 'apriltag_edges':
+            # Detect Tags
+            valid_ids = set()
+            panel_radiance_values = []
+            for panel in panel_properties:
+                d = AprilTagDetector()
+                d.addFamily(panel.family)
+                d.setConfig(detector_config)
+                if not isinstance(panel.tags, list) or len(panel.tags) != 4:
+                    raise ValueError(
+                        "panel properties need to specify panel edges in apriltag_edges mode. Change your panel properties file")
+                valid_ids.add(*panel.tags)
+                tags = detect_tags(img, d, list(valid_ids))
+                assert len(tags) == len(panel.tags)
+                panel_radiance_values.append(extract_edges(img, tags))
+
+        if args.detection_type == 'apriltag_single':
+            # Detect Tags
+            valid_ids = set()
+            for panel in panel_properties:
+                d = AprilTagDetector()
+                d.addFamily(panel.family)
+                d.setConfig(detector_config)
+                if isinstance(panel.tags, list):
+                    raise ValueError(
+                        "Only one tag per panel in apriltag_single mode. Change your panel properties file")
+                valid_ids.add(panel.tags)
+                tags = pose_estimate_tags(img, d, detector_config, list(valid_ids))
+
+                polygon = sg.Polygon(detection)
+                mask = rasterize([polygon], out_shape=img.shape)
+                # mean the radiance values to get a radiance value for the detection
+                mean = np.ma.array(img, mask=~(mask.astype(np.bool_))).mean()
+                panel_radiance_values.append(mean)
 
 
 if __name__ == '__main__':
@@ -213,6 +262,8 @@ if __name__ == '__main__':
     parser.add_argument("panel_locations", help="Path to the GeoPackage file", type=str)
     parser.add_argument("family", help="Name of the apriltag family ('tag25h9', 'tagStandard41h12', ...)", type=str)
     args = parser.parse_args()
+
+    panel_properties = load_panel_properties(args.panel_properties)
 
     detection_type: str = args.detection_type
 
