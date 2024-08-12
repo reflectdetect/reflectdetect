@@ -16,9 +16,10 @@ from utils.polygons import shrink_or_swell_shapely_polygon
 logger = logging.getLogger(__name__)
 
 
-def extract_intensities_from_orthophotos(batch_of_orthophotos: list[tuple[Path, list[bool]]], panel_locations: list[GeoDataFrame],
-                                         number_of_bands: int) -> ndarray[
-    Any, dtype[floating[_64Bit] | float_]]:
+def extract_intensities_from_orthophotos(batch_of_orthophotos: list[Path],
+                                         paths_with_visibility: dict[Path, ndarray],
+                                         panel_locations: list[GeoDataFrame],
+                                         number_of_bands: int) -> ndarray[Any, dtype[floating[_64Bit] | float_]]:
     """
     This function extracts intensities from the orthophotos.
     It does so by looking at each photo and determining which panels are visible in the photo.
@@ -31,9 +32,9 @@ def extract_intensities_from_orthophotos(batch_of_orthophotos: list[tuple[Path, 
     :return: The extracted intensities for all orthophotos, with np.Nan for values that could not be found.
     """
     intensities = np.zeros((len(batch_of_orthophotos), len(panel_locations), number_of_bands))
-    for photo_index, (orthophoto_path, panel_occurrence) in enumerate(tqdm(batch_of_orthophotos)):
+    for photo_index, orthophoto_path in enumerate(tqdm(batch_of_orthophotos)):
         for panel_index, panel_location in enumerate(panel_locations):
-            if not panel_occurrence[panel_index]:
+            if not paths_with_visibility[orthophoto_path][panel_index]:
                 intensities[photo_index][panel_index] = np.full(number_of_bands, np.NaN)
                 continue
             # extract the mean intensity for each band at that panel location
@@ -129,29 +130,24 @@ def save_photos(paths: list[Path], converted_photos: list[list[ndarray]]) -> Non
         save(output_path, photo, meta)
 
 
-def build_batches(orthophoto_paths: list[Path], panel_locations: list[GeoDataFrame]) -> list[
-    (list[Path], dict[Path, list[bool]])]:
+def build_batches(paths_with_visibility: dict[Path, ndarray]) -> list[list[Path]]:
     batches = []
     current_batch = []
-    for path, next_path in tqdm(get_next(orthophoto_paths)):
-        panels_visible = np.array(
-            [is_panel_in_orthophoto(path, panel) for panel in panel_locations]
-        )
-        current_batch.append((path, panels_visible))
+    for (path, panel_visibility), (next_path, next_panel_visibility) in tqdm(get_next(paths_with_visibility.values())):
+        current_batch.append(path)
 
-        all_panels_visible = panels_visible.sum() == len(panel_locations)
+        all_panels_visible = panel_visibility.all()
         if all_panels_visible:
             batches.append(current_batch)
 
-            if np.array([is_panel_in_orthophoto(next_path, panel) for panel in panel_locations]).sum() == len(
-                    panel_locations):
+            if next_panel_visibility.all():
                 current_batch = []
             else:
                 # This results in photos at the end of a batch being also in the next batch.
                 # Therefore they are calculated twice, but otherwise the interpolation would lose their information.
                 # The next batch could start with a images without panels in it,
                 # which would need the image with panels before it to be interpolated correctly
-                current_batch = [(path, panels_visible)]
+                current_batch = [path]
     batches.append(current_batch)
     return batches
 
@@ -170,11 +166,18 @@ def orthophoto_main():
     assert len(panel_properties) == len(panel_locations)
     assert number_of_bands == len(panel_properties[0]['bands'])
 
-    batches = build_batches(orthophoto_paths, panel_locations)
+    paths_with_visibility = {}
+    for path in tqdm(orthophoto_paths):
+        panels_visible = np.array(
+            [is_panel_in_orthophoto(path, panel) for panel in panel_locations]
+        )
+        paths_with_visibility[path] = panels_visible
+
+    batches = build_batches(paths_with_visibility)
 
     for batch in batches:
         # --- Run pipeline
-        i = extract_intensities_from_orthophotos(batch, panel_locations, number_of_bands)
+        i = extract_intensities_from_orthophotos(batch, paths_with_visibility, panel_locations, number_of_bands)
         i = interpolate_intensities(i, panel_locations, number_of_bands)
         paths = [path for (path, _) in batch]
         c = convert_photos_to_reflectance(paths, i, panel_properties)
