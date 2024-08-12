@@ -6,9 +6,9 @@ import cv2
 import numpy as np
 from matplotlib import pyplot as plt
 
-from src.detector.BaseDetector import BaseDetector
-from src.utils.panel_utils import get_panel_factors_for_band
-from src.utils.paths import get_image_band, get_detection_path
+from detector.BaseDetector import BaseDetector
+from utils.panel_utils import get_panel_factors_for_band
+from utils.paths import get_image_band, get_detection_path
 
 
 def load_image(path: str):
@@ -214,41 +214,6 @@ def split_bounding_box(box, expected_aspect_ratio, threshold=0.1, spacing=10):
 
     return [box]
 
-
-def calculate_panel_size_in_pixels(altitude, resolution, sensor_size_mm, focal_length_mm,
-                                   physical_panel_size):
-    # TODO(Sanitycheck function)
-    """
-    Calculate the expected size of an object in pixels based on camera parameters and object physical size.
-
-    Parameters:
-        altitude (float): Altitude in meters.
-        resolution (tuple): Image resolution (width, height) in pixels.
-        sensor_size_mm (float): Sensor diagonal in millimeters.
-        focal_length_m (float): Focal length in millimeters.
-        physical_panel_size (tuple): Physical size of the object in meters (width, height).
-
-    Returns:
-        tuple: Expected width and height of the object in pixels.
-    """
-    # Convert sensor diagonal to meters
-    sensor_diagonal = sensor_size_mm / 1000  # Convert mm to m
-    focal_length = focal_length_mm / 1000
-
-    # Calculate horizontal and vertical Field of View (FoV)
-    fov_horizontal = 2 * math.atan(
-        (sensor_diagonal / (2 * math.sqrt(1 + (resolution[0] / resolution[1]) ** 2))) / focal_length)
-    fov_vertical = 2 * math.atan(
-        (sensor_diagonal / (2 * math.sqrt(1 + (resolution[1] / resolution[0]) ** 2))) / focal_length)
-
-    # Calculate scale in pixels per meter
-    scale_pixels_per_meter = resolution[1] / (altitude * math.tan(fov_vertical / 2))
-
-    # Calculate expected panel size in pixels
-    panel_width_pixels = np.intp(physical_panel_size[0] * scale_pixels_per_meter)
-    panel_height_pixels = np.intp(physical_panel_size[1] * scale_pixels_per_meter)
-
-    return panel_width_pixels, panel_height_pixels
 
 
 def filter_by_variance(image, blur_kernel_size=21):
