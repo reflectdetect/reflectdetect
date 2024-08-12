@@ -78,15 +78,3 @@ def get_panels_st(img, detector, sensor_size_mm: float, focal_length_mm: float, 
         edge_d = tag_panel_border + panel_length + panel_midpoint_to_edge
         panels.append((tag, (edge_a, edge_b, edge_c, edge_d)))
     return panels
-
-
-def get_panels_ct(img, tags: list[AprilTagDetection]):
-    polygon = shapely.Polygon([tag.center() for tag in tags]).convex_hull()
-    mask = rasterize([polygon], out_shape=img.shape)
-    # mean the radiance values to get a radiance value for the detection
-    mean = np.ma.array(img, mask=~(mask.astype(np.bool_))).mean()
-    return mean
-
-
-def extract_single(img, tag: (AprilTagDetection, Transform3d), tag_size: float):
-    raise NotImplementedError

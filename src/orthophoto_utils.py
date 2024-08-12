@@ -39,7 +39,7 @@ def is_panel_in_orthophoto(orthophoto_path: Path, panel: GeoDataFrame, crs: str 
         return panel.within(orthophoto_polygon).all()
 
 
-def extract(image, panel_location: GeoDataFrame) -> List[float]:
+def extract_using_geolocation(image, panel_location: GeoDataFrame) -> List[float]:
     # Extracts the mean intensity per band at the panel location
     panel_polygon = panel_location.unary_union.convex_hull
     out_image, out_transform = rasterio.mask.mask(image, [panel_polygon], crop=True, nodata=0)
@@ -47,7 +47,8 @@ def extract(image, panel_location: GeoDataFrame) -> List[float]:
     return [panel_band[panel_band > 0].mean() for panel_band in out_image]
 
 
-def fit(intensities: ndarray[Any, np.dtype[np.floating[_64Bit] | np.float_]], expected_reflectances: List[float]) -> Tuple[float, float]:
+def fit(intensities: ndarray[Any, np.dtype[np.floating[_64Bit] | np.float_]], expected_reflectances: List[float]) -> \
+Tuple[float, float]:
     slope, intersect = np.polyfit(intensities, expected_reflectances, 1)
     return slope, intersect
 
@@ -99,7 +100,7 @@ def convert(band_image: ndarray, coeffs: Tuple[float, float]) -> ndarray:
     return np.poly1d(coeffs)(band_image)
 
 
-def save(output_path, band_images, meta):
+def save_bands(output_path, band_images, meta):
     # Combine bands back into one image
     with rasterio.open(output_path, 'w', **meta) as dst:
         for band_index, band in enumerate(band_images):
@@ -108,7 +109,7 @@ def save(output_path, band_images, meta):
 
 def get_orthophoto_paths(orthophoto_dir: str) -> List[Path]:
     template_path = Path(orthophoto_dir).resolve()
-    return [filepath for filepath in template_path.glob("*.tif")]
+    return list(sorted([filepath for filepath in template_path.glob("*.tif")]))
 
 
 def load_panel_locations(geopackage_dir) -> List[GeoDataFrame]:
