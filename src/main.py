@@ -1,30 +1,23 @@
 import argparse
 import logging
 import os
-from pathlib import Path
-from typing import Any
 
 import cv2
-import numpy as np
-import rasterio
-from geopandas import GeoDataFrame
 from numpy import ndarray, dtype, floating, float_
 from numpy._typing import _64Bit
 from rasterio import DatasetReader
-from rasterio.features import rasterize
-from robotpy_apriltag import AprilTagDetector, AprilTagPoseEstimator
 from tqdm import tqdm
 
-from apriltags_utils import pose_estimate_tags, detect_tags, extract_edges
-from orthophoto_utils import load_panel_properties, load_panel_locations, get_orthophoto_paths, extract, interpolate, \
-    fit, get_band_reflectance, convert, save, is_panel_in_orthophoto
+from apriltags_utils import *
+from orthophoto_utils import *
 from utils.iterators import get_next
+from utils.polygons import shrink_or_swell_shapely_polygon
 
 logger = logging.getLogger(__name__)
 
 
-def extract_intensities(batch_of_orthophotos: list[tuple[Path, list[bool]]], panel_locations: list[GeoDataFrame],
-                        number_of_bands: int) -> ndarray[
+def extract_intensities_from_orthophotos(batch_of_orthophotos: list[tuple[Path, list[bool]]], panel_locations: list[GeoDataFrame],
+                                         number_of_bands: int) -> ndarray[
     Any, dtype[floating[_64Bit] | float_]]:
     """
     This function extracts intensities from the orthophotos.
@@ -181,7 +174,7 @@ def orthophoto_main():
 
     for batch in batches:
         # --- Run pipeline
-        i = extract_intensities(batch, panel_locations, number_of_bands)
+        i = extract_intensities_from_orthophotos(batch, panel_locations, number_of_bands)
         i = interpolate_intensities(i, panel_locations, number_of_bands)
         paths = [path for (path, _) in batch]
         c = convert_photos_to_reflectance(paths, i, panel_properties)
@@ -203,6 +196,9 @@ def apriltag_main():
     vertical_focal_length_pixels = 1581.7867974691412
     vertical_focal_center_pixels = 529.4318832108801
     tag_size = 0.2
+    sensor_size_mm = 6.3
+    focal_length_mm = 5.5
+    panel_size_m = 0.8
 
     estimator_config = AprilTagPoseEstimator.Config(tag_size, horizontal_focal_length_pixels,
                                                     vertical_focal_length_pixels,
@@ -210,41 +206,35 @@ def apriltag_main():
 
     for path in args.images:
         img = cv2.imread(path, cv2.IMREAD_GRAYSCALE)
+        panel_radiance_values = []
 
-        if args.detection_type == 'apriltag_edges':
-            # Detect Tags
-            valid_ids = set()
-            panel_radiance_values = []
-            for panel in panel_properties:
-                d = AprilTagDetector()
-                d.addFamily(panel.family)
-                d.setConfig(detector_config)
+        for panel in panel_properties:
+            d = AprilTagDetector()
+            d.addFamily(panel.family)
+            d.setConfig(detector_config)
+            if args.detection_type not in ['apriltag_corner_tags', 'apriltag_single_tag']:
+                raise ValueError("Unknown Detection Type for Apriltag algorithm")
+
+            if args.detection_type == 'apriltag_corner_tags':
                 if not isinstance(panel.tags, list) or len(panel.tags) != 4:
                     raise ValueError(
-                        "panel properties need to specify panel edges in apriltag_edges mode. Change your panel properties file")
-                valid_ids.add(*panel.tags)
-                tags = detect_tags(img, d, list(valid_ids))
+                        "panel properties need to specify panel corners in apriltag_edges mode. Change your panel properties file")
+                (tags, corners) = get_panels_ct(img, d, detector_config, )
                 assert len(tags) == len(panel.tags)
-                panel_radiance_values.append(extract_edges(img, tags))
 
-        if args.detection_type == 'apriltag_single':
-            # Detect Tags
-            valid_ids = set()
-            for panel in panel_properties:
-                d = AprilTagDetector()
-                d.addFamily(panel.family)
-                d.setConfig(detector_config)
+            if args.detection_type == 'apriltag_single_tag':
                 if isinstance(panel.tags, list):
                     raise ValueError(
                         "Only one tag per panel in apriltag_single mode. Change your panel properties file")
-                valid_ids.add(panel.tags)
-                tags = pose_estimate_tags(img, d, detector_config, list(valid_ids))
+                (tag, corners) = get_panels_st(img, d, sensor_size_mm, focal_length_mm, panel_size_m, estimator_config,
+                                               list(panel.single_tag))
 
-                polygon = sg.Polygon(detection)
-                mask = rasterize([polygon], out_shape=img.shape)
-                # mean the radiance values to get a radiance value for the detection
-                mean = np.ma.array(img, mask=~(mask.astype(np.bool_))).mean()
-                panel_radiance_values.append(mean)
+            polygon = shapely.Polygon(corners)
+            polygon = shrink_or_swell_shapely_polygon(polygon, 0.2)
+            mask = rasterize([polygon], out_shape=img.shape)
+            # mean the radiance values to get a radiance value for the detection
+            mean = np.ma.array(img, mask=~(mask.astype(np.bool_))).mean()
+            panel_radiance_values.append(mean)
 
 
 if __name__ == '__main__':
@@ -267,7 +257,7 @@ if __name__ == '__main__':
 
     detection_type: str = args.detection_type
 
-    if detection_type not in ['apriltag_edges', 'apriltag_single', 'geolocation']:
+    if detection_type not in ['apriltag_corner_tags', 'apriltag_single_tag', 'geolocation']:
         raise ValueError('detection_type', detection_type, 'unknown')
 
     if detection_type.startswith("apriltag_"):

@@ -1,7 +1,8 @@
 [
   {
     "shape": "rect",
-    "tags": [],
+    "corner_tags": [],
+    "single_tag": [],
     "location": {
       "lat": 0.0,
       "lon": 0.0
