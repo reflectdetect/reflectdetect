@@ -1,9 +1,14 @@
 import math
+from pathlib import Path
 from typing import List
 
 import numpy as np
+import rasterio
+from rasterio.io import DatasetWriter
 from robotpy_apriltag import AprilTagDetection, AprilTagDetector, AprilTagPoseEstimator
 from wpimath.geometry import Transform3d
+
+from utils.paths import get_output_path
 
 # TODO: Fill out for all families
 tag_detection_to_total_width_conversions = {
@@ -62,3 +67,24 @@ def get_panel_st(tag, panel_size_pixel: float) -> tuple[
     edge_c = tag_panel_border + panel_length - panel_midpoint_to_edge
     edge_d = tag_panel_border + panel_length + panel_midpoint_to_edge
     return tag, [edge_a, edge_b, edge_c, edge_d]
+
+
+def save_images(paths: list[Path], converted_images: list[np.ndarray]) -> None:
+    """
+    This function saves the converted photos as .tif files into a new "/transformed/" directory in the images folder
+    :param paths: List of image paths
+    :param converted_images: List of reflectance images
+    """
+    for path, photo in zip(paths, converted_images):
+        if photo is None:
+            continue
+        output_path = get_output_path(path, "reflectance", "transformed")
+        with rasterio.open(path) as original:
+            meta = original.meta
+        meta.update(
+            dtype=rasterio.float32,
+            transform=rasterio.Affine.identity(),
+        )
+        dst: DatasetWriter
+        with rasterio.open(output_path, 'w', **meta) as dst:
+            dst.write_band(1, photo)

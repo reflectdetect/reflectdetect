@@ -1,4 +1,3 @@
-import os
 from pathlib import Path
 from typing import List, Tuple, Any
 
@@ -13,6 +12,8 @@ from rasterio.coords import BoundingBox
 from rasterio.mask import mask
 from shapely.geometry import Polygon
 from tqdm import tqdm
+
+from utils.paths import get_output_path
 
 
 def is_panel_in_orthophoto(orthophoto_path: Path, panel: GeoDataFrame, crs: str = "EPSG:4326") -> bool:
@@ -134,10 +135,7 @@ def save_orthophotos(paths: list[Path], converted_photos: list[list[ndarray]]) -
     for path, photo in zip(paths, converted_photos):
         if photo is None:
             continue
-        filename = path.as_posix().split("/")[-1].split(".")[0] + "_reflectance.tif"
-        output_folder = "/".join(path.as_posix().split("/")[:-1]) + "/transformed/"
-        os.makedirs(output_folder, exist_ok=True)
-        output_path = output_folder + filename
+        output_path = get_output_path(path, "reflectance", "transformed")
         with rasterio.open(path) as original:
             meta = original.meta
         meta.update(

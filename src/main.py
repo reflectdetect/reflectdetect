@@ -7,11 +7,12 @@ import cv2
 import shapely
 from numpy import ndarray, dtype
 from rasterio.features import rasterize
-from rasterio.io import DatasetWriter
 
+from apriltags_debug_utils import show_panel
 from apriltags_utils import *
 from orthophoto_utils import *
 from utils.iterators import get_next
+from utils.paths import get_output_path
 from utils.polygons import shrink_or_swell_shapely_polygon
 
 logger = logging.getLogger(__name__)
@@ -47,8 +48,8 @@ def calculate_panel_size_in_pixels(altitude, resolution, sensor_size_mm, focal_l
     focal_length = focal_length_mm / 1000
 
     # Calculate horizontal and vertical Field of View (FoV)
-    fov_horizontal = 2 * math.atan(
-        (sensor_diagonal / (2 * math.sqrt(1 + (resolution[0] / resolution[1]) ** 2))) / focal_length)
+    # fov_horizontal = 2 * math.atan(
+    #    (sensor_diagonal / (2 * math.sqrt(1 + (resolution[0] / resolution[1]) ** 2))) / focal_length)
     fov_vertical = 2 * math.atan(
         (sensor_diagonal / (2 * math.sqrt(1 + (resolution[1] / resolution[0]) ** 2))) / focal_length)
 
@@ -167,27 +168,56 @@ def convert_images_to_reflectance(paths: list[Path],
     return converted_photos
 
 
-def save_images(paths: list[Path], converted_images: list[ndarray]) -> None:
-    """
-    This function saves the converted photos as .tif files into a new "/transformed/" directory in the images folder
-    :param paths: List of image paths
-    :param converted_images: List of reflectance images
-    """
-    for path, photo in zip(paths, converted_images):
-        if photo is None:
+def extract_using_apriltags(path, detector, all_ids: list[int], estimator_config, altitude_to_panel_size_fn):
+    img = cv2.imread(path.as_posix(), cv2.IMREAD_GRAYSCALE)
+
+    all_tags = detect_tags(img, detector, all_ids)
+    if len(all_tags) != len(panel_properties):
+        return [None] * len(panel_properties)
+
+    altitude = get_altitude_from_panels(all_tags, estimator_config)
+    resolution = (len(img[0]), len(img))
+    panel_size_pixel = altitude_to_panel_size_fn(altitude, resolution)
+
+    panel_intensities = [None] * len(panel_properties)
+    for tag in all_tags:
+        panels = list(filter(lambda p: p["family"] == tag.getFamily() and p["single_tag"] == tag.getId(),
+                             panel_properties))
+        if not len(panels) == 1:
+            raise Exception("Could not associate panel with found tag")
+        panel_index = panel_properties.index(panels[0])
+        detection = None
+        if args.detection_type == 'apriltag_single_tag':
+            detection = get_panel_st(tag, panel_size_pixel[0])
+
+        if detection is None:
             continue
-        filename = path.as_posix().split("/")[-1].split(".")[0] + "_reflectance.tif"
-        output_folder = "/".join(path.as_posix().split("/")[:-1]) + "/transformed/"
-        os.makedirs(output_folder, exist_ok=True)
-        output_path = output_folder + filename
-        with rasterio.open(path) as original:
-            meta = original.meta
-        meta.update(
-            dtype=rasterio.float32,
-        )
-        dst: DatasetWriter
-        with rasterio.open(output_path, 'w', **meta) as dst:
-            dst.write_band(1, photo)
+        else:
+            tag, corners = detection
+            if args.debug:
+                output_path = get_output_path(path, "panel_" + str(tag.getId()) + "_" + tag.getFamily(),
+                                              "debug/panels")
+                show_panel(img, [tag], corners, output_path)
+            polygon = shapely.Polygon(corners)
+            polygon = shrink_or_swell_shapely_polygon(polygon, 0.2)
+            panel_mask = rasterize([polygon], out_shape=img.shape)
+            mean = np.ma.array(img, mask=~(panel_mask.astype(np.bool_))).mean()
+            panel_intensities[panel_index] = mean
+    return panel_intensities
+
+
+def extract_intensities_from_apriltags(batch, detector, all_ids, estimator_config, altitude_to_panel_size_fn):
+    intensities = np.zeros((len(batch), len(panel_properties)))
+    for img_index, path in enumerate(tqdm(batch)):
+        panel_intensities = extract_using_apriltags(path, detector, all_ids, estimator_config,
+                                                    altitude_to_panel_size_fn)
+        intensities[img_index] = panel_intensities
+    return intensities
+
+
+def get_apriltag_paths(images_directory: Path) -> List[Path]:
+    template_path = Path(images_directory).resolve()
+    return list(sorted([filepath for filepath in template_path.glob("*.tif")]))
 
 
 def build_batches_per_full_visibility(paths_with_visibility: dict[Path, ndarray]) -> list[list[Path]]:
@@ -200,6 +230,7 @@ def build_batches_per_full_visibility(paths_with_visibility: dict[Path, ndarray]
         if all_panels_visible:
             batches.append(current_batch)
             if nextVisibility is not None and nextVisibility[1].all():
+                # The next image has all panels visible, so no need to include this one twice
                 current_batch = []
             else:
                 # This results in photos at the end of a batch being also in the next batch.
@@ -229,50 +260,6 @@ def build_batches_per_band(paths: list[Path]) -> list[list[Path]]:
             batches[band_index].append(image_path)
 
     return batches
-
-
-def extract_using_apriltags(path, detector, all_ids: list[int], estimator_config, altitude_to_panel_size_fn):
-    img = cv2.imread(path.as_posix(), cv2.IMREAD_GRAYSCALE)
-
-    all_tags = detect_tags(img, detector, all_ids)
-    if len(all_tags) != len(panel_properties):
-        return [None] * len(panel_properties)
-
-    altitude = get_altitude_from_panels(all_tags, estimator_config)
-    print(altitude, "m")
-    resolution = (len(img[0]), len(img))
-    panel_size_pixel = altitude_to_panel_size_fn(altitude, resolution)
-
-    panel_intensities = [None] * len(panel_properties)
-    for tag in all_tags:
-        panels = list(filter(lambda p: p["family"] == tag.getFamily() and p["single_tag"] == tag.getId(),
-                             panel_properties))
-        if not len(panels) == 1:
-            raise Exception("Could not associate panel with found tag")
-        panel_index = panel_properties.index(panels[0])
-        detection = None
-        if args.detection_type == 'apriltag_single_tag':
-            detection = get_panel_st(tag, panel_size_pixel[0])
-
-        if detection is None:
-            continue
-        else:
-            tag, corners = detection
-            polygon = shapely.Polygon(corners)
-            polygon = shrink_or_swell_shapely_polygon(polygon, 0.2)
-            panel_mask = rasterize([polygon], out_shape=img.shape)
-            mean = np.ma.array(img, mask=~(panel_mask.astype(np.bool_))).mean()
-            panel_intensities[panel_index] = mean
-    return panel_intensities
-
-
-def extract_intensities_from_apriltags(batch, detector, all_ids, estimator_config, altitude_to_panel_size_fn):
-    intensities = np.zeros((len(batch), len(panel_properties)))
-    for img_index, path in enumerate(tqdm(batch)):
-        panel_intensities = extract_using_apriltags(path, detector, all_ids, estimator_config,
-                                                    altitude_to_panel_size_fn)
-        intensities[img_index] = panel_intensities
-    return intensities
 
 
 def orthophoto_main():
@@ -307,11 +294,6 @@ def orthophoto_main():
         del batch
 
 
-def get_apriltag_paths(images_directory: Path) -> List[Path]:
-    template_path = Path(images_directory).resolve()
-    return list(sorted([filepath for filepath in template_path.glob("*.tif")]))
-
-
 def apriltag_main():
     img_paths = get_apriltag_paths(args.images)
     batches = build_batches_per_band(img_paths)
@@ -327,7 +309,7 @@ def apriltag_main():
     vertical_focal_center_pixels = 529.4318832108801
     sensor_size_mm = 6.3
     focal_length_mm = 5.5
-    tag_size = 0.2
+    tag_size = 0.3
     panel_size_m = 0.8
 
     estimator_config = AprilTagPoseEstimator.Config(tag_size, horizontal_focal_length_pixels,
@@ -377,6 +359,8 @@ if __name__ == '__main__':
     parser.add_argument("--panel_locations", help="Path to the GeoPackage file", type=str, required=False)
     parser.add_argument("--family", help="Name of the apriltag family ('tag25h9', 'tagStandard41h12', ...)", type=str,
                         required=False)
+    parser.add_argument("--debug", help="Prints debug images into a /debug/ directory", default=False,
+                        action='store_true', required=False)
     args = parser.parse_args()
 
     panel_properties = load_panel_properties(args.panel_properties)
