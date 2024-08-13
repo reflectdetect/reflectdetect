@@ -1,99 +1,32 @@
 [
   {
-    "shape": "rect",
-    "corner_tags": [],
-    "single_tag": [],
-    "location": {
-      "lat": 0.0,
-      "lon": 0.0
-    },
     "bands": [
-      {
-        "band_name": "Purple",
-        "factor": 0.9
-      },
-      {
-        "band_name": "Blue",
-        "factor": 1.0
-      },
-      {
-        "band_name": "Green",
-        "factor": 1.0
-      },
-      {
-        "band_name": "Red",
-        "factor": 1.0
-      },
-      {
-        "band_name": "Red edge",
-        "factor": 0.72
-      },
-      {
-        "band_name": "NIR",
-        "factor": 0.91
-      }
+      0.9,
+      1.0,
+      1.0,
+      1.0,
+      0.72,
+      0.91
     ]
   },
   {
-    "shape": "rect",
-    "location": {
-      "lat": 0.0,
-      "lon": 0.0
-    },
     "bands": [
-      {
-        "band_name": "Purple",
-        "factor": 0.9
-      },
-      {
-        "band_name": "Blue",
-        "factor": 1.0
-      },
-      {
-        "band_name": "Green",
-        "factor": 0.43
-      },
-      {
-        "band_name": "Red",
-        "factor": 0.70
-      },
-      {
-        "band_name": "Red edge",
-        "factor": 0.35
-      },
-      {
-        "band_name": "NIR",
-        "factor": 0.4
-      }
+      0.9,
+      1.0,
+      0.43,
+      0.70,
+      0.35,
+      0.4
     ]
   },
   {
-    "shape": "rect",
     "bands": [
-      {
-        "band_name": "Purple",
-        "factor": 0.9
-      },
-      {
-        "band_name": "Blue",
-        "factor": 0.17
-      },
-      {
-        "band_name": "Green",
-        "factor": 0.09
-      },
-      {
-        "band_name": "Red",
-        "factor": 0.12
-      },
-      {
-        "band_name": "Red edge",
-        "factor": 0.12
-      },
-      {
-        "band_name": "NIR",
-        "factor": 0.10
-      }
+      0.9,
+      0.17,
+      0.09,
+      0.12,
+      0.12,
+      0.10
     ]
   }
 ]

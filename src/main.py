@@ -1,6 +1,7 @@
 import argparse
 import json
 import logging
+import os
 import re
 
 import cv2
@@ -8,8 +9,8 @@ import shapely
 from numpy import ndarray, dtype
 from rasterio.features import rasterize
 
-from apriltags_debug_utils import show_panel
 from apriltags_utils import *
+from debug_utils import show_panel, show_intensities
 from orthophoto_utils import *
 from utils.iterators import get_next
 from utils.paths import get_output_path
@@ -283,15 +284,58 @@ def orthophoto_main():
 
     batches = build_batches_per_full_visibility(paths_with_visibility)
 
+    output_folder = None
+    if args.debug:
+        output_folder = args.images + "/debug/intensity/"
+        for p in Path(output_folder).glob("*.csv"):
+            p.unlink()
+
     for batch in batches:
         # --- Run pipeline
         i = extract_intensities_from_orthophotos(batch, paths_with_visibility, panel_locations, number_of_bands)
+        if args.debug:
+            for band in range(0, number_of_bands):
+                os.makedirs(output_folder, exist_ok=True)
+                output_path = Path(args.images + "/debug/intensity/band_" + str(band) + "_intensities.csv")
+                with open(output_path, "a") as f:
+                    f.write("\n")
+                    data = i[:, :, band].astype(str)
+                    data[data == 'nan'] = ''
+                    np.savetxt(f, data, delimiter=",", fmt="%s")
         i = interpolate_intensities(i, number_of_bands)
+        if args.debug:
+            if args.debug:
+                for band in range(0, number_of_bands):
+                    os.makedirs(output_folder, exist_ok=True)
+                    output_path = Path(
+                        args.images + "/debug/intensity/band_" + str(band) + "_intensities_interpolated.csv")
+                    with open(output_path, "a") as f:
+                        f.write("\n")
+                        data = i[:, :, band].astype(str)
+                        data[data == 'nan'] = ''
+                        np.savetxt(f, i[:, :, band], delimiter=",", fmt="%s")
         c = convert_orthophotos_to_reflectance(batch, i)
         del i
         save_orthophotos(batch, c)
         del c
         del batch
+    if args.debug:
+        intensities = np.zeros((sum(len(v) for v in batches), len(panel_properties), number_of_bands))
+        for band in range(0, number_of_bands):
+            output_path = Path(
+                args.images + "/debug/intensity/band_" + str(band) + "_intensities.csv")
+            intensities[:, :, band] = np.genfromtxt(output_path, delimiter=",")
+        output_path = Path(
+            args.images + "/debug/intensity/intensities.tif")
+        show_intensities(intensities, output_path.as_posix())
+        intensities_interpolated = np.zeros((sum(len(v) for v in batches), len(panel_properties), number_of_bands))
+        for band in range(0, number_of_bands):
+            output_path = Path(
+                args.images + "/debug/intensity/band_" + str(band) + "_intensities_interpolated.csv")
+            intensities_interpolated[:, :, band] = np.genfromtxt(output_path, delimiter=",")
+        output_path = Path(
+            args.images + "/debug/intensity/intensities_interpolated.tif")
+        show_intensities(intensities_interpolated, output_path.as_posix())
 
 
 def apriltag_main():
