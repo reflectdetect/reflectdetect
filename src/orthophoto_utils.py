@@ -8,7 +8,6 @@ import numpy as np
 import rasterio
 from geopandas import GeoDataFrame
 from numpy import ndarray
-from numpy._typing import _64Bit
 from rasterio import DatasetReader
 from rasterio.coords import BoundingBox
 from rasterio.mask import mask
@@ -49,7 +48,7 @@ def extract_using_geolocation(image, panel_location: GeoDataFrame) -> List[float
     return [panel_band[panel_band > 0].mean() for panel_band in out_image]
 
 
-def fit(intensities: ndarray[Any, np.dtype[np.floating[_64Bit] | np.float_]], expected_reflectances: List[float]) -> \
+def fit(intensities: ndarray[Any, np.dtype[np.float64]], expected_reflectances: List[float]) -> \
         Tuple[float, float]:
     slope, intersect = np.polyfit(intensities, expected_reflectances, 1)
     return slope, intersect
@@ -150,8 +149,7 @@ def save_orthophotos(paths: list[Path], converted_photos: list[list[ndarray]]) -
 def extract_intensities_from_orthophotos(batch_of_orthophotos: list[Path],
                                          paths_with_visibility: dict[Path, ndarray],
                                          panel_locations: list[GeoDataFrame],
-                                         number_of_bands: int) -> ndarray[
-    Any, np.dtype[np.floating[_64Bit] | np.float_]]:
+                                         number_of_bands: int) -> ndarray[Any, np.dtype[np.float64]]:
     """
     This function extracts intensities from the orthophotos.
     It does so by looking at each photo and determining which panels are visible in the photo.
@@ -160,6 +158,9 @@ def extract_intensities_from_orthophotos(batch_of_orthophotos: list[Path],
     Therefore, extraction is skipped for that panel with `np.Nan` values saved in the output.
     Otherwise, the function uses the recorded gps location of the panel given by `panel_locations`
     to extract the mean intensity of the panel in that band for that photo
+    :param panel_locations:
+    :param paths_with_visibility:
+    :param batch_of_orthophotos:
     :type number_of_bands: int
     :return: The extracted intensities for all orthophotos, with np.Nan for values that could not be found.
     """

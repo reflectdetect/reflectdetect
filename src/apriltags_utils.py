@@ -61,4 +61,4 @@ def get_panel_st(tag, panel_size_pixel: float) -> tuple[
     edge_b = tag_panel_border - panel_midpoint_to_edge
     edge_c = tag_panel_border + panel_length - panel_midpoint_to_edge
     edge_d = tag_panel_border + panel_length + panel_midpoint_to_edge
-    return (tag, (edge_a, edge_b, edge_c, edge_d))
+    return tag, [edge_a, edge_b, edge_c, edge_d]

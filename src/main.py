@@ -5,8 +5,7 @@ import re
 
 import cv2
 import shapely
-from numpy import ndarray, dtype, floating, float_
-from numpy._typing import _64Bit
+from numpy import ndarray, dtype
 from rasterio.features import rasterize
 from rasterio.io import DatasetWriter
 
@@ -27,7 +26,7 @@ def get_altitude_to_panel_size_fn(sensor_size_mm, focal_length_mm,
 
 def calculate_panel_size_in_pixels(altitude, resolution, sensor_size_mm, focal_length_mm,
                                    physical_panel_size):
-    # TODO(Sanitycheck function)
+    # TODO(Sanity check function)
     """
     Calculate the expected size of an object in pixels based on camera parameters and object physical size.
 
@@ -35,7 +34,7 @@ def calculate_panel_size_in_pixels(altitude, resolution, sensor_size_mm, focal_l
         altitude (float): Altitude in meters.
         resolution (tuple): Image resolution (width, height) in pixels.
         sensor_size_mm (float): Sensor diagonal in millimeters.
-        focal_length_m (float): Focal length in millimeters.
+        focal_length_mm (float): Focal length in millimeters.
         physical_panel_size (tuple): Physical size of the object in meters (width, height).
 
     Returns:
@@ -74,9 +73,8 @@ def load_panel_properties(panel_properties_file):
     return panels
 
 
-def interpolate_intensities(intensities: ndarray[Any, dtype[floating[_64Bit] | float_]],
-                            number_of_bands: int) -> ndarray[
-    Any, dtype[floating[_64Bit] | float_]]:
+def interpolate_intensities(intensities: ndarray[Any, dtype[np.float64]],
+                            number_of_bands: int) -> ndarray[Any, dtype[np.float64]]:
     """
     This function is used to piecewise linearly interpolate the intensity values to fill the `np.Nan` gaps in the data.
     To interpolate we select all the values captured in all the images for a given panel and band.
@@ -84,7 +82,7 @@ def interpolate_intensities(intensities: ndarray[Any, dtype[floating[_64Bit] | f
     8Bit Data might look like this: [np.NaN, np.NaN, 240.0, 241.0, 240.0, np.NaN, 242.0, np.NaN, np.NaN]
     After interpolation:            [240.00, 240.00, 240.0, 241.0, 240.0, 241.00, 242.0, 242.00, 242.00]
     :param number_of_bands: number of bands in the images
-    :rtype: ndarray[Any, dtype[floating[_64Bit] | float_]]
+    :rtype: ndarray[Any, dtype[np.float64]]
     :param intensities: intensity values matrix of shape (photo, panel, band) with some values being np.NaN.
     :return: The interpolated intensity values
     """
@@ -95,7 +93,7 @@ def interpolate_intensities(intensities: ndarray[Any, dtype[floating[_64Bit] | f
 
 
 def convert_orthophotos_to_reflectance(paths: list[Path],
-                                       intensities: ndarray[Any, dtype[floating[_64Bit] | float_]]) -> \
+                                       intensities: ndarray[Any, dtype[np.float64]]) -> \
         list[list[ndarray]]:
     """
     This function converts the intensity values to reflectance values.
@@ -104,7 +102,6 @@ def convert_orthophotos_to_reflectance(paths: list[Path],
     The intensities are then combined with the known reflectance values of the panels
     at the given band to fit a linear function (Empirical Line Method).
     Read more about ELM: https://www.asprs.org/wp-content/uploads/2015/05/3E%5B5%5D-paper.pdf
-    :param panel_properties: list of intensities for each band for each panel
     :param paths: List of orthophoto paths
     :param intensities: intensity values matrix of shape (photo, panel, band)
     :return: List of reflectance photos, each photo is a list of bands, each band is a ndarray of shape (width, height)
@@ -136,7 +133,7 @@ def convert_orthophotos_to_reflectance(paths: list[Path],
 
 
 def convert_images_to_reflectance(paths: list[Path],
-                                  intensities: ndarray[Any, dtype[floating[_64Bit] | float_]],
+                                  intensities: ndarray[Any, dtype[np.float64]],
                                   band_index: int) -> list[ndarray | None]:
     """
     This function converts the intensity values to reflectance values.
@@ -146,7 +143,6 @@ def convert_images_to_reflectance(paths: list[Path],
     at the given band to fit a linear function (Empirical Line Method).
     Read more about ELM: https://www.asprs.org/wp-content/uploads/2015/05/3E%5B5%5D-paper.pdf
     :param band_index: index of the band of the image
-    :param panel_properties: list of intensities for each band for each panel
     :param paths: List of image paths
     :param intensities: intensity values matrix of shape (photo, panel, band)
     :return: List of reflectance photos, each photo is a list of bands, each band is a ndarray of shape (width, height)
@@ -171,14 +167,13 @@ def convert_images_to_reflectance(paths: list[Path],
     return converted_photos
 
 
-def save_images(paths: list[Path], converted_photos: list[ndarray]) -> None:
+def save_images(paths: list[Path], converted_images: list[ndarray]) -> None:
     """
     This function saves the converted photos as .tif files into a new "/transformed/" directory in the images folder
-    :param paths: List of orthophoto paths
-    :param converted_photos: List of reflectance photos, each photo is a list of bands,
-    each band is a ndarray of shape (width, height)
+    :param paths: List of image paths
+    :param converted_images: List of reflectance images
     """
-    for path, photo in zip(paths, converted_photos):
+    for path, photo in zip(paths, converted_images):
         if photo is None:
             continue
         filename = path.as_posix().split("/")[-1].split(".")[0] + "_reflectance.tif"
@@ -198,18 +193,18 @@ def save_images(paths: list[Path], converted_photos: list[ndarray]) -> None:
 def build_batches_per_full_visibility(paths_with_visibility: dict[Path, ndarray]) -> list[list[Path]]:
     batches = []
     current_batch = []
-    for (path, panel_visibility), next in tqdm(get_next(paths_with_visibility.items())):
+    for (path, panel_visibility), nextVisibility in tqdm(get_next(paths_with_visibility.items())):
         current_batch.append(path)
 
         all_panels_visible = panel_visibility.all()
         if all_panels_visible:
             batches.append(current_batch)
-            if next is not None and next[1].all():
+            if nextVisibility is not None and nextVisibility[1].all():
                 current_batch = []
             else:
                 # This results in photos at the end of a batch being also in the next batch.
-                # Therefore they are calculated twice, but otherwise the interpolation would lose their information.
-                # The next batch could start with a images without panels in it,
+                # Therefore, they are calculated twice, but otherwise the interpolation would lose their information.
+                # The next batch could start with an images without panels in it,
                 # which would need the image with panels before it to be interpolated correctly
                 current_batch = [path]
     batches.append(current_batch)
@@ -250,7 +245,7 @@ def extract_using_apriltags(path, detector, all_ids: list[int], estimator_config
 
     panel_intensities = [None] * len(panel_properties)
     for tag in all_tags:
-        panels = list(filter(lambda panel: panel["family"] == tag.getFamily() and panel["single_tag"] == tag.getId(),
+        panels = list(filter(lambda p: p["family"] == tag.getFamily() and p["single_tag"] == tag.getId(),
                              panel_properties))
         if not len(panels) == 1:
             raise Exception("Could not associate panel with found tag")
@@ -265,30 +260,28 @@ def extract_using_apriltags(path, detector, all_ids: list[int], estimator_config
             tag, corners = detection
             polygon = shapely.Polygon(corners)
             polygon = shrink_or_swell_shapely_polygon(polygon, 0.2)
-            mask = rasterize([polygon], out_shape=img.shape)
-            mean = np.ma.array(img, mask=~(mask.astype(np.bool_))).mean()
+            panel_mask = rasterize([polygon], out_shape=img.shape)
+            mean = np.ma.array(img, mask=~(panel_mask.astype(np.bool_))).mean()
             panel_intensities[panel_index] = mean
     return panel_intensities
 
 
-def extract_intensities_from_apriltags(batch, detector, all_ids, estimator_config, get_altitude_to_panel_size_fn):
+def extract_intensities_from_apriltags(batch, detector, all_ids, estimator_config, altitude_to_panel_size_fn):
     intensities = np.zeros((len(batch), len(panel_properties)))
     for img_index, path in enumerate(tqdm(batch)):
         panel_intensities = extract_using_apriltags(path, detector, all_ids, estimator_config,
-                                                    get_altitude_to_panel_size_fn)
+                                                    altitude_to_panel_size_fn)
         intensities[img_index] = panel_intensities
     return intensities
 
 
 def orthophoto_main():
-    # python src/main.py "data/20240529_uav_multispectral_orthos_20m/orthophotos" "reflectance_panel_example_data.json" "data/20240529_uav_multispectral_orthos_20m/20240529_tarps_locations.gpkg"
-
     panel_locations = load_panel_locations(Path(args.panel_locations))
     orthophoto_paths = get_orthophoto_paths(args.images)
 
-    ophoto: DatasetReader
-    with rasterio.open(orthophoto_paths[0]) as ophoto:
-        number_of_bands = len(ophoto.read())
+    photo: DatasetReader
+    with rasterio.open(orthophoto_paths[0]) as photo:
+        number_of_bands = len(photo.read())
 
     # --- Input validation
     assert len(panel_properties) == len(panel_locations)
@@ -297,7 +290,7 @@ def orthophoto_main():
     paths_with_visibility = {}
     for path in tqdm(orthophoto_paths):
         panels_visible = np.array(
-            [is_panel_in_orthophoto(path, panel) for panel in panel_locations]
+            [is_panel_in_orthophoto(path, p) for p in panel_locations]
         )
         paths_with_visibility[path] = panels_visible
 
@@ -314,15 +307,14 @@ def orthophoto_main():
         del batch
 
 
-def get_apriltag_paths(dir: Path) -> List[Path]:
-    template_path = Path(dir).resolve()
+def get_apriltag_paths(images_directory: Path) -> List[Path]:
+    template_path = Path(images_directory).resolve()
     return list(sorted([filepath for filepath in template_path.glob("*.tif")]))
 
 
 def apriltag_main():
     img_paths = get_apriltag_paths(args.images)
     batches = build_batches_per_band(img_paths)
-    number_of_bands = len(batches)
     detector_config = AprilTagDetector.Config()
     detector_config.quadDecimate = 1.0
     detector_config.numThreads = 4
@@ -348,16 +340,13 @@ def apriltag_main():
 
     all_ids = []
     if args.detection_type == 'apriltag_single_tag':
-        all_ids = [panel["single_tag"] for panel in panel_properties]
+        all_ids = [p["single_tag"] for p in panel_properties]
 
     # Hack TODO: remove, as panels should not specify family
     d = AprilTagDetector()
-    for family in [panel["family"] for panel in panel_properties]:
+    for family in [p["family"] for p in panel_properties]:
         d.addFamily(family)
     d.setConfig(detector_config)
-
-    # --- Input validation
-    assert number_of_bands == len(panel_properties[0]['bands'])
 
     for (band_index, batch) in enumerate(batches):
         # --- Run pipeline
@@ -394,6 +383,7 @@ if __name__ == '__main__':
 
     detection_type: str = args.detection_type
 
+    # Input Validation
     if detection_type not in ['apriltag_corner_tags', 'apriltag_single_tag', 'geolocation']:
         raise ValueError('detection_type ' + detection_type + ' unknown')
     if detection_type.startswith("apriltag_"):
