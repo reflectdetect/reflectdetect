@@ -10,12 +10,14 @@ from wpimath.geometry import Transform3d
 
 from utils.paths import get_output_path
 
-# TODO: Fill out for all families
 tag_detection_to_total_width_conversions = {
-    "tagCircle21h7": 0.5 / 0.28,
-    "tag25h9": 0.44 / 0.36,
-    "tagCircle49h12": 0.56 / 0.25,
-    "tagStandard52h13": 0.56 / 0.31
+    "tag16h5": 1.33,
+    "tag25h9": 1.22,
+    "tag36h11": 1.25,
+    "tagCircle21h7": 1.8,
+    "tagCircle49h12": 2.2,
+    "tagStandard41h12": 1.8,
+    "tagStandard52h13": 1.67,
 }
 
 
