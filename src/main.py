@@ -186,12 +186,11 @@ def extract_using_apriltags(path, detector, all_ids: list[int], estimator_config
         if not len(panels) == 1:
             raise Exception("Could not associate panel with found tag")
         panel_index = panel_properties.index(panels[0])
-        detection = get_panel(tag, panel_size_pixel[0])
+        corners = get_panel(tag, panel_size_pixel[0], resolution)
 
-        if detection is None:
+        if corners is None:
             continue
         else:
-            tag, corners = detection
             if args.debug:
                 output_path = get_output_path(path, "panel_" + str(tag.getId()) + "_" + tag.getFamily(),
                                               "debug/panels")
@@ -347,6 +346,9 @@ def apriltag_main():
     if args.debug:
         output_folder = args.images + "/debug/intensity/"
         for p in Path(output_folder).glob("*.csv"):
+            p.unlink()
+        output_folder = args.images + "/debug/panel/"
+        for p in Path(output_folder).glob("*.tif"):
             p.unlink()
 
     for (band_index, batch) in enumerate(batches):

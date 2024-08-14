@@ -3,10 +3,8 @@ from pathlib import Path
 from typing import List
 
 import numpy as np
-import rasterio
-from PIL import Image
-from rasterio.io import DatasetWriter
 from robotpy_apriltag import AprilTagDetection, AprilTagDetector, AprilTagPoseEstimator
+from tifffile import imwrite
 from wpimath.geometry import Transform3d
 
 from utils.paths import get_output_path
@@ -50,13 +48,10 @@ def get_altitude_from_panels(tags: list[AprilTagDetection], config: AprilTagPose
     return np.mean([estimate.translation().z for (tag, estimate) in estimates])
 
 
-def get_panel(tag, panel_size_pixel: float) -> tuple[
-                                                      AprilTagDetection, list[float]] | None:
-    # Panel size calculation
-    # assumes square panels
-    corners = list(tag.getCorners(tuple([0.0] * 8)))
-    corners = np.array(list((zip(corners[::2], corners[1::2]))))
-    towards_panel = corners[2] - corners[1]
+def get_panel(tag: AprilTagDetection, panel_size_pixel: float, image_dimensions: (int, int)) -> list[float] | None:
+    tag_corners = list(tag.getCorners(tuple([0.0] * 8)))
+    tag_corners = np.array(list((zip(tag_corners[::2], tag_corners[1::2]))))
+    towards_panel = tag_corners[2] - tag_corners[1]
     tag_detection_size_pixel = np.linalg.norm(towards_panel)
     tag_size = tag_detection_size_pixel * tag_detection_to_total_width_conversions[tag.getFamily()]
     towards_panel = towards_panel / np.linalg.norm(towards_panel)
@@ -64,12 +59,20 @@ def get_panel(tag, panel_size_pixel: float) -> tuple[
     tag_panel_border = center + towards_panel * (tag_size / 2)
     panel_length = towards_panel * panel_size_pixel
     half_panel_length = panel_length / 2
-    panel_midpoint_to_edge = [-half_panel_length[1], half_panel_length[0]]
-    edge_a = tag_panel_border + panel_midpoint_to_edge
-    edge_b = tag_panel_border - panel_midpoint_to_edge
-    edge_c = tag_panel_border + panel_length - panel_midpoint_to_edge
-    edge_d = tag_panel_border + panel_length + panel_midpoint_to_edge
-    return tag, [edge_a, edge_b, edge_c, edge_d]
+    panel_midpoint_to_corner = [-half_panel_length[1], half_panel_length[0]]
+    corner_a = tag_panel_border + panel_midpoint_to_corner
+    corner_b = tag_panel_border - panel_midpoint_to_corner
+    corner_c = tag_panel_border + panel_length - panel_midpoint_to_corner
+    corner_d = tag_panel_border + panel_length + panel_midpoint_to_corner
+    corners = [corner_a, corner_b, corner_c, corner_d]
+
+    for corner in corners:
+        if corner[0] < 0 or corner[1] < 0:
+            return None
+        if corner[0] > image_dimensions[0] or corner[1] > image_dimensions[1]:
+            return None
+
+    return corners
 
 
 def save_images(paths: list[Path], converted_images: list[np.ndarray]) -> None:
@@ -82,7 +85,5 @@ def save_images(paths: list[Path], converted_images: list[np.ndarray]) -> None:
         if photo is None:
             continue
         output_path = get_output_path(path, "reflectance", "transformed")
-        original = Image.open(path)
-        exif = original.info['exif']
-        im = Image.fromarray(photo)
-        im.save(output_path, exif=exif)
+
+        imwrite(output_path, photo)
