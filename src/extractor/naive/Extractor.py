@@ -6,7 +6,7 @@ import cv2
 import numpy as np
 
 from src.extractor.BaseExtractor import BaseExtractor
-from src.utils.panel_utils import get_panel_factors_for_band
+from src.utils.panel import get_panel_factors_for_band
 from src.extractor.shared.shared import get_mean_radiance_values
 from src.utils.paths import get_image_band, get_extraction_path
 

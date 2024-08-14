@@ -7,7 +7,7 @@ import numpy as np
 from matplotlib import pyplot as plt
 
 from detector.BaseDetector import BaseDetector
-from utils.panel_utils import get_panel_factors_for_band
+from utils.panel import get_panel_factors_for_band
 from utils.paths import get_image_band, get_detection_path
 
 

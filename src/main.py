@@ -1,7 +1,6 @@
 import argparse
 import json
 import logging
-import os
 import re
 
 import cv2
@@ -9,10 +8,11 @@ import shapely
 from numpy import ndarray, dtype
 from rasterio.features import rasterize
 
-from apriltags_utils import *
-from debug_utils import show_panel, show_intensities
-from orthophoto_utils import *
+from utils.apriltags import *
+from utils.debug import debug_combine_and_plot_intensities, debug_save_intensities, show_panel, \
+    debug_save_intensities_single_band
 from utils.iterators import get_next
+from utils.orthophoto import *
 from utils.paths import get_output_path
 from utils.polygons import shrink_or_swell_shapely_polygon
 
@@ -175,7 +175,6 @@ def extract_using_apriltags(path, detector, all_ids: list[int], estimator_config
     all_tags = detect_tags(img, detector, all_ids)
     if len(all_tags) != len(panel_properties):
         return [None] * len(panel_properties)
-
     altitude = get_altitude_from_panels(all_tags, estimator_config)
     resolution = (len(img[0]), len(img))
     panel_size_pixel = altitude_to_panel_size_fn(altitude, resolution)
@@ -187,9 +186,7 @@ def extract_using_apriltags(path, detector, all_ids: list[int], estimator_config
         if not len(panels) == 1:
             raise Exception("Could not associate panel with found tag")
         panel_index = panel_properties.index(panels[0])
-        detection = None
-        if args.detection_type == 'apriltag_single_tag':
-            detection = get_panel_st(tag, panel_size_pixel[0])
+        detection = get_panel(tag, panel_size_pixel[0])
 
         if detection is None:
             continue
@@ -272,8 +269,10 @@ def orthophoto_main():
         number_of_bands = len(photo.read())
 
     # --- Input validation
-    assert len(panel_properties) == len(panel_locations)
-    assert number_of_bands == len(panel_properties[0]['bands'])
+    if len(panel_properties) != len(panel_locations):
+        raise Exception("Number of panel specifications does not match number of panel locations")
+    if number_of_bands != len(panel_properties[0]['bands']):
+        raise Exception("Number of bands in the images does not match number of bands in the panel specification")
 
     paths_with_visibility = {}
     for path in tqdm(orthophoto_paths):
@@ -294,53 +293,25 @@ def orthophoto_main():
         # --- Run pipeline
         i = extract_intensities_from_orthophotos(batch, paths_with_visibility, panel_locations, number_of_bands)
         if args.debug:
-            for band in range(0, number_of_bands):
-                os.makedirs(output_folder, exist_ok=True)
-                output_path = Path(args.images + "/debug/intensity/band_" + str(band) + "_intensities.csv")
-                with open(output_path, "a") as f:
-                    f.write("\n")
-                    data = i[:, :, band].astype(str)
-                    data[data == 'nan'] = ''
-                    np.savetxt(f, data, delimiter=",", fmt="%s")
+            debug_save_intensities(i, number_of_bands, output_folder)
         i = interpolate_intensities(i, number_of_bands)
         if args.debug:
             if args.debug:
-                for band in range(0, number_of_bands):
-                    os.makedirs(output_folder, exist_ok=True)
-                    output_path = Path(
-                        args.images + "/debug/intensity/band_" + str(band) + "_intensities_interpolated.csv")
-                    with open(output_path, "a") as f:
-                        f.write("\n")
-                        data = i[:, :, band].astype(str)
-                        data[data == 'nan'] = ''
-                        np.savetxt(f, i[:, :, band], delimiter=",", fmt="%s")
+                debug_save_intensities(i, number_of_bands, output_folder, "_interpolated")
         c = convert_orthophotos_to_reflectance(batch, i)
         del i
         save_orthophotos(batch, c)
         del c
-        del batch
     if args.debug:
-        intensities = np.zeros((sum(len(v) for v in batches), len(panel_properties), number_of_bands))
-        for band in range(0, number_of_bands):
-            output_path = Path(
-                args.images + "/debug/intensity/band_" + str(band) + "_intensities.csv")
-            intensities[:, :, band] = np.genfromtxt(output_path, delimiter=",")
-        output_path = Path(
-            args.images + "/debug/intensity/intensities.tif")
-        show_intensities(intensities, output_path.as_posix())
-        intensities_interpolated = np.zeros((sum(len(v) for v in batches), len(panel_properties), number_of_bands))
-        for band in range(0, number_of_bands):
-            output_path = Path(
-                args.images + "/debug/intensity/band_" + str(band) + "_intensities_interpolated.csv")
-            intensities_interpolated[:, :, band] = np.genfromtxt(output_path, delimiter=",")
-        output_path = Path(
-            args.images + "/debug/intensity/intensities_interpolated.tif")
-        show_intensities(intensities_interpolated, output_path.as_posix())
+        debug_combine_and_plot_intensities(len(orthophoto_paths), number_of_bands, output_folder, panel_properties)
+        debug_combine_and_plot_intensities(len(orthophoto_paths), number_of_bands, output_folder, panel_properties,
+                                           "_interpolated")
 
 
 def apriltag_main():
     img_paths = get_apriltag_paths(args.images)
     batches = build_batches_per_band(img_paths)
+    number_of_bands = len(batches)
     detector_config = AprilTagDetector.Config()
     detector_config.quadDecimate = 1.0
     detector_config.numThreads = 4
@@ -364,9 +335,7 @@ def apriltag_main():
     d.addFamily(args.family)
     d.setConfig(detector_config)
 
-    all_ids = []
-    if args.detection_type == 'apriltag_single_tag':
-        all_ids = [p["single_tag"] for p in panel_properties]
+    all_ids = [p["single_tag"] for p in panel_properties]
 
     # Hack TODO: remove, as panels should not specify family
     d = AprilTagDetector()
@@ -374,18 +343,33 @@ def apriltag_main():
         d.addFamily(family)
     d.setConfig(detector_config)
 
+    output_folder = None
+    if args.debug:
+        output_folder = args.images + "/debug/intensity/"
+        for p in Path(output_folder).glob("*.csv"):
+            p.unlink()
+
     for (band_index, batch) in enumerate(batches):
+        print("Processing batch for band", band_index, "with length", len(batch))
         # --- Run pipeline
         i = extract_intensities_from_apriltags(batch, d, all_ids, estimator_config,
                                                get_altitude_to_panel_size_fn(sensor_size_mm, focal_length_mm,
                                                                              (panel_size_m, panel_size_m)))
+        if args.debug:
+            debug_save_intensities_single_band(i, band_index, output_folder)
         for panel_index, _ in enumerate(panel_properties):
             i[:, panel_index] = interpolate(i[:, panel_index])
+        if args.debug:
+            debug_save_intensities_single_band(i, band_index, output_folder, "_interpolated")
         c = convert_images_to_reflectance(batch, i, band_index)
         del i
         save_images(batch, c)
         del c
-        del batch
+    if args.debug:
+        number_of_image_per_band = int(len(img_paths) / number_of_bands)
+        debug_combine_and_plot_intensities(number_of_image_per_band, number_of_bands, output_folder, panel_properties)
+        debug_combine_and_plot_intensities(number_of_image_per_band, number_of_bands, output_folder, panel_properties,
+                                           "_interpolated")
 
 
 if __name__ == '__main__':
@@ -396,7 +380,7 @@ if __name__ == '__main__':
         description='Automatically detect reflection calibration panels in images and transform the given images to '
                     'reflectance',
         epilog='If you have any questions, please contact')
-    parser.add_argument("detection_type", help="Type of detection ('apriltag_edges', 'apriltag_single', 'geolocation')",
+    parser.add_argument("detection_type", help="Type of detection ('apriltag', 'geolocation')",
                         type=str)
     parser.add_argument("images", help="Path to the image files", type=str)
     parser.add_argument("panel_properties", help="Path to the property file of the panels", type=str)
@@ -412,24 +396,26 @@ if __name__ == '__main__':
     detection_type: str = args.detection_type
 
     # Input Validation
-    if detection_type not in ['apriltag_corner_tags', 'apriltag_single_tag', 'geolocation']:
-        raise ValueError('detection_type ' + detection_type + ' unknown')
-    if detection_type.startswith("apriltag_"):
-        if args.detection_type == 'apriltag_single_tag':
-            for panel in panel_properties:
-                if panel["single_tag"] is None:
-                    raise ValueError(
-                        "Specify the tag id for each panel using the 'single_tag' field in the panel properties file")
-                if isinstance(panel["single_tag"], list):
-                    raise ValueError(
-                        "Only one tag per panel in apriltag_single mode. Change your panel properties file")
+    if detection_type not in ['apriltag', 'geolocation']:
+        raise Exception('detection_type ' + detection_type + ' unknown')
+    if args.detection_type == 'apriltag':
+        for panel_i, panel in enumerate(panel_properties):
+            if panel["single_tag"] is None:
+                raise Exception(
+                    f"Panel {str(panel_i)} Error: Specify the tag id for each panel using the 'single_tag' field in "
+                    f"the panel properties file")
+            if isinstance(panel["single_tag"], list):
+                raise Exception(
+                    "Only one tag per panel in apriltag_single mode. Change your panel properties file")
         if args.family is None:
             raise Exception("No family specified globally or for all panels")
         test_detector = AprilTagDetector()
         if not test_detector.addFamily(args.family):
             raise Exception("Family not recognized")
-
-    if detection_type.startswith("apriltag_"):
+    if args.detection_type == 'geolocation':
+        if args.panel_location is None:
+            raise Exception("No panel location file specified")
+    if detection_type == "apriltag":
         apriltag_main()
     if detection_type == 'geolocation':
         orthophoto_main()

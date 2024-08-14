@@ -4,6 +4,7 @@ from typing import List
 
 import numpy as np
 import rasterio
+from PIL import Image
 from rasterio.io import DatasetWriter
 from robotpy_apriltag import AprilTagDetection, AprilTagDetector, AprilTagPoseEstimator
 from wpimath.geometry import Transform3d
@@ -49,7 +50,7 @@ def get_altitude_from_panels(tags: list[AprilTagDetection], config: AprilTagPose
     return np.mean([estimate.translation().z for (tag, estimate) in estimates])
 
 
-def get_panel_st(tag, panel_size_pixel: float) -> tuple[
+def get_panel(tag, panel_size_pixel: float) -> tuple[
                                                       AprilTagDetection, list[float]] | None:
     # Panel size calculation
     # assumes square panels
@@ -81,12 +82,7 @@ def save_images(paths: list[Path], converted_images: list[np.ndarray]) -> None:
         if photo is None:
             continue
         output_path = get_output_path(path, "reflectance", "transformed")
-        with rasterio.open(path) as original:
-            meta = original.meta
-        meta.update(
-            dtype=rasterio.float32,
-            transform=rasterio.Affine.identity(),
-        )
-        dst: DatasetWriter
-        with rasterio.open(output_path, 'w', **meta) as dst:
-            dst.write_band(1, photo)
+        original = Image.open(path)
+        exif = original.info['exif']
+        im = Image.fromarray(photo)
+        im.save(output_path, exif=exif)
