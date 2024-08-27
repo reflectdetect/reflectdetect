@@ -1,5 +1,4 @@
 import json
-import json
 import logging
 import os.path
 from pathlib import Path
@@ -57,7 +56,7 @@ def convert_orthophotos_to_reflectance(paths: List[Path],
         converted_bands = []
         orthophoto: DatasetReader
         with rasterio.open(orthophoto_path) as orthophoto:
-            photo: ndarray = orthophoto.read()
+            photo = orthophoto.read()
         for band_index, band in enumerate(photo):
             intensities_of_panels = intensities[photo_index, :, band_index]
             if np.isnan(intensities_of_panels).any():
@@ -133,7 +132,7 @@ def orthophoto_main():
         i = extract_intensities_from_orthophotos(batch, paths_with_visibility, panel_locations, number_of_bands)
         if args.debug:
             debug_save_intensities(i, number_of_bands, output_folder)
-        i = interpolate_intensities(i, number_of_bands)
+        i = interpolate_intensities(i, number_of_bands, panel_properties)
         if args.debug:
             if args.debug:
                 debug_save_intensities(i, number_of_bands, output_folder, "_interpolated")
@@ -154,8 +153,8 @@ if __name__ == '__main__':
 
     class GeolocationArgumentParser(Tap):
         dataset: str  # Path to the dataset folder
-        panel_locations_file: str | None = None  # Path to file instead of "geolocations.gpk" in the dataset folder
-        panel_properties_file: str | None = None # Path to file instead of "panel_properties.json" in the dataset folder
+        panel_locations_file: str | None = None  # Path to file instead "geolocations.gpk" in the dataset folder
+        panel_properties_file: str | None = None  # Path to file instead "panel_properties.json" in the dataset folder
         debug: bool = False  # Prints logs and adds debug images into a /debug/ directory in the dataset folder
 
         def configure(self):

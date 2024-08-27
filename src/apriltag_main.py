@@ -1,6 +1,6 @@
-import argparse
 import json
 import logging
+import os
 import re
 from pathlib import Path
 from typing import Any, List
@@ -12,6 +12,7 @@ from exiftool import ExifToolHelper
 from numpy import ndarray, dtype
 from rasterio.features import rasterize
 from robotpy_apriltag import AprilTagDetector
+from tap import Tap
 from tqdm import tqdm
 
 from pipeline import interpolate, convert, fit
@@ -24,15 +25,25 @@ from utils.polygons import shrink_or_swell_shapely_polygon
 
 logger = logging.getLogger(__name__)
 
-def load_panel_properties(panel_properties_file):
-    with open(panel_properties_file) as f:
+
+def load_panel_properties(dataset_path: str, panel_properties_filepath: str | None):
+    if panel_properties_filepath is None:
+        canonical_filename = "panel_properties.json"
+        path = dataset_path + "/" + canonical_filename
+        if not os.path.exists(path):
+            raise ValueError("No panel properties file found at {}.".format(path))
+    else:
+        path = panel_properties_filepath
+
+    with open(path) as f:
         panels = json.load(f)
+        # TODO verify
     return panels
 
 
-def convert_images_to_reflectance(paths: list[Path],
+def convert_images_to_reflectance(paths: List[Path],
                                   intensities: ndarray[Any, dtype[np.float64]],
-                                  band_index: int) -> list[ndarray | None]:
+                                  band_index: int) -> List[ndarray | None]:
     """
     This function converts the intensity values to reflectance values.
     For each photo we convert each band separately
@@ -74,7 +85,7 @@ def get_camera_properties(image_path):
             "EXIF:FocalPlaneResolutionUnit"],
 
 
-def extract_using_apriltags(path, detector, all_ids: list[int], panel_size_m: (float, float), tag_size_m):
+def extract_using_apriltags(path, detector, all_ids: List[int], panel_size_m: (float, float), tag_size_m):
     img = cv2.imread(path.as_posix(), cv2.IMREAD_GRAYSCALE)
 
     all_tags = detect_tags(img, detector, all_ids)
@@ -119,12 +130,13 @@ def extract_intensities_from_apriltags(batch, detector, all_ids, estimator_confi
     return intensities
 
 
-def get_apriltag_paths(images_directory: Path) -> List[Path]:
-    template_path = Path(images_directory).resolve()
+def get_apriltag_paths(dataset: str) -> List[Path]:
+    folder = "images"
+    template_path = Path(dataset + "/" + folder).resolve()
     return list(sorted([filepath for filepath in template_path.glob("*.tif")]))
 
 
-def build_batches_per_band(paths: list[Path]) -> list[list[Path]]:
+def build_batches_per_band(paths: List[Path]) -> List[List[Path]]:
     # TODO also add visibility batching
     batches = []
     # Regular expression to match file names and capture the base and suffix
@@ -145,7 +157,7 @@ def build_batches_per_band(paths: list[Path]) -> list[list[Path]]:
 
 
 def apriltag_main():
-    img_paths = get_apriltag_paths(args.images)
+    img_paths = get_apriltag_paths(args.dataset)
     batches = build_batches_per_band(img_paths)
     number_of_bands = len(batches)
 
@@ -168,7 +180,7 @@ def apriltag_main():
 
     output_folder = None
     if args.debug:
-        output_folder = args.images + "/debug/"
+        output_folder = args.dataset + "/debug/"
         for p in Path(output_folder + "intensity").glob("*.csv"):
             p.unlink()
         for p in Path(output_folder + "panels").glob("*.tif"):
@@ -200,24 +212,28 @@ def apriltag_main():
 if __name__ == '__main__':
     # --- Get input arguments from user
     logging.basicConfig(level=logging.INFO)
-    parser = argparse.ArgumentParser(
-        prog='ReflectDetect Apriltags',
+
+
+    class ApriltagArgumentParser(Tap):
+        dataset: str  # Path to the dataset folder
+        family: str  # Name of the apriltag family used
+        panel_properties_file: str | None = None  # Path to file instead "panel_properties.json" in the dataset folder
+        debug: bool = False  # Prints logs and adds debug images into a /debug/ directory in the dataset folder
+
+        def configure(self):
+            self.add_argument('dataset')
+            self.add_argument('-d', '--debug')
+
+
+    args = ApriltagArgumentParser(
         description='Automatically detect reflection calibration panels in images and transform the given images to '
                     'reflectance',
-        epilog='If you have any questions, please contact')
+        epilog='If you have any questions, please contact').parse_args()
 
-    parser.add_argument("dataset", help="Path to the dataset folder", type=str)
-    parser.add_argument("--family", help="Name of the apriltag family ('tag25h9', 'tagStandard41h12', ...)", type=str,
-                        required=False)
-    # Overwrites
-    parser.add_argument("--panel_properties_file", help="Path to the property file of the panels", type=str,
-                        required=False)
+    if args.panel_properties_file is not None and not os.path.exists(args.panel_properties_file):
+        raise Exception("Could not find specified panel properties file: {}".format(args.panel_properties_file))
 
-    parser.add_argument("--debug", help="Prints debug images into a /debug/ directory", default=False,
-                        action='store_true', required=False)
-    args = parser.parse_args()
-
-    panel_properties = load_panel_properties(args.panel_properties)
+    panel_properties = load_panel_properties(args.dataset, args.panel_properties_file)
 
     # Input Validation
     for panel_i, panel in enumerate(panel_properties):
@@ -228,8 +244,7 @@ if __name__ == '__main__':
         if isinstance(panel["single_tag"], list):
             raise Exception(
                 "Only one tag per panel in apriltag_single mode. Change your panel properties file")
-    if args.family is None:
-        raise Exception("No family specified globally or for all panels")
+
     test_detector = AprilTagDetector()
     if not test_detector.addFamily(args.family):
         raise Exception("Family not recognized")
