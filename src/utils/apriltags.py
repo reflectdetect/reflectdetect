@@ -51,7 +51,7 @@ def get_altitude_from_panels(tags: list[AprilTagDetection], path: Path, resoluti
 
 def get_pose_estimator_config(path: Path, resolution: tuple[int, int],
                               tag_size: float, ) -> AprilTagPoseEstimator.Config:
-    from main import get_camera_properties
+    from geolocation_main import get_camera_properties
     from utils.panel import calculate_sensor_size
     focal_length_mm, focal_plane_x_res, focal_plane_y_res, focal_plane_resolution_unit = get_camera_properties(path)
     horizontal_focal_length_pixels = focal_length_mm * focal_plane_x_res

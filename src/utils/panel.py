@@ -94,5 +94,6 @@ def calculate_panel_size_in_pixels(altitude, resolution, physical_panel_size, fo
     return panel_width_pixels, panel_height_pixels
 
 
-def get_panel_factors_for_band(panel_data, band):
-    return [panel["bands"][band]["factor"] for panel in panel_data]
+def get_band_reflectance(panels_properties, band_index) -> list:
+    # return the reflectance values of each panel at a given band
+    return [properties['bands'][band_index] for properties in panels_properties]
