@@ -74,9 +74,9 @@ def calculate_panel_size_in_pixels(altitude, resolution, physical_panel_size, fo
     sensor_width_mm, sensor_height_mm = calculate_sensor_size(resolution, focal_plane_x_res, focal_plane_y_res,
                                                               focal_plane_resolution_unit)
     # Convert sensor dimensions to meters
-    sensor_width_m = sensor_width_mm / 1000  # Convert mm to m
+    sensor_width_m = sensor_width_mm / 1000
     sensor_height_m = sensor_height_mm / 1000
-    focal_length_m = (focal_length_mm / 1000)
+    focal_length_m = focal_length_mm / 1000
 
     # Calculate horizontal and vertical Field of View (FoV)
     fov_horizontal = 2 * math.atan(sensor_width_m / (2 * focal_length_m))
@@ -90,8 +90,7 @@ def calculate_panel_size_in_pixels(altitude, resolution, physical_panel_size, fo
     panel_width_pixels = np.intp(physical_panel_size[0] * scale_pixels_per_meter_width)
     panel_height_pixels = np.intp(physical_panel_size[1] * scale_pixels_per_meter_height)
 
-    scale = 0.8
-    return panel_width_pixels * scale, panel_height_pixels * scale
+    return panel_width_pixels, panel_height_pixels
 
 
 def get_panel_factors_for_band(panel_data, band):

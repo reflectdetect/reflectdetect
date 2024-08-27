@@ -43,34 +43,67 @@ def pose_estimate_tags(tags: List[AprilTagDetection], config: AprilTagPoseEstima
     return estimates  # if verify_estimate(tag, estimate, valid_ids)]
 
 
-def get_altitude_from_panels(tags: list[AprilTagDetection], config: AprilTagPoseEstimator.Config):
+def get_altitude_from_panels(tags: list[AprilTagDetection], path: Path, resolution: tuple[int, int], tag_size: float, ):
+    config = get_pose_estimator_config(path, resolution, tag_size)
     estimates = pose_estimate_tags(tags, config)
     return np.mean([estimate.translation().z for estimate in estimates])
 
 
-def get_panel(tag: AprilTagDetection, panel_size_pixel: float, image_dimensions: (int, int)) -> list[float] | None:
+def get_pose_estimator_config(path: Path, resolution: tuple[int, int],
+                              tag_size: float, ) -> AprilTagPoseEstimator.Config:
+    from main import get_camera_properties
+    from utils.panel import calculate_sensor_size
+    focal_length_mm, focal_plane_x_res, focal_plane_y_res, focal_plane_resolution_unit = get_camera_properties(path)
+    horizontal_focal_length_pixels = focal_length_mm * focal_plane_x_res
+    vertical_focal_length_pixels = focal_length_mm * focal_plane_y_res
+
+    sensor_width_mm, sensor_height_mm = calculate_sensor_size(resolution, focal_plane_x_res, focal_plane_y_res,
+                                                              focal_plane_resolution_unit)
+    sensor_width_pixel = sensor_width_mm * focal_plane_x_res
+    sensor_height_pixel = sensor_height_mm * focal_plane_y_res
+    horizontal_focal_center_pixels = sensor_width_pixel / 2
+    vertical_focal_center_pixels = sensor_height_pixel / 2
+
+    return AprilTagPoseEstimator.Config(tag_size, horizontal_focal_length_pixels,
+                                        vertical_focal_length_pixels,
+                                        horizontal_focal_center_pixels, vertical_focal_center_pixels)
+def get_detector_config():
+    detector_config = AprilTagDetector.Config()
+    detector_config.quadDecimate = 1.0
+    detector_config.numThreads = 4
+    detector_config.refineEdges = 1.0
+    return detector_config
+
+def get_panel(tag: AprilTagDetection, panel_size_pixel: float, image_dimensions: tuple[int, int],
+              only_valid_panels=True) -> list[float] | None:
     tag_corners = list(tag.getCorners(tuple([0.0] * 8)))
     tag_corners = np.array(list((zip(tag_corners[::2], tag_corners[1::2]))))
+
     towards_panel = tag_corners[2] - tag_corners[1]
+
     tag_detection_size_pixel = np.linalg.norm(towards_panel)
     tag_size = tag_detection_size_pixel * tag_detection_to_total_width_conversions[tag.getFamily()]
+
     towards_panel = towards_panel / np.linalg.norm(towards_panel)
+
     center = np.array([tag.getCenter().x, tag.getCenter().y])
     tag_panel_border = center + towards_panel * (tag_size / 2)
     panel_length = towards_panel * panel_size_pixel
     half_panel_length = panel_length / 2
     panel_midpoint_to_corner = [-half_panel_length[1], half_panel_length[0]]
+
     corner_a = tag_panel_border + panel_midpoint_to_corner
     corner_b = tag_panel_border - panel_midpoint_to_corner
     corner_c = tag_panel_border + panel_length - panel_midpoint_to_corner
     corner_d = tag_panel_border + panel_length + panel_midpoint_to_corner
     corners = [corner_a, corner_b, corner_c, corner_d]
 
-    for corner in corners:
-        if corner[0] < 0 or corner[1] < 0:
-            return None
-        if corner[0] > image_dimensions[0] or corner[1] > image_dimensions[1]:
-            return None
+    if only_valid_panels:
+        for corner in corners:
+            if corner[0] < 0 or corner[1] < 0:
+                return None
+            if corner[0] > image_dimensions[0] or corner[1] > image_dimensions[1]:
+                return None
 
     return corners
 

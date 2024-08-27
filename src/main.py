@@ -135,13 +135,14 @@ def get_camera_properties(image_path):
             "EXIF:FocalPlaneResolutionUnit"],
 
 
-def extract_using_apriltags(path, detector, all_ids: list[int], estimator_config, panel_size_m: (float, float)):
+def extract_using_apriltags(path, detector, all_ids: list[int], panel_size_m: (float, float), tag_size_m):
     img = cv2.imread(path.as_posix(), cv2.IMREAD_GRAYSCALE)
 
     all_tags = detect_tags(img, detector, all_ids)
     if len(all_tags) != len(panel_properties):
         return [None] * len(panel_properties)
-    altitude = get_altitude_from_panels(all_tags, estimator_config)
+
+    altitude = get_altitude_from_panels(all_tags, path, (len(img[0]), len(img)), tag_size_m)
 
     resolution = (len(img[0]), len(img))
     properties = get_camera_properties(path)
@@ -278,27 +279,15 @@ def apriltag_main():
     img_paths = get_apriltag_paths(args.images)
     batches = build_batches_per_band(img_paths)
     number_of_bands = len(batches)
-    detector_config = AprilTagDetector.Config()
-    detector_config.quadDecimate = 1.0
-    detector_config.numThreads = 4
-    detector_config.refineEdges = 1.0
+
 
     # TODO: add to args
-    horizontal_focal_length_pixels = 1581.7867974691412
-    horizontal_focal_center_pixels = 678.6724626822399
-    vertical_focal_length_pixels = 1581.7867974691412
-    vertical_focal_center_pixels = 529.4318832108801
-    sensor_size_mm = 6.3
-    focal_length_mm = 5.5
-    tag_size = 0.3
+    tag_size_m = 0.3
     panel_size_m = (0.8, 0.8)
-
-    estimator_config = AprilTagPoseEstimator.Config(tag_size, horizontal_focal_length_pixels,
-                                                    vertical_focal_length_pixels,
-                                                    horizontal_focal_center_pixels, vertical_focal_center_pixels)
 
     d = AprilTagDetector()
     d.addFamily(args.family)
+    detector_config = get_detector_config()
     d.setConfig(detector_config)
 
     all_ids = [p["single_tag"] for p in panel_properties]
@@ -320,7 +309,7 @@ def apriltag_main():
     for (band_index, batch) in enumerate(batches):
         print("Processing batch for band", band_index, "with length", len(batch))
         # --- Run pipeline
-        i = extract_intensities_from_apriltags(batch, d, all_ids, estimator_config, panel_size_m)
+        i = extract_intensities_from_apriltags(batch, d, all_ids, panel_size_m, tag_size_m)
         if args.debug:
             debug_save_intensities_single_band(i, band_index, output_folder + "intensity")
         for panel_index, _ in enumerate(panel_properties):
@@ -366,6 +355,7 @@ if __name__ == '__main__':
     # Input Validation
     if detection_type not in ['apriltag', 'geolocation']:
         raise Exception('detection_type ' + detection_type + ' unknown')
+
     if args.detection_type == 'apriltag':
         for panel_i, panel in enumerate(panel_properties):
             if panel["single_tag"] is None:
@@ -380,9 +370,11 @@ if __name__ == '__main__':
         test_detector = AprilTagDetector()
         if not test_detector.addFamily(args.family):
             raise Exception("Family not recognized")
+
     if args.detection_type == 'geolocation':
         if args.panel_location is None:
             raise Exception("No panel location file specified")
+
     if detection_type == "apriltag":
         apriltag_main()
     if detection_type == 'geolocation':

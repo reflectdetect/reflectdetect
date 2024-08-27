@@ -1,9 +1,11 @@
-import os
 from pathlib import Path
 
 import numpy as np
+import shapely
 from matplotlib import pyplot as plt
 from robotpy_apriltag import AprilTagDetection
+
+from utils.polygons import shrink_or_swell_shapely_polygon
 
 
 def debug_show_panel(img, tags: list[AprilTagDetection], corners: list[float], output_path: str | None = None):
@@ -19,6 +21,13 @@ def debug_show_panel(img, tags: list[AprilTagDetection], corners: list[float], o
     x = list(x) + [x[0]]
     y = list(y) + [y[0]]
     ax.plot(x, y, linewidth=1)
+    polygon = shapely.Polygon(corners)
+    polygon = shrink_or_swell_shapely_polygon(polygon, 0.2)
+    detection_corners = polygon.exterior.coords.xy
+    x, y = detection_corners
+    x = list(x) + [x[0]]
+    y = list(y) + [y[0]]
+    plt.plot(x, y, linewidth=1, linestyle="dotted")
 
     if output_path is not None:
         fig_2d.savefig(output_path)
