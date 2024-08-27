@@ -37,15 +37,15 @@ def detect_tags(img, detector: AprilTagDetector, valid_ids: list[int] | None = N
 
 
 def pose_estimate_tags(tags: List[AprilTagDetection], config: AprilTagPoseEstimator.Config) -> \
-        list[tuple[AprilTagDetection, Transform3d]]:
+        list[Transform3d]:
     pose_estimator = AprilTagPoseEstimator(config)
-    estimates = [(tag, pose_estimator.estimate(tag)) for tag in tags]
-    return estimates  # [estimate for (tag, estimate) in estimates]  # if verify_estimate(tag, estimate, valid_ids)]
+    estimates = [pose_estimator.estimate(tag) for tag in tags]
+    return estimates  # if verify_estimate(tag, estimate, valid_ids)]
 
 
 def get_altitude_from_panels(tags: list[AprilTagDetection], config: AprilTagPoseEstimator.Config):
     estimates = pose_estimate_tags(tags, config)
-    return np.mean([estimate.translation().z for (tag, estimate) in estimates])
+    return np.mean([estimate.translation().z for estimate in estimates])
 
 
 def get_panel(tag: AprilTagDetection, panel_size_pixel: float, image_dimensions: (int, int)) -> list[float] | None:
@@ -85,5 +85,6 @@ def save_images(paths: list[Path], converted_images: list[np.ndarray]) -> None:
         if photo is None:
             continue
         output_path = get_output_path(path, "reflectance", "transformed")
-
-        imwrite(output_path, photo)
+        compression_factor = 10000  # convert from 0.1234 to 1234 TODO: Document compression factor
+        scaled_to_int = np.array(photo * compression_factor, dtype=np.uint8)
+        imwrite(output_path, scaled_to_int)

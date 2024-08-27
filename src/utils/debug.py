@@ -6,7 +6,7 @@ from matplotlib import pyplot as plt
 from robotpy_apriltag import AprilTagDetection
 
 
-def show_panel(img, tags: list[AprilTagDetection], corners: list[float], output_path: str | None = None):
+def debug_show_panel(img, tags: list[AprilTagDetection], corners: list[float], output_path: str | None = None):
     fig_2d = plt.figure()
     ax = fig_2d.subplots(1, 1)
     ax.imshow(img, cmap="grey")

@@ -5,63 +5,20 @@ import re
 
 import cv2
 import shapely
+from exiftool import ExifToolHelper
 from numpy import ndarray, dtype
 from rasterio.features import rasterize
 
 from utils.apriltags import *
-from utils.debug import debug_combine_and_plot_intensities, debug_save_intensities, show_panel, \
+from utils.debug import debug_combine_and_plot_intensities, debug_save_intensities, debug_show_panel, \
     debug_save_intensities_single_band
 from utils.iterators import get_next
 from utils.orthophoto import *
+from utils.panel import calculate_panel_size_in_pixels
 from utils.paths import get_output_path
 from utils.polygons import shrink_or_swell_shapely_polygon
 
 logger = logging.getLogger(__name__)
-
-
-def get_altitude_to_panel_size_fn(sensor_size_mm, focal_length_mm,
-                                  physical_panel_size):
-    return lambda altitude, resolution: calculate_panel_size_in_pixels(altitude, resolution, sensor_size_mm,
-                                                                       focal_length_mm,
-                                                                       physical_panel_size)
-
-
-def calculate_panel_size_in_pixels(altitude, resolution, sensor_size_mm, focal_length_mm,
-                                   physical_panel_size):
-    # TODO(Sanity check function)
-    """
-    Calculate the expected size of an object in pixels based on camera parameters and object physical size.
-
-    Parameters:
-        altitude (float): Altitude in meters.
-        resolution (tuple): Image resolution (width, height) in pixels.
-        sensor_size_mm (float): Sensor diagonal in millimeters.
-        focal_length_mm (float): Focal length in millimeters.
-        physical_panel_size (tuple): Physical size of the object in meters (width, height).
-
-    Returns:
-        tuple: Expected width and height of the object in pixels.
-    """
-    resolution = (float(resolution[0]), float(resolution[1]))
-
-    # Convert sensor diagonal to meters
-    sensor_diagonal = sensor_size_mm / 1000  # Convert mm to m
-    focal_length = focal_length_mm / 1000
-
-    # Calculate horizontal and vertical Field of View (FoV)
-    # fov_horizontal = 2 * math.atan(
-    #    (sensor_diagonal / (2 * math.sqrt(1 + (resolution[0] / resolution[1]) ** 2))) / focal_length)
-    fov_vertical = 2 * math.atan(
-        (sensor_diagonal / (2 * math.sqrt(1 + (resolution[1] / resolution[0]) ** 2))) / focal_length)
-
-    # Calculate scale in pixels per meter
-    scale_pixels_per_meter = resolution[1] / (altitude * math.tan(fov_vertical / 2))
-
-    # Calculate expected panel size in pixels
-    panel_width_pixels = np.intp(physical_panel_size[0] * scale_pixels_per_meter)
-    panel_height_pixels = np.intp(physical_panel_size[1] * scale_pixels_per_meter)
-
-    return panel_width_pixels, panel_height_pixels
 
 
 def get_band_reflectance(panels_properties, band_index) -> list:
@@ -169,16 +126,26 @@ def convert_images_to_reflectance(paths: list[Path],
     return converted_photos
 
 
-def extract_using_apriltags(path, detector, all_ids: list[int], estimator_config, altitude_to_panel_size_fn):
+def get_camera_properties(image_path):
+    with ExifToolHelper() as et:
+        metadata = et.get_metadata(image_path)[0]
+        # focal_length_mm, focal_plane_x_res, focal_plane_y_res, focal_plane_resolution_unit
+    return metadata["EXIF:FocalLength"], metadata["EXIF:FocalPlaneXResolution"], metadata["EXIF:FocalPlaneYResolution"], \
+        metadata[
+            "EXIF:FocalPlaneResolutionUnit"],
+
+
+def extract_using_apriltags(path, detector, all_ids: list[int], estimator_config, panel_size_m: (float, float)):
     img = cv2.imread(path.as_posix(), cv2.IMREAD_GRAYSCALE)
 
     all_tags = detect_tags(img, detector, all_ids)
     if len(all_tags) != len(panel_properties):
         return [None] * len(panel_properties)
     altitude = get_altitude_from_panels(all_tags, estimator_config)
-    resolution = (len(img[0]), len(img))
-    panel_size_pixel = altitude_to_panel_size_fn(altitude, resolution)
 
+    resolution = (len(img[0]), len(img))
+    properties = get_camera_properties(path)
+    panel_size_pixel = calculate_panel_size_in_pixels(altitude, resolution, panel_size_m, *properties)
     panel_intensities = [None] * len(panel_properties)
     for tag in all_tags:
         panels = list(filter(lambda p: p["family"] == tag.getFamily() and p["single_tag"] == tag.getId(),
@@ -194,7 +161,7 @@ def extract_using_apriltags(path, detector, all_ids: list[int], estimator_config
             if args.debug:
                 output_path = get_output_path(path, "panel_" + str(tag.getId()) + "_" + tag.getFamily(),
                                               "debug/panels")
-                show_panel(img, [tag], corners, output_path)
+                debug_show_panel(img, [tag], corners, output_path)
             polygon = shapely.Polygon(corners)
             polygon = shrink_or_swell_shapely_polygon(polygon, 0.2)
             panel_mask = rasterize([polygon], out_shape=img.shape)
@@ -203,11 +170,11 @@ def extract_using_apriltags(path, detector, all_ids: list[int], estimator_config
     return panel_intensities
 
 
-def extract_intensities_from_apriltags(batch, detector, all_ids, estimator_config, altitude_to_panel_size_fn):
+def extract_intensities_from_apriltags(batch, detector, all_ids, estimator_config, panel_size_m):
     intensities = np.zeros((len(batch), len(panel_properties)))
     for img_index, path in enumerate(tqdm(batch)):
         panel_intensities = extract_using_apriltags(path, detector, all_ids, estimator_config,
-                                                    altitude_to_panel_size_fn)
+                                                    panel_size_m)
         intensities[img_index] = panel_intensities
     return intensities
 
@@ -324,7 +291,7 @@ def apriltag_main():
     sensor_size_mm = 6.3
     focal_length_mm = 5.5
     tag_size = 0.3
-    panel_size_m = 0.8
+    panel_size_m = (0.8, 0.8)
 
     estimator_config = AprilTagPoseEstimator.Config(tag_size, horizontal_focal_length_pixels,
                                                     vertical_focal_length_pixels,
@@ -344,33 +311,32 @@ def apriltag_main():
 
     output_folder = None
     if args.debug:
-        output_folder = args.images + "/debug/intensity/"
-        for p in Path(output_folder).glob("*.csv"):
+        output_folder = args.images + "/debug/"
+        for p in Path(output_folder + "intensity").glob("*.csv"):
             p.unlink()
-        output_folder = args.images + "/debug/panel/"
-        for p in Path(output_folder).glob("*.tif"):
+        for p in Path(output_folder + "panels").glob("*.tif"):
             p.unlink()
 
     for (band_index, batch) in enumerate(batches):
         print("Processing batch for band", band_index, "with length", len(batch))
         # --- Run pipeline
-        i = extract_intensities_from_apriltags(batch, d, all_ids, estimator_config,
-                                               get_altitude_to_panel_size_fn(sensor_size_mm, focal_length_mm,
-                                                                             (panel_size_m, panel_size_m)))
+        i = extract_intensities_from_apriltags(batch, d, all_ids, estimator_config, panel_size_m)
         if args.debug:
-            debug_save_intensities_single_band(i, band_index, output_folder)
+            debug_save_intensities_single_band(i, band_index, output_folder + "intensity")
         for panel_index, _ in enumerate(panel_properties):
             i[:, panel_index] = interpolate(i[:, panel_index])
         if args.debug:
-            debug_save_intensities_single_band(i, band_index, output_folder, "_interpolated")
+            debug_save_intensities_single_band(i, band_index, output_folder + "intensity", "_interpolated")
         c = convert_images_to_reflectance(batch, i, band_index)
         del i
         save_images(batch, c)
         del c
     if args.debug:
         number_of_image_per_band = int(len(img_paths) / number_of_bands)
-        debug_combine_and_plot_intensities(number_of_image_per_band, number_of_bands, output_folder, panel_properties)
-        debug_combine_and_plot_intensities(number_of_image_per_band, number_of_bands, output_folder, panel_properties,
+        debug_combine_and_plot_intensities(number_of_image_per_band, number_of_bands, output_folder + "intensity",
+                                           panel_properties)
+        debug_combine_and_plot_intensities(number_of_image_per_band, number_of_bands, output_folder + "intensity",
+                                           panel_properties,
                                            "_interpolated")
 
 
