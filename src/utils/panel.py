@@ -1,8 +1,3 @@
-import math
-
-import numpy as np
-
-
 def convert_resolution_unit(resolution, unit):
     """
     Convert focal plane resolution to pixels per millimeter.
@@ -52,7 +47,7 @@ def calculate_sensor_size(image_resolution, focal_plane_x_res, focal_plane_y_res
 
 
 def calculate_panel_size_in_pixels(altitude, resolution, physical_panel_size, focal_length_mm, focal_plane_x_res,
-                                   focal_plane_y_res, focal_plane_resolution_unit):
+                                   focal_plane_y_res, focal_plane_resolution_unit, smudge_factor=0.8):
     """
     Calculate the expected size of an object in pixels based on camera parameters and object physical size.
 
@@ -64,6 +59,8 @@ def calculate_panel_size_in_pixels(altitude, resolution, physical_panel_size, fo
         focal_plane_x_res (float): Focal plane X resolution.
         focal_plane_y_res (float): Focal plane Y resolution.
         focal_plane_resolution_unit (int): The unit of the focal plane resolution.
+        smudge_factor (float, optional): Adjustment factor to correct for systematic error caused by difference between
+        reported camera hyperparameters and actual values. Default is 0.8.
 
     Returns:
         tuple: Expected width and height of the object in pixels.
@@ -78,17 +75,21 @@ def calculate_panel_size_in_pixels(altitude, resolution, physical_panel_size, fo
     sensor_height_m = sensor_height_mm / 1000
     focal_length_m = focal_length_mm / 1000
 
-    # Calculate horizontal and vertical Field of View (FoV)
-    fov_horizontal = 2 * math.atan(sensor_width_m / (2 * focal_length_m))
-    fov_vertical = 2 * math.atan(sensor_height_m / (2 * focal_length_m))
+    # Calculate Ground Sample Distance (GSD)
+    gsd_width = (altitude * sensor_width_m) / focal_length_m
+    gsd_height = (altitude * sensor_height_m) / focal_length_m
 
     # Calculate scale in pixels per meter for width and height
-    scale_pixels_per_meter_width = resolution[0] / (altitude * math.tan(fov_horizontal / 2))
-    scale_pixels_per_meter_height = resolution[1] / (altitude * math.tan(fov_vertical / 2))
+    scale_pixels_per_meter_width = resolution[0] / gsd_width
+    scale_pixels_per_meter_height = resolution[1] / gsd_height
+
+    # Apply smudge factor to correct for the observed discrepancy
+    scale_pixels_per_meter_width *= smudge_factor
+    scale_pixels_per_meter_height *= smudge_factor
 
     # Calculate expected panel size in pixels
-    panel_width_pixels = np.intp(physical_panel_size[0] * scale_pixels_per_meter_width)
-    panel_height_pixels = np.intp(physical_panel_size[1] * scale_pixels_per_meter_height)
+    panel_width_pixels = int(physical_panel_size[0] * scale_pixels_per_meter_width)
+    panel_height_pixels = int(physical_panel_size[1] * scale_pixels_per_meter_height)
 
     return panel_width_pixels, panel_height_pixels
 

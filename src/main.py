@@ -307,7 +307,7 @@ def apriltag_main():
             p.unlink()
 
     for (band_index, batch) in enumerate(batches):
-        print("Processing batch for band", band_index, "with length", len(batch))
+        logger.info("Processing batch for band", band_index, "with length", len(batch))
         # --- Run pipeline
         i = extract_intensities_from_apriltags(batch, d, all_ids, panel_size_m, tag_size_m)
         if args.debug:
@@ -337,8 +337,11 @@ if __name__ == '__main__':
         description='Automatically detect reflection calibration panels in images and transform the given images to '
                     'reflectance',
         epilog='If you have any questions, please contact')
-    parser.add_argument("detection_type", help="Type of detection ('apriltag', 'geolocation')",
-                        type=str)
+    detection_method_group = parser.add_argument_group("Detection Method", "There are two ways to detect the panels in each image, select only one")
+    detection_method_group = detection_method_group.add_mutually_exclusive_group(required=True)
+    detection_method_group.add_argument("--apriltag", help="Chooses the apriltag based detection method", action="store_true")
+    detection_method_group.add_argument("--geolocation", help="Chooses the geolocation based detection method", action="store_true")
+
     parser.add_argument("images", help="Path to the image files", type=str)
     parser.add_argument("panel_properties", help="Path to the property file of the panels", type=str)
     parser.add_argument("--panel_locations", help="Path to the GeoPackage file", type=str, required=False)
