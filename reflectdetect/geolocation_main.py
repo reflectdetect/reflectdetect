@@ -1,4 +1,4 @@
-import logging
+import json
 import logging
 import os.path
 from pathlib import Path
@@ -6,12 +6,11 @@ from pathlib import Path
 import numpy as np
 import rasterio
 from numpy.typing import NDArray
-from pydantic import BaseModel
-from pydantic.v1 import parse_raw_as
 from rasterio import DatasetReader
 from tap import Tap
 from tqdm import tqdm
 
+from reflectdetect.PanelProperties import GeolocationPanelProperties
 from reflectdetect.pipeline import interpolate_intensities, fit, convert
 from reflectdetect.utils.debug import debug_combine_and_plot_intensities, debug_save_intensities
 from reflectdetect.utils.iterators import get_next
@@ -22,8 +21,7 @@ from reflectdetect.utils.panel import get_band_reflectance
 logger = logging.getLogger(__name__)
 
 
-class GeolocationPanelProperties(BaseModel):
-    bands: list[float]
+
 
 
 def load_panel_properties(dataset: Path, panel_properties_file: Path | None) -> list[GeolocationPanelProperties]:
@@ -36,8 +34,7 @@ def load_panel_properties(dataset: Path, panel_properties_file: Path | None) -> 
         path = panel_properties_file
 
     with open(path) as f:
-        json_string: str = f.read()
-        panels = parse_raw_as(list[GeolocationPanelProperties], json_string)
+        panels = [GeolocationPanelProperties.parse_obj(item) for item in json.load(f)]
     return panels
 
 
@@ -182,6 +179,7 @@ if __name__ == '__main__':
 
     panel_properties_file = Path(args.panel_properties_file) if args.panel_properties_file is not None else None
     panel_locations_file = Path(args.panel_locations_file) if args.panel_locations_file is not None else None
+    #TODO: validate panel_location_file
     dataset = Path(args.dataset) if args.dataset is not None else None
     panel_properties = load_panel_properties(dataset, panel_properties_file)
     orthophoto_main(dataset, panel_locations_file)

@@ -21,6 +21,7 @@ geopandas = "^1.0.1"
 matplotlib = "^3.9.2"
 pydantic = "^2.8.2"
 tifffile = "^2024.8.28"
+rich = "^13.8.0"
 
 [tool.poetry.group.dev.dependencies]
 mypy = "^1.11.2"

@@ -1,8 +1,7 @@
 import numpy as np
 from numpy.typing import NDArray
 
-from reflectdetect.apriltag_main import ApriltagPanelProperties
-from reflectdetect.geolocation_main import GeolocationPanelProperties
+from reflectdetect.PanelProperties import GeolocationPanelProperties, ApriltagPanelProperties
 
 
 def convert_resolution_unit(resolution: float, unit: int) -> float:
