@@ -3,12 +3,14 @@ from pathlib import Path
 import numpy as np
 import shapely
 from matplotlib import pyplot as plt
+from numpy.typing import NDArray
 from robotpy_apriltag import AprilTagDetection
 
-from utils.polygons import shrink_or_swell_shapely_polygon
+from reflectdetect.utils.polygons import shrink_or_swell_shapely_polygon
 
 
-def debug_show_panel(img, tags: list[AprilTagDetection], corners: list[float], output_path: str | None = None):
+def debug_show_panel(img: NDArray[np.float64], tags: list[AprilTagDetection], corners: list[float],
+                     output_path: str | None = None) -> None:
     fig_2d = plt.figure()
     ax = fig_2d.subplots(1, 1)
     ax.imshow(img, cmap="grey")
@@ -36,7 +38,7 @@ def debug_show_panel(img, tags: list[AprilTagDetection], corners: list[float], o
     plt.close(fig_2d)
 
 
-def show_intensities(intensities, output_path: str | None = None):
+def show_intensities(intensities: NDArray[np.float64], output_path: str | None = None) -> None:
     fig, axes = plt.subplots(len(intensities[0, 0, :]), sharex=True, figsize=(15, 15))
     max_intensity = np.nanmax(intensities)
 
@@ -61,31 +63,37 @@ def show_intensities(intensities, output_path: str | None = None):
     plt.close(fig)
 
 
-def debug_combine_and_plot_intensities(number_of_images, number_of_bands, output_folder, panel_properties, suffix=""):
-    intensities = np.zeros((number_of_images, len(panel_properties), number_of_bands))
+def debug_combine_and_plot_intensities(number_of_images: int,
+                                       number_of_bands: int,
+                                       number_of_panels: int,
+                                       output_folder: Path,
+                                       suffix: str = "") -> None:
+    intensities = np.zeros((number_of_images, number_of_panels, number_of_bands))
     for band in range(0, number_of_bands):
-        output_path = Path(
-            output_folder + "/band_" + str(band) + "_intensities" + suffix + ".csv")
+        filename = f"band_{band}_intensities{suffix}.csv"
+        output_path = output_folder / filename
         intensities[:, :, band] = np.genfromtxt(output_path, delimiter=",")
-    output_path = Path(
-        output_folder + "/intensities" + suffix + ".tif")
+    output_path = output_folder / f"intensities{suffix}tif"
     show_intensities(intensities, output_path.as_posix())
 
 
-def debug_save_intensities(i, number_of_bands, output_folder, suffix=""):
+def debug_save_intensities(intensities: NDArray[np.float64], number_of_bands: int, output_folder: Path,
+                           suffix: str = "") -> None:
     for band in range(0, number_of_bands):
-        output_path = Path(output_folder + "/band_" + str(band) + "_intensities" + suffix + ".csv")
+        filename = f"band_{band}_intensities{suffix}.csv"
+        output_path = output_folder / filename
         with open(output_path, "a") as f:
             f.write("\n")
-            data = i[:, :, band].astype(str)
+            data = intensities[:, :, band].astype(str)
             data[data == 'nan'] = ''
             np.savetxt(f, data, delimiter=",", fmt="%s")
 
 
-def debug_save_intensities_single_band(i, band_index, output_folder, suffix=""):
-    output_path = Path(output_folder + "/band_" + str(band_index) + "_intensities" + suffix + ".csv")
+def debug_save_intensities_single_band(intensities: NDArray[np.float64], band_index: int, output_folder: Path,
+                                       suffix: str = "") -> None:
+    output_path = output_folder / f"band_{str(band_index)}_intensities{suffix}.csv"
     with open(output_path, "a") as f:
         f.write("\n")
-        data = i[:, :].astype(str)
+        data = intensities[:, :].astype(str)
         data[data == 'nan'] = ''
         np.savetxt(f, data, delimiter=",", fmt="%s")

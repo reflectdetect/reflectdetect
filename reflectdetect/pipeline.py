@@ -1,22 +1,19 @@
-from typing import Any, List, Tuple
-
 import numpy as np
 from numpy import ndarray
+from numpy.typing import NDArray
 
 
-def fit(intensities: ndarray[Any, np.dtype[np.float64]], expected_reflectances: List[float]) -> \
-        Tuple[float, float]:
+def fit(intensities: NDArray[np.float64], expected_reflectances: NDArray[np.float64]) -> tuple[float, float]:
     slope, intersect = np.polyfit(intensities, expected_reflectances, 1)
     return slope, intersect
 
 
-def interpolate(values: ndarray) -> ndarray:
+def interpolate(values: NDArray[np.float64]) -> NDArray[np.float64]:
     is_none = [np.isnan(v) for v in values]
     non_none_vals = [(i, v) for i, v in enumerate(values) if not np.isnan(v)]
 
-    if len(non_none_vals) < 1:
-        print('No values found for interpolation.')
-        return values
+    if len(non_none_vals) == 0:
+        raise Exception('No values found for interpolation.')
 
     for i, _ in enumerate(values):
         if is_none[i]:  # If our value is None, interpolate
@@ -52,25 +49,26 @@ def interpolate(values: ndarray) -> ndarray:
     return values
 
 
-def convert(band_image: ndarray, coeffs: Tuple[float, float]) -> ndarray:
+def convert(band_image: NDArray[np.int64], coefficients: tuple[float, float]) -> NDArray[np.float64]:
     # converts a photo based on a linear transformation.
-    return np.poly1d(coeffs)(band_image)
+    return np.poly1d(coefficients)(band_image)
 
 
-def interpolate_intensities(intensities: ndarray[Any, np.dtype[np.float64]],
-                            number_of_bands: int, panel_properties) -> ndarray[Any, np.dtype[np.float64]]:
+def interpolate_intensities(intensities: NDArray[np.float64],
+                            number_of_bands: int, panel_amount: int) -> NDArray[np.float64]:
     """
     This function is used to piecewise linearly interpolate the intensity values to fill the `np.Nan` gaps in the data.
     To interpolate we select all the values captured in all the images for a given panel and band.
     Only for photos where the panel was visible we have a value for the given band.
     8Bit Data might look like this: [np.NaN, np.NaN, 240.0, 241.0, 240.0, np.NaN, 242.0, np.NaN, np.NaN]
     After interpolation:            [240.00, 240.00, 240.0, 241.0, 240.0, 241.00, 242.0, 242.00, 242.00]
+    :param panel_amount: number of panels
     :param number_of_bands: number of bands in the images
     :rtype: ndarray[Any, dtype[np.float64]]
     :param intensities: intensity values matrix of shape (photo, panel, band) with some values being np.NaN.
     :return: The interpolated intensity values
     """
-    for panel_index, _ in enumerate(panel_properties):
+    for panel_index in range(0, panel_amount):
         for band_index in range(0, number_of_bands):
             intensities[:, panel_index, band_index] = interpolate(intensities[:, panel_index, band_index])
     return intensities

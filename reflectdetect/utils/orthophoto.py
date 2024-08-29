@@ -1,19 +1,19 @@
+import os
 from pathlib import Path
-from typing import List, Any
 
 import fiona
 import geopandas as gpd
 import numpy as np
 import rasterio
 from geopandas import GeoDataFrame
-from numpy import ndarray
+from numpy.typing import NDArray
 from rasterio import DatasetReader
 from rasterio.coords import BoundingBox
 from rasterio.mask import mask
 from shapely.geometry import Polygon
 from tqdm import tqdm
 
-from utils.paths import get_output_path
+from reflectdetect.utils.paths import get_output_path
 
 
 def is_panel_in_orthophoto(orthophoto_path: Path, panel: GeoDataFrame, crs: str = "EPSG:4326") -> bool:
@@ -38,46 +38,54 @@ def is_panel_in_orthophoto(orthophoto_path: Path, panel: GeoDataFrame, crs: str 
             panel = panel.to_crs(orthophoto_box.crs)
 
         # Check if all corner points of the panel are within the orthophoto bounds
-        return panel.within(orthophoto_polygon).all()
+        return panel.within(orthophoto_polygon).all() is True
 
 
-def extract_using_geolocation(image, panel_location: GeoDataFrame) -> List[float]:
+def extract_using_geolocation(image: NDArray[np.float64], panel_location: GeoDataFrame) -> list[float]:
     # Extracts the mean intensity per band at the panel location
-    panel_polygon = panel_location.unary_union.convex_hull
+    panel_polygon = panel_location.union_all().convex_hull
     out_image, out_transform = rasterio.mask.mask(image, [panel_polygon], crop=True, nodata=0)
 
     return [panel_band[panel_band > 0].mean() for panel_band in out_image]
 
 
-def save_bands(output_path, band_images, meta):
+def save_bands(output_path: Path, band_images: list[NDArray[np.float64]], meta: dict[str, str]) -> None:
     # Combine bands back into one image
     with rasterio.open(output_path, 'w', **meta) as dst:
         for band_index, band in enumerate(band_images):
             dst.write_band(band_index + 1, band)
 
 
-def get_orthophoto_paths(dataset_path: str) -> List[Path]:
+def get_orthophoto_paths(dataset_path: str) -> list[Path]:
     folder = "orthophotos"
     template_path = Path(dataset_path + "/" + folder).resolve()
     return list(sorted([filepath for filepath in template_path.glob("*.tif")]))
 
 
-def load_panel_locations(geopackage_dir) -> List[GeoDataFrame]:
+def load_panel_locations(dataset: Path, geopackage_filepath: Path | None) -> list[GeoDataFrame]:
+    if geopackage_filepath is None:
+        canonical_filename = "panel_locations.gpk"
+        path = dataset / canonical_filename
+        if not os.path.exists(path):
+            raise ValueError("No panel locations file found at {}.".format(path))
+    else:
+        path = geopackage_filepath
+
     panel_locations = []
     with fiona.Env():
-        for layer in fiona.listlayers(geopackage_dir):
+        for layer in fiona.listlayers(path):
             if layer == "android_metadata":
                 continue
-            panel_corner_points = gpd.read_file(geopackage_dir, layer=layer)
+            panel_corner_points = gpd.read_file(path, layer=layer)
             panel_locations.append(panel_corner_points)
     return panel_locations
 
 
-def save_orthophotos(paths: list[Path], converted_photos: list[list[ndarray]]) -> None:
+def save_orthophotos(paths: list[Path], converted_photos: list[list[NDArray[np.float64]] | None]) -> None:
     """
     This function saves the converted photos as .tif files into a new "/transformed/" directory in the images folder
-    :param paths: List of orthophoto paths
-    :param converted_photos: List of reflectance photos, each photo is a list of bands,
+    :param paths: list of orthophoto paths
+    :param converted_photos: list of reflectance photos, each photo is a list of bands,
     each band is a ndarray of shape (width, height)
     """
     for path, photo in zip(paths, converted_photos):
@@ -93,9 +101,9 @@ def save_orthophotos(paths: list[Path], converted_photos: list[list[ndarray]]) -
 
 
 def extract_intensities_from_orthophotos(batch_of_orthophotos: list[Path],
-                                         paths_with_visibility: dict[Path, ndarray],
+                                         paths_with_visibility: dict[Path, NDArray[np.bool]],
                                          panel_locations: list[GeoDataFrame],
-                                         number_of_bands: int) -> ndarray[Any, np.dtype[np.float64]]:
+                                         number_of_bands: int) -> NDArray[np.float64]:
     """
     This function extracts intensities from the orthophotos.
     It does so by looking at each photo and determining which panels are visible in the photo.
@@ -114,7 +122,7 @@ def extract_intensities_from_orthophotos(batch_of_orthophotos: list[Path],
     for photo_index, orthophoto_path in enumerate(tqdm(batch_of_orthophotos)):
         for panel_index, panel_location in enumerate(panel_locations):
             if not paths_with_visibility[orthophoto_path][panel_index]:
-                intensities[photo_index][panel_index] = np.full(number_of_bands, np.NaN)
+                intensities[photo_index][panel_index] = np.full(number_of_bands, np.nan)
                 continue
             # extract the mean intensity for each band at that panel location
             orthophoto: DatasetReader

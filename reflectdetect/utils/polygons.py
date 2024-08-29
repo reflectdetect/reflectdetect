@@ -2,7 +2,7 @@ from shapely import geometry, Polygon
 
 
 # https://stackoverflow.com/questions/49558464/shrink-polygon-using-corner-coordinates
-def shrink_or_swell_shapely_polygon(polygon: Polygon, factor=0.10, swell=False) -> Polygon:
+def shrink_or_swell_shapely_polygon(polygon: Polygon, factor: float = 0.10, swell: bool = False) -> Polygon:
     ''' returns the shapely polygon which is smaller or bigger by passed factor.
         If swell = True , then it returns bigger polygon, else smaller '''
 

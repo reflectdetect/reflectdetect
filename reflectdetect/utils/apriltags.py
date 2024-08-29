@@ -1,13 +1,16 @@
 import math
 from pathlib import Path
-from typing import List
 
 import numpy as np
+from numpy.typing import NDArray
 from robotpy_apriltag import AprilTagDetection, AprilTagDetector, AprilTagPoseEstimator
 from tifffile import imwrite
+
+from reflectdetect.utils.exif import get_camera_properties
+from reflectdetect.utils.paths import get_output_path
 from wpimath.geometry import Transform3d
 
-from utils.paths import get_output_path
+from reflectdetect.utils.panel import calculate_sensor_size
 
 tag_detection_to_total_width_conversions = {
     "tag16h5": 1.33,
@@ -20,39 +23,38 @@ tag_detection_to_total_width_conversions = {
 }
 
 
-def verify_detections(tag, valid_ids: list[int] | None = None) -> bool:
+def verify_detections(tag: AprilTagDetection, valid_ids: list[int] | None = None) -> bool:
     if valid_ids is None:
         valid_ids = [0, 4, 9]  # ids used by our system by default
     return tag.getId() in valid_ids
 
 
 def verify_estimate(tag: AprilTagDetection, estimate: Transform3d, valid_ids: list[int], flight_height: float,
-                    tolerance=0.1) -> bool:
+                    tolerance: float = 0.1) -> bool:
     return tag.getId() in valid_ids and math.isclose(estimate.z, flight_height, rel_tol=tolerance)
 
 
-def detect_tags(img, detector: AprilTagDetector, valid_ids: list[int] | None = None):
-    tags: List[AprilTagDetection] = detector.detect(img)
+def detect_tags(img: NDArray[np.float64], detector: AprilTagDetector, valid_ids: list[int] | None = None) -> list[
+    AprilTagDetection]:
+    tags: list[AprilTagDetection] = detector.detect(img)  # type: ignore
     return [tag for tag in tags if verify_detections(tag, valid_ids)]
 
 
-def pose_estimate_tags(tags: List[AprilTagDetection], config: AprilTagPoseEstimator.Config) -> \
-        list[Transform3d]:
+def pose_estimate_tags(tags: list[AprilTagDetection], config: AprilTagPoseEstimator.Config) -> list[Transform3d]:
     pose_estimator = AprilTagPoseEstimator(config)
     estimates = [pose_estimator.estimate(tag) for tag in tags]
     return estimates  # if verify_estimate(tag, estimate, valid_ids)]
 
 
-def get_altitude_from_panels(tags: list[AprilTagDetection], path: Path, resolution: tuple[int, int], tag_size: float, ):
+def get_altitude_from_panels(tags: list[AprilTagDetection], path: Path, resolution: tuple[int, int],
+                             tag_size: float, ) -> float:
     config = get_pose_estimator_config(path, resolution, tag_size)
     estimates = pose_estimate_tags(tags, config)
-    return np.mean([estimate.translation().z for estimate in estimates])
+    return float(np.mean([estimate.translation().z for estimate in estimates]))
 
 
 def get_pose_estimator_config(path: Path, resolution: tuple[int, int],
                               tag_size: float, ) -> AprilTagPoseEstimator.Config:
-    from geolocation_main import get_camera_properties
-    from utils.panel import calculate_sensor_size
     focal_length_mm, focal_plane_x_res, focal_plane_y_res, focal_plane_resolution_unit = get_camera_properties(path)
     horizontal_focal_length_pixels = focal_length_mm * focal_plane_x_res
     vertical_focal_length_pixels = focal_length_mm * focal_plane_y_res
@@ -67,16 +69,19 @@ def get_pose_estimator_config(path: Path, resolution: tuple[int, int],
     return AprilTagPoseEstimator.Config(tag_size, horizontal_focal_length_pixels,
                                         vertical_focal_length_pixels,
                                         horizontal_focal_center_pixels, vertical_focal_center_pixels)
-def get_detector_config():
+
+
+def get_detector_config() -> AprilTagDetector.Config:
     detector_config = AprilTagDetector.Config()
     detector_config.quadDecimate = 1.0
     detector_config.numThreads = 4
-    detector_config.refineEdges = 1.0
+    detector_config.refineEdges = True
     return detector_config
 
+
 def get_panel(tag: AprilTagDetection, panel_size_pixel: float, image_dimensions: tuple[int, int],
-              only_valid_panels=True) -> list[float] | None:
-    tag_corners = list(tag.getCorners(tuple([0.0] * 8)))
+              only_valid_panels: bool = True) -> list[float] | None:
+    tag_corners = np.array(list(tag.getCorners((0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0))))
     tag_corners = np.array(list((zip(tag_corners[::2], tag_corners[1::2]))))
 
     towards_panel = tag_corners[2] - tag_corners[1]
@@ -108,11 +113,11 @@ def get_panel(tag: AprilTagDetection, panel_size_pixel: float, image_dimensions:
     return corners
 
 
-def save_images(paths: list[Path], converted_images: list[np.ndarray]) -> None:
+def save_images(paths: list[Path], converted_images: list[NDArray[np.float64] | None]) -> None:
     """
     This function saves the converted photos as .tif files into a new "/transformed/" directory in the images folder
-    :param paths: List of image paths
-    :param converted_images: List of reflectance images
+    :param paths: list of image paths
+    :param converted_images: list of reflectance images
     """
     for path, photo in zip(paths, converted_images):
         if photo is None:
