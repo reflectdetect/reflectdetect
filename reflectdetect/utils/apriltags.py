@@ -5,12 +5,11 @@ import numpy as np
 from numpy.typing import NDArray
 from robotpy_apriltag import AprilTagDetection, AprilTagDetector, AprilTagPoseEstimator
 from tifffile import imwrite
-
-from reflectdetect.utils.exif import get_camera_properties
-from reflectdetect.utils.paths import get_output_path
 from wpimath.geometry import Transform3d
 
+from reflectdetect.utils.exif import get_camera_properties
 from reflectdetect.utils.panel import calculate_sensor_size
+from reflectdetect.utils.paths import get_output_path
 
 tag_detection_to_total_width_conversions = {
     "tag16h5": 1.33,

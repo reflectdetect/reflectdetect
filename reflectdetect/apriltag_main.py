@@ -1,14 +1,11 @@
 import logging
-import logging
 import os
 import re
 from pathlib import Path
-from typing import Any
 
 import cv2
 import numpy as np
 import shapely
-from numpy import ndarray, dtype
 from numpy._typing import NDArray
 from pydantic import BaseModel
 from pydantic.v1 import parse_raw_as
@@ -20,8 +17,7 @@ from tqdm import tqdm
 from pipeline import interpolate, convert, fit
 from reflectdetect.utils.exif import get_camera_properties
 from utils.apriltags import detect_tags, get_altitude_from_panels, get_panel, get_detector_config, save_images
-from utils.debug import debug_combine_and_plot_intensities, debug_show_panel, \
-    debug_save_intensities_single_band
+from utils.debug import debug_combine_and_plot_intensities, debug_show_panel, debug_save_intensities_single_band
 from utils.panel import calculate_panel_size_in_pixels, get_band_reflectance
 from utils.paths import get_output_path
 from utils.polygons import shrink_or_swell_shapely_polygon
@@ -50,9 +46,8 @@ def load_panel_properties(dataset: Path, panel_properties_file: Path | None) -> 
     return panels
 
 
-def convert_images_to_reflectance(paths: list[Path],
-                                  intensities:NDArray[np.float64],
-                                  band_index: int) -> list[NDArray[np.float64] | None]:
+def convert_images_to_reflectance(paths: list[Path], intensities: NDArray[np.float64], band_index: int) -> list[
+    NDArray[np.float64] | None]:
     """
     This function converts the intensity values to reflectance values.
     For each photo we convert each band separately
@@ -85,8 +80,8 @@ def convert_images_to_reflectance(paths: list[Path],
     return converted_photos
 
 
-def extract_using_apriltags(path: Path, detector: AprilTagDetector, all_ids: list[int], panel_size_m: tuple[float, float],
-                            tag_size_m: float) -> list[None | float]:
+def extract_using_apriltags(path: Path, detector: AprilTagDetector, all_ids: list[int],
+                            panel_size_m: tuple[float, float], tag_size_m: float) -> list[None | float]:
     img = cv2.imread(path.as_posix(), cv2.IMREAD_GRAYSCALE)
 
     all_tags = detect_tags(img, detector, all_ids)
@@ -100,8 +95,7 @@ def extract_using_apriltags(path: Path, detector: AprilTagDetector, all_ids: lis
     panel_size_pixel = calculate_panel_size_in_pixels(altitude, resolution, panel_size_m, *properties)
     panel_intensities: list[float | None] = [None] * len(panel_properties)
     for tag in all_tags:
-        panels = list(filter(lambda p:  p.family == tag.getFamily() and p.tag_id == tag.getId(),
-                             panel_properties))
+        panels = list(filter(lambda p: p.family == tag.getFamily() and p.tag_id == tag.getId(), panel_properties))
         if not len(panels) == 1:
             raise Exception("Could not associate panel with found tag")
         panel_index = panel_properties.index(panels[0])
@@ -111,13 +105,12 @@ def extract_using_apriltags(path: Path, detector: AprilTagDetector, all_ids: lis
             continue
         else:
             if args.debug:
-                output_path = get_output_path(path, "panel_" + str(tag.getId()) + "_" + tag.getFamily(),
-                                              "debug/panels")
+                output_path = get_output_path(path, "panel_" + str(tag.getId()) + "_" + tag.getFamily(), "debug/panels")
                 debug_show_panel(img, [tag], corners, output_path)
             polygon = shapely.Polygon(corners)
             polygon = shrink_or_swell_shapely_polygon(polygon, 0.2)
             panel_mask = rasterize([polygon], out_shape=img.shape)
-            mean: float = float(np.ma.MaskedArray(img, mask=~(panel_mask.astype(np.bool_))).mean()) # type: ignore
+            mean: float = float(np.ma.MaskedArray(img, mask=~(panel_mask.astype(np.bool_))).mean())  # type: ignore
             panel_intensities[panel_index] = mean
     return panel_intensities
 
@@ -126,8 +119,7 @@ def extract_intensities_from_apriltags(batch: list[Path], detector: AprilTagDete
                                        panel_size_m: tuple[float, float], tag_size_m: float) -> NDArray[np.float64]:
     intensities = np.zeros((len(batch), len(panel_properties)))
     for img_index, path in enumerate(tqdm(batch)):
-        panel_intensities = extract_using_apriltags(path, detector, all_ids,
-                                                    panel_size_m, tag_size_m)
+        panel_intensities = extract_using_apriltags(path, detector, all_ids, panel_size_m, tag_size_m)
         intensities[img_index] = panel_intensities
     return intensities
 
@@ -204,11 +196,9 @@ def apriltag_main() -> None:
     if args.debug:
         number_of_image_per_band = int(len(img_paths) / number_of_bands)
         debug_combine_and_plot_intensities(number_of_image_per_band, number_of_bands, len(panel_properties),
-                                           output_folder / "intensity",
-                                           )
-        debug_combine_and_plot_intensities(number_of_image_per_band, number_of_bands, output_folder / "intensity",
-                                           panel_properties,
-                                           "_interpolated")
+                                           output_folder / "intensity", )
+        debug_combine_and_plot_intensities(number_of_image_per_band, number_of_bands, len(panel_properties),
+                                           output_folder / "intensity", "_interpolated")
 
 
 if __name__ == '__main__':
@@ -229,8 +219,7 @@ if __name__ == '__main__':
 
     args = ApriltagArgumentParser(
         description='Automatically detect reflection calibration panels in images and transform the given images to '
-                    'reflectance',
-        epilog='If you have any questions, please contact').parse_args()
+                    'reflectance', epilog='If you have any questions, please contact').parse_args()
 
     if args.panel_properties_file is not None and not os.path.exists(args.panel_properties_file):
         raise Exception("Could not find specified panel properties file: {}".format(args.panel_properties_file))
