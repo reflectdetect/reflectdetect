@@ -1,5 +1,7 @@
+import os
 from pathlib import Path
 
+import matplotlib
 import numpy as np
 import shapely
 from matplotlib import pyplot as plt
@@ -7,10 +9,12 @@ from numpy.typing import NDArray
 from robotpy_apriltag import AprilTagDetection
 
 from reflectdetect.utils.polygons import shrink_or_swell_shapely_polygon
+from reflectdetect.utils.thread import run_in_thread
 
+matplotlib.use('Agg')
 
 def debug_show_panel(img: NDArray[np.float64], tags: list[AprilTagDetection], corners: list[float],
-                     output_path: str | None = None) -> None:
+                     output_path: Path | None = None) -> None:
     fig_2d = plt.figure()
     ax = fig_2d.subplots(1, 1)
     ax.imshow(img, cmap="grey")
@@ -74,7 +78,7 @@ def debug_combine_and_plot_intensities(number_of_images: int,
         output_path = output_folder / filename
         intensities[:, :, band] = np.genfromtxt(output_path, delimiter=",")
     output_path = output_folder / f"intensities{suffix}tif"
-    show_intensities(intensities, output_path.as_posix())
+    run_in_thread(show_intensities, intensities, output_path.as_posix())
 
 
 def debug_save_intensities(intensities: NDArray[np.float64], number_of_bands: int, output_folder: Path,
@@ -91,8 +95,9 @@ def debug_save_intensities(intensities: NDArray[np.float64], number_of_bands: in
 
 def debug_save_intensities_single_band(intensities: NDArray[np.float64], band_index: int, output_folder: Path,
                                        suffix: str = "") -> None:
+    os.makedirs(output_folder, exist_ok=True)
     output_path = output_folder / f"band_{str(band_index)}_intensities{suffix}.csv"
-    with open(output_path, "a") as f:
+    with open(output_path, "a+") as f:
         f.write("\n")
         data = intensities[:, :].astype(str)
         data[data == 'nan'] = ''

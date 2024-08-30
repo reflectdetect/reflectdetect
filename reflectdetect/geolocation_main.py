@@ -1,6 +1,5 @@
 import json
 import logging
-import os.path
 from pathlib import Path
 
 import numpy as np
@@ -8,9 +7,9 @@ import rasterio
 from numpy.typing import NDArray
 from rasterio import DatasetReader
 from tap import Tap
-from tqdm import tqdm
 
 from reflectdetect.PanelProperties import GeolocationPanelProperties
+from reflectdetect.constants import PANEL_PROPERTIES_FILENAME
 from reflectdetect.pipeline import interpolate_intensities, fit, convert
 from reflectdetect.utils.debug import debug_combine_and_plot_intensities, debug_save_intensities
 from reflectdetect.utils.iterators import get_next
@@ -21,15 +20,9 @@ from reflectdetect.utils.panel import get_band_reflectance
 logger = logging.getLogger(__name__)
 
 
-
-
-
 def load_panel_properties(dataset: Path, panel_properties_file: Path | None) -> list[GeolocationPanelProperties]:
     if panel_properties_file is None:
-        canonical_filename = "panels_properties.json"
-        path = dataset / canonical_filename
-        if not os.path.exists(path):
-            raise ValueError("No panel properties file found at {}.".format(path))
+        path = dataset / PANEL_PROPERTIES_FILENAME
     else:
         path = panel_properties_file
 
@@ -53,7 +46,7 @@ def convert_orthophotos_to_reflectance(paths: list[Path],
     """
     unconverted_photos = []
     converted_photos: list[list[NDArray[np.float64]] | None] = []
-    for photo_index, orthophoto_path in enumerate(tqdm(paths)):
+    for photo_index, orthophoto_path in enumerate(paths):
         converted_bands = []
         orthophoto: DatasetReader
         with rasterio.open(orthophoto_path) as orthophoto:
@@ -80,7 +73,7 @@ def convert_orthophotos_to_reflectance(paths: list[Path],
 def build_batches_per_full_visibility(paths_with_visibility: dict[Path, NDArray[np.bool]]) -> list[list[Path]]:
     batches = []
     current_batch = []
-    for (path, panel_visibility), nextVisibility in tqdm(get_next(paths_with_visibility.items())):
+    for (path, panel_visibility), nextVisibility in get_next(paths_with_visibility.items()):
         current_batch.append(path)
 
         all_panels_visible = panel_visibility.all()
@@ -101,7 +94,7 @@ def build_batches_per_full_visibility(paths_with_visibility: dict[Path, NDArray[
 
 def orthophoto_main(dataset: Path, panel_locations_file: Path | None, debug: bool = False) -> None:
     panel_locations = load_panel_locations(dataset, panel_locations_file)
-    orthophoto_paths = get_orthophoto_paths(args.dataset)
+    orthophoto_paths = get_orthophoto_paths(dataset)
 
     photo: DatasetReader
     with rasterio.open(orthophoto_paths[0]) as photo:
@@ -114,7 +107,7 @@ def orthophoto_main(dataset: Path, panel_locations_file: Path | None, debug: boo
         raise Exception("Number of bands in the images does not match number of bands in the panel specification")
 
     paths_with_visibility = {}
-    for path in tqdm(orthophoto_paths):
+    for path in orthophoto_paths:
         panels_visible = np.array(
             [is_panel_in_orthophoto(path, p) for p in panel_locations]
         )
@@ -122,7 +115,7 @@ def orthophoto_main(dataset: Path, panel_locations_file: Path | None, debug: boo
 
     batches = build_batches_per_full_visibility(paths_with_visibility)
 
-    output_folder = Path(args.dataset + "/debug/intensity/")
+    output_folder = dataset / "debug/intensity"
 
     if debug:
         for p in output_folder.glob("*.csv"):
@@ -179,7 +172,7 @@ if __name__ == '__main__':
 
     panel_properties_file = Path(args.panel_properties_file) if args.panel_properties_file is not None else None
     panel_locations_file = Path(args.panel_locations_file) if args.panel_locations_file is not None else None
-    #TODO: validate panel_location_file
+    # TODO: validate panel_location_file
     dataset = Path(args.dataset) if args.dataset is not None else None
     panel_properties = load_panel_properties(dataset, panel_properties_file)
     orthophoto_main(dataset, panel_locations_file)

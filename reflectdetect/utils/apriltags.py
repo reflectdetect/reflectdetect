@@ -1,5 +1,8 @@
+import contextlib
+import io
 import math
 from pathlib import Path
+from typing import Callable
 
 import numpy as np
 from numpy.typing import NDArray
@@ -10,6 +13,7 @@ from wpimath.geometry import Transform3d
 from reflectdetect.utils.exif import get_camera_properties
 from reflectdetect.utils.panel import calculate_sensor_size
 from reflectdetect.utils.paths import get_output_path
+from reflectdetect.utils.thread import run_in_thread
 
 tag_detection_to_total_width_conversions = {
     "tag16h5": 1.33,
@@ -35,20 +39,21 @@ def verify_estimate(tag: AprilTagDetection, estimate: Transform3d, valid_ids: li
 
 def detect_tags(img: NDArray[np.float64], detector: AprilTagDetector, valid_ids: list[int] | None = None) -> list[
     AprilTagDetection]:
-    tags: list[AprilTagDetection] = detector.detect(img)  # type: ignore
+    tags: list[AprilTagDetection] = run_in_thread(detector.detect, img)  # type: ignore
     return [tag for tag in tags if verify_detections(tag, valid_ids)]
 
 
 def pose_estimate_tags(tags: list[AprilTagDetection], config: AprilTagPoseEstimator.Config) -> list[Transform3d]:
     pose_estimator = AprilTagPoseEstimator(config)
-    estimates = [pose_estimator.estimate(tag) for tag in tags]
+    estimates = [run_in_thread(pose_estimator.estimate, tag) for tag in tags]
     return estimates  # if verify_estimate(tag, estimate, valid_ids)]
 
 
 def get_altitude_from_panels(tags: list[AprilTagDetection], path: Path, resolution: tuple[int, int],
                              tag_size: float, ) -> float:
     config = get_pose_estimator_config(path, resolution, tag_size)
-    estimates = pose_estimate_tags(tags, config)
+    with contextlib.redirect_stdout(io.StringIO()):
+        estimates = pose_estimate_tags(tags, config)
     return float(np.mean([estimate.translation().z for estimate in estimates]))
 
 
@@ -112,7 +117,8 @@ def get_panel(tag: AprilTagDetection, panel_size_pixel: float, image_dimensions:
     return corners
 
 
-def save_images(paths: list[Path], converted_images: list[NDArray[np.float64] | None]) -> None:
+def save_images(paths: list[Path], converted_images: list[NDArray[np.float64] | None],
+                progress: Callable[[], None] | None = None) -> None:
     """
     This function saves the converted photos as .tif files into a new "/transformed/" directory in the images folder
     :param paths: list of image paths
@@ -120,8 +126,12 @@ def save_images(paths: list[Path], converted_images: list[NDArray[np.float64] | 
     """
     for path, photo in zip(paths, converted_images):
         if photo is None:
+            if progress is not None:
+                progress()
             continue
         output_path = get_output_path(path, "reflectance", "transformed")
         compression_factor = 10000  # convert from 0.1234 to 1234 TODO: Document compression factor
         scaled_to_int = np.array(photo * compression_factor, dtype=np.uint8)
         imwrite(output_path, scaled_to_int)
+        if progress is not None:
+            progress()

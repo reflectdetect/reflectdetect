@@ -3,17 +3,20 @@ import logging
 import os
 import re
 from pathlib import Path
+from typing import Callable
 
 import cv2
 import numpy as np
 import shapely
 from numpy.typing import NDArray
 from rasterio.features import rasterize
+from rich.progress import Progress, TextColumn, BarColumn, MofNCompleteColumn, TimeElapsedColumn, TimeRemainingColumn
+from rich.table import Column
 from robotpy_apriltag import AprilTagDetector
 from tap import Tap
-from tqdm import tqdm
 
 from reflectdetect.PanelProperties import ApriltagPanelProperties
+from reflectdetect.constants import IMAGES_FOLDER, PANEL_PROPERTIES_FILENAME
 from reflectdetect.pipeline import interpolate, convert, fit
 from reflectdetect.utils.apriltags import detect_tags, get_altitude_from_panels, get_panel, get_detector_config, \
     save_images
@@ -23,16 +26,12 @@ from reflectdetect.utils.exif import get_camera_properties
 from reflectdetect.utils.panel import calculate_panel_size_in_pixels, get_band_reflectance
 from reflectdetect.utils.paths import get_output_path
 from reflectdetect.utils.polygons import shrink_or_swell_shapely_polygon
-
-logger = logging.getLogger(__name__)
+from reflectdetect.utils.thread import run_in_thread
 
 
 def load_panel_properties(dataset: Path, panel_properties_file: Path | None) -> list[ApriltagPanelProperties]:
     if panel_properties_file is None:
-        canonical_filename = "panels_properties.json"
-        path = dataset / canonical_filename
-        if not os.path.exists(path):
-            raise ValueError("No panel properties file found at {}.".format(path))
+        path = dataset / PANEL_PROPERTIES_FILENAME
     else:
         path = panel_properties_file
 
@@ -41,8 +40,8 @@ def load_panel_properties(dataset: Path, panel_properties_file: Path | None) -> 
     return panels
 
 
-def convert_images_to_reflectance(paths: list[Path], intensities: NDArray[np.float64], band_index: int) -> list[
-    NDArray[np.float64] | None]:
+def convert_images_to_reflectance(paths: list[Path], intensities: NDArray[np.float64], band_index: int,
+                                  progress: Callable[[], None] | None = None) -> list[NDArray[np.float64] | None]:
     """
     This function converts the intensity values to reflectance values.
     For each photo we convert each band separately
@@ -57,7 +56,7 @@ def convert_images_to_reflectance(paths: list[Path], intensities: NDArray[np.flo
     """
     unconverted_photos = []
     converted_photos: list[NDArray[np.float64] | None] = []
-    for image_index, path in enumerate(tqdm(paths)):
+    for image_index, path in enumerate(paths):
         intensities_of_panels = intensities[image_index, :]
         if np.isnan(intensities_of_panels).any():
             # If for some reason not all intensities are present, we save the indices for debugging purposes
@@ -65,10 +64,12 @@ def convert_images_to_reflectance(paths: list[Path], intensities: NDArray[np.flo
             # the connection between orthophotos and converted photos based on the index
             unconverted_photos.append(image_index)
             converted_photos.append(None)
-            break
+            continue
         coefficients = fit(intensities_of_panels, get_band_reflectance(panel_properties, band_index))
         band = cv2.imread(path.as_posix(), cv2.IMREAD_GRAYSCALE)
         converted_photos.append(convert(band, coefficients))
+        if progress is not None:
+            progress()
 
     if len(unconverted_photos) > 0:
         print("WARNING: Could not convert", len(unconverted_photos), "photos")
@@ -101,7 +102,7 @@ def extract_using_apriltags(path: Path, detector: AprilTagDetector, all_ids: lis
         else:
             if args.debug:
                 output_path = get_output_path(path, "panel_" + str(tag.getId()) + "_" + tag.getFamily(), "debug/panels")
-                debug_show_panel(img, [tag], corners, output_path)
+                run_in_thread(debug_show_panel, img, [tag], corners, output_path)
             polygon = shapely.Polygon(corners)
             polygon = shrink_or_swell_shapely_polygon(polygon, 0.2)
             panel_mask = rasterize([polygon], out_shape=img.shape)
@@ -111,19 +112,21 @@ def extract_using_apriltags(path: Path, detector: AprilTagDetector, all_ids: lis
 
 
 def extract_intensities_from_apriltags(batch: list[Path], detector: AprilTagDetector, all_ids: list[int],
-                                       panel_size_m: tuple[float, float], tag_size_m: float) -> NDArray[np.float64]:
+                                       panel_size_m: tuple[float, float], tag_size_m: float,
+                                       progress: Callable[[], None] | None = None) -> NDArray[np.float64]:
     intensities = np.zeros((len(batch), len(panel_properties)))
-    for img_index, path in enumerate(tqdm(batch)):
+    for img_index, path in enumerate(batch):
         panel_intensities = extract_using_apriltags(path, detector, all_ids, panel_size_m, tag_size_m)
         intensities[img_index] = panel_intensities
+        if progress is not None:
+            progress()
     return intensities
 
 
 def get_apriltag_paths(dataset: Path, images_folder: Path | None) -> list[Path]:
     if images_folder is None:
-        folder = "images"
-        path = dataset / folder
-        if not os.path.exists(path):
+        path = dataset / IMAGES_FOLDER
+        if not path.exists():
             raise ValueError(f"No images folder found at {path}.")
     else:
         path = images_folder
@@ -135,71 +138,89 @@ def build_batches_per_band(paths: list[Path]) -> list[list[Path]]:
     # TODO also add visibility batching
     batches: list[list[Path]] = []
     # Regular expression to match file names and capture the base and suffix
-    pattern = re.compile(r".*_(\d+)\.tif$")
+    pattern = re.compile(r".*_(\d+)\.tif$")  # TODO better path parsing generalization
 
     for image_path in paths:
         match = pattern.match(image_path.name)
-        if match:
-            band_index = int(match.group(1)) - 1
-            if band_index == len(batches):
-                batches.append([])
-            elif band_index > len(batches) or band_index < 0:
-                raise ValueError(
-                    "Problem with the sorting of the pats or regex")  # TODO better path parsing generalization
-            batches[band_index].append(image_path)
-
+        if not match:
+            raise Exception(f"Could not extract band index from filename")
+        band_index = int(match.group(1)) - 1
+        if band_index > len(batches) or band_index < 0:
+            raise Exception("Problem with the sorting of the pats or regex")
+        if band_index == len(batches):
+            batches.append([])
+        batches[band_index].append(image_path)
     return batches
 
 
 def apriltag_main(dataset: Path, images_folder: Path | None, debug: bool = False) -> None:
-    img_paths = get_apriltag_paths(dataset, images_folder)
-    batches = build_batches_per_band(img_paths)
-    number_of_bands = len(batches)
+    with Progress(TextColumn("[progress.description]{task.description}", table_column=Column(width=40)),
+                  TextColumn("[progress.percentage]{task.percentage:>3.0f}%"), BarColumn(), MofNCompleteColumn(),
+                  TextColumn("•"), TimeElapsedColumn(), TextColumn("•"), TimeRemainingColumn(),
+                  ) as progress:
+        img_paths = get_apriltag_paths(dataset, images_folder)
+        os.system("cls||clear")
+        all_images_task = progress.add_task("Total Progress", total=len(img_paths))
 
-    # TODO: add to args
-    tag_size_m = 0.3
-    panel_size_m = (0.8, 0.8)
+        progress.console.print("Batching...") if debug else None
+        batches = build_batches_per_band(img_paths)
+        number_of_bands = len(batches)
 
-    d = AprilTagDetector()
-    d.addFamily(args.family)
-    detector_config = get_detector_config()
-    d.setConfig(detector_config)
+        # TODO: add to args
+        tag_size_m = 0.3
+        panel_size_m = (0.8, 0.8)
 
-    all_ids = list(set([p.tag_id for p in panel_properties]))
+        progress.console.print("Loading detector...") if debug else None
+        d = AprilTagDetector()
+        d.addFamily(args.family)
+        detector_config = get_detector_config()
+        d.setConfig(detector_config)
 
-    # Hack TODO: remove, as panels should not specify family
-    d = AprilTagDetector()
-    for family in [p.family for p in panel_properties]:
-        d.addFamily(family)
-    d.setConfig(detector_config)
+        all_ids = list(set([p.tag_id for p in panel_properties]))
 
-    output_folder = dataset / "debug"
-    if debug:
-        for p in (output_folder / "intensity").glob("*.csv"):
-            p.unlink()
-        for p in (output_folder / "panels").glob("*.tif"):
-            p.unlink()
+        # Hack TODO: remove, as panels should not specify family
+        d = AprilTagDetector()
+        for family in [p.family for p in panel_properties]:
+            d.addFamily(family)
+        d.setConfig(detector_config)
 
-    for band_index, batch in enumerate(batches):
-        logger.info(f"Processing batch for band {band_index} with length {len(batch)}")
-        # --- Run pipeline
-        i = extract_intensities_from_apriltags(batch, d, all_ids, panel_size_m, tag_size_m)
+        output_folder = dataset / "debug"
         if debug:
-            debug_save_intensities_single_band(i, band_index, output_folder / "intensity")
-        for panel_index, _ in enumerate(panel_properties):
-            i[:, panel_index] = interpolate(i[:, panel_index])
+            for p in (output_folder / "intensity").glob("*.csv"):
+                p.unlink()
+            for p in (output_folder / "panels").glob("*.tif"):
+                p.unlink()
+
+        for band_index, batch in enumerate(batches):
+            extract_task = progress.add_task("Extracting intensities", total=len(batch))
+            i = extract_intensities_from_apriltags(batch, d, all_ids, panel_size_m, tag_size_m,
+                                                   lambda: progress.update(extract_task, advance=1))
+            progress.remove_task(extract_task)
+            os.system("cls||clear")
+            if debug:
+                debug_save_intensities_single_band(i, band_index, output_folder / "intensity")
+            interpolate_task = progress.add_task(description="Interpolating intensities", total=len(panel_properties))
+            for panel_index, _ in enumerate(panel_properties):
+                i[:, panel_index] = interpolate(i[:, panel_index])
+                progress.update(interpolate_task, advance=1)
+            progress.remove_task(interpolate_task)
+            if debug:
+                debug_save_intensities_single_band(i, band_index, output_folder / "intensity", "_interpolated")
+            convert_task = progress.add_task(description="Converting images", total=len(batch))
+            c = convert_images_to_reflectance(batch, i, band_index, lambda: progress.update(convert_task, advance=1))
+            progress.remove_task(convert_task)
+            del i
+            save_task = progress.add_task(description="Saving images", total=len(batch))
+            save_images(batch, c, lambda: progress.update(save_task, advance=1))
+            progress.remove_task(save_task)
+            del c
+            progress.update(all_images_task, advance=len(batch))
         if debug:
-            debug_save_intensities_single_band(i, band_index, output_folder / "intensity", "_interpolated")
-        c = convert_images_to_reflectance(batch, i, band_index)
-        del i
-        save_images(batch, c)
-        del c
-    if debug:
-        number_of_image_per_band = int(len(img_paths) / number_of_bands)
-        debug_combine_and_plot_intensities(number_of_image_per_band, number_of_bands, len(panel_properties),
-                                           output_folder / "intensity", )
-        debug_combine_and_plot_intensities(number_of_image_per_band, number_of_bands, len(panel_properties),
-                                           output_folder / "intensity", "_interpolated")
+            number_of_image_per_band = int(len(img_paths) / number_of_bands)
+            debug_combine_and_plot_intensities(number_of_image_per_band, number_of_bands, len(panel_properties),
+                                               output_folder / "intensity", )
+            debug_combine_and_plot_intensities(number_of_image_per_band, number_of_bands, len(panel_properties),
+                                               output_folder / "intensity", "_interpolated")
 
 
 if __name__ == '__main__':
@@ -229,14 +250,22 @@ if __name__ == '__main__':
     panel_properties = load_panel_properties(dataset, panel_properties_file)
 
     # Input Validation##TODO
-    if panel_properties_file is not None and not panel_properties_file.exists():
-        raise Exception("Could not find specified panel properties file: {}".format(args.panel_properties_file))
+    if panel_properties_file is not None:
+        if not panel_properties_file.exists():
+            raise Exception(f"Could not find specified panel properties file: {args.panel_properties_file}")
+    else:
+        if not (dataset / PANEL_PROPERTIES_FILENAME).exists():
+            raise Exception(f"No panel properties file found at {dataset / PANEL_PROPERTIES_FILENAME}.")
 
-    if images_folder is not None and not images_folder.exists():
-        raise Exception("Could not find specified images folder: {}".format(args.images_folder))
+    if images_folder is not None:
+        if not images_folder.exists():
+            raise Exception(f"Could not find specified images folder: {args.images_folder}")
+    else:
+        if not (dataset / IMAGES_FOLDER).exists():
+            raise Exception(f"Could not find specified images folder: {args.images_folder}")
 
     test_detector = AprilTagDetector()
     if not test_detector.addFamily(args.family):
-        raise Exception("Family not recognized")
+        raise Exception("Apriltag Family not recognized")
 
     apriltag_main(dataset, images_folder, args.debug)

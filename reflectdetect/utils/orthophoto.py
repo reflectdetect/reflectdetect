@@ -1,4 +1,3 @@
-import os
 from pathlib import Path
 
 import fiona
@@ -11,8 +10,8 @@ from rasterio import DatasetReader
 from rasterio.coords import BoundingBox
 from rasterio.mask import mask
 from shapely.geometry import Polygon
-from tqdm import tqdm
 
+from reflectdetect.constants import ORTHOPHOTO_FOLDER
 from reflectdetect.utils.paths import get_output_path
 
 
@@ -56,17 +55,15 @@ def save_bands(output_path: Path, band_images: list[NDArray[np.float64]], meta: 
             dst.write_band(band_index + 1, band)
 
 
-def get_orthophoto_paths(dataset_path: str) -> list[Path]:
-    folder = "orthophotos"
-    template_path = Path(dataset_path + "/" + folder).resolve()
-    return list(sorted([filepath for filepath in template_path.glob("*.tif")]))
+def get_orthophoto_paths(dataset: Path) -> list[Path]:
+    return list(sorted([filepath for filepath in (dataset / ORTHOPHOTO_FOLDER).glob("*.tif")]))
 
 
 def load_panel_locations(dataset: Path, geopackage_filepath: Path | None) -> list[GeoDataFrame]:
     if geopackage_filepath is None:
         canonical_filename = "panel_locations.gpk"
         path = dataset / canonical_filename
-        if not os.path.exists(path):
+        if not path.exists():
             raise ValueError("No panel locations file found at {}.".format(path))
     else:
         path = geopackage_filepath
@@ -119,7 +116,7 @@ def extract_intensities_from_orthophotos(batch_of_orthophotos: list[Path],
     :return: The extracted intensities for all orthophotos, with np.Nan for values that could not be found.
     """
     intensities = np.zeros((len(batch_of_orthophotos), len(panel_locations), number_of_bands))
-    for photo_index, orthophoto_path in enumerate(tqdm(batch_of_orthophotos)):
+    for photo_index, orthophoto_path in enumerate(batch_of_orthophotos):
         for panel_index, panel_location in enumerate(panel_locations):
             if not paths_with_visibility[orthophoto_path][panel_index]:
                 intensities[photo_index][panel_index] = np.full(number_of_bands, np.nan)
