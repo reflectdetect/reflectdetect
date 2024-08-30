@@ -1,6 +1,9 @@
 # reflectdetect
 
 Automatic detection of reflectance calibration panels in multiband drone imagery
+TODO Explain both approaches and add images
+
+
 ## Vocabulary
 ### Panel
 With the word panel we reference calibration sheets TODO
@@ -8,6 +11,68 @@ With the word panel we reference calibration sheets TODO
 
 ## Installation
 ## Setup
+### Create a panel_properties.json file
+To access the information about your calibration panels, we need you to create a `panel_properties.json` file. It includes the reflectance values of each panel for each of the bands you captured.
+In the following example we show how two panels might be configured. All the information about the first panel is between the first `{ }` and so on.
+#### Geolocation
+We assume that the first panel in the file corresponds to the first layer of coordinates in the geopackage file (TODO: explain better)
+
+```json
+[
+  {
+    "layer_id": 0,
+    "bands": [
+      0.9,
+      1.0,
+      1.0,
+      1.0,
+      0.72,
+      0.91
+    ]
+  },
+  {
+    "layer_id": 1,
+    "bands": [
+      0.9,
+      1.0,
+      0.43,
+      0.70,
+      0.35,
+      0.4
+    ]
+  },
+  ...
+]
+````
+#### Apriltags
+The tag id has to correspond to the id of the apriltag you place next to the given panel. No id can be used twice!
+```json
+[
+  {
+    "tag_id": 1,
+    "bands": [
+      0.9,
+      1.0,
+      1.0,
+      1.0,
+      0.72,
+      0.91
+    ]
+  },
+  {
+    "tag_id": 2,
+    "bands": [
+      0.9,
+      1.0,
+      0.43,
+      0.70,
+      0.35,
+      0.4
+    ]
+  },
+  ...
+]
+````
 ### Create dataset folder
 In order for reflect-detect to be able to gather the necessary information about the images, panels, camera, etc. , reflect-detect expects you to structure your data in the following format:
 #### Geolocation
@@ -16,16 +81,24 @@ dataset_folder
 │   panels_properties.json
 │   panel_locations.gpk
 │
+└───orthophotos
+│   │   IMG_0000.tif
+│   │   IMG_0001.tif
+│   │   IMG_0002.tif
+│   │   IMG_0003.tif
+|   |   ...
+```
+#### Apriltags
+```
+dataset_folder
+│   panels_properties.json
+│   
 └───images
 │   │   IMG_0000_1.tif
 │   │   IMG_0000_2.tif
 │   │   IMG_0001_1.tif
 │   │   IMG_0001_2.tif
 |   |   ...
-│   
-└───ortho
-    │   file021.txt
-    │   file022.txt 
 ```
 
 either images or orthophotos
