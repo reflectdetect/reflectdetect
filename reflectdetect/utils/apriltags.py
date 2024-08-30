@@ -2,14 +2,15 @@ import contextlib
 import io
 import math
 from pathlib import Path
-from typing import Callable
 
 import numpy as np
 from numpy.typing import NDArray
+from rich.progress import Progress
 from robotpy_apriltag import AprilTagDetection, AprilTagDetector, AprilTagPoseEstimator
 from tifffile import imwrite
 from wpimath.geometry import Transform3d
 
+from reflectdetect.utils.debug import ProgressBar
 from reflectdetect.utils.exif import get_camera_properties
 from reflectdetect.utils.panel import calculate_sensor_size
 from reflectdetect.utils.paths import get_output_path
@@ -45,8 +46,8 @@ def detect_tags(img: NDArray[np.float64], detector: AprilTagDetector, valid_ids:
 
 def pose_estimate_tags(tags: list[AprilTagDetection], config: AprilTagPoseEstimator.Config) -> list[Transform3d]:
     pose_estimator = AprilTagPoseEstimator(config)
-    estimates = [run_in_thread(pose_estimator.estimate, tag) for tag in tags]
-    return estimates  # if verify_estimate(tag, estimate, valid_ids)]
+    estimates: list[Transform3d] = [run_in_thread(pose_estimator.estimate, tag) for tag in tags]  # type: ignore
+    return estimates
 
 
 def get_altitude_from_panels(tags: list[AprilTagDetection], path: Path, resolution: tuple[int, int],
@@ -118,20 +119,19 @@ def get_panel(tag: AprilTagDetection, panel_size_pixel: float, image_dimensions:
 
 
 def save_images(paths: list[Path], converted_images: list[NDArray[np.float64] | None],
-                progress: Callable[[], None] | None = None) -> None:
+                progress: Progress | None = None) -> None:
     """
     This function saves the converted photos as .tif files into a new "/transformed/" directory in the images folder
     :param paths: list of image paths
     :param converted_images: list of reflectance images
     """
-    for path, photo in zip(paths, converted_images):
-        if photo is None:
-            if progress is not None:
-                progress()
-            continue
-        output_path = get_output_path(path, "reflectance", "transformed")
-        compression_factor = 10000  # convert from 0.1234 to 1234 TODO: Document compression factor
-        scaled_to_int = np.array(photo * compression_factor, dtype=np.uint8)
-        imwrite(output_path, scaled_to_int)
-        if progress is not None:
-            progress()
+    with ProgressBar(progress, description="Saving images", total=len(paths)) as pb:
+        for path, photo in zip(paths, converted_images):
+            if photo is None:
+                pb.update()
+                continue
+            output_path = get_output_path(path, "reflectance", "transformed")
+            compression_factor = 10000  # convert from 0.1234 to 1234 TODO: Document compression factor
+            scaled_to_int = np.array(photo * compression_factor, dtype=np.uint8)
+            imwrite(output_path, scaled_to_int)
+            pb.update()

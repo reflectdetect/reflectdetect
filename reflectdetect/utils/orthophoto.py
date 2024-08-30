@@ -9,35 +9,37 @@ from numpy.typing import NDArray
 from rasterio import DatasetReader
 from rasterio.coords import BoundingBox
 from rasterio.mask import mask
+from rich.progress import Progress
 from shapely.geometry import Polygon
 
 from reflectdetect.constants import ORTHOPHOTO_FOLDER
 from reflectdetect.utils.paths import get_output_path
 
 
-def is_panel_in_orthophoto(orthophoto_path: Path, panel: GeoDataFrame, crs: str = "EPSG:4326") -> bool:
+def is_panel_in_orthophoto(orthophoto_path: Path, panel: GeoDataFrame) -> bool:
+    if panel.empty:
+        raise Exception("Invalid panel location, no corner points included")
+
+    orthophoto: DatasetReader
     with (rasterio.open(orthophoto_path) as orthophoto):
-        bounds = BoundingBox(*orthophoto.bounds)
-        orthophoto_polygon = Polygon([
-            (bounds.left, bounds.bottom), (bounds.left, bounds.top),
-            (bounds.right, bounds.top), (bounds.right, bounds.bottom)
-        ])
+        bounds = orthophoto.bounds
+    orthophoto_polygon = Polygon([
+        (bounds.left, bounds.bottom), (bounds.left, bounds.top),
+        (bounds.right, bounds.top), (bounds.right, bounds.bottom)
+    ])
 
-        # TODO: add input for alternative crs
-        # Create a GeoDataFrame for the orthophoto polygon with its CRS
-        orthophoto_box = gpd.GeoDataFrame({'geometry': [orthophoto_polygon]}, crs=crs)
+    # Ensure the GeoDataframe has the same CRS as the orthophoto box
+    if panel.crs.srs != orthophoto.crs:
+        # print("CRS mismatch, converting ", panel.crs, "to", orthophoto_box.crs)
+        panel = panel.to_crs(orthophoto.crs)
 
-        if panel.empty:
-            print("Invalid panel location, no corner points included")
-            return False
-
-        # Ensure the GeoDataframe has the same CRS as the orthophoto box
-        if panel.crs != orthophoto_box.crs:
-            print("CRS mismatch, converting ", panel.crs, "to", orthophoto_box.crs)
-            panel = panel.to_crs(orthophoto_box.crs)
-
-        # Check if all corner points of the panel are within the orthophoto bounds
-        return panel.within(orthophoto_polygon).all() is True
+    print(panel.bounds.values[0][0], orthophoto_polygon.bounds[0])
+    print(panel.bounds.values[0][1], orthophoto_polygon.bounds[1])
+    print(panel.bounds.values[0][2], orthophoto_polygon.bounds[2])
+    print(panel.bounds.values[0][3], orthophoto_polygon.bounds[3])
+    print()
+    # Check if all corner points of the panel are within the orthophoto bounds
+    return panel.within(orthophoto_polygon).all() is True
 
 
 def extract_using_geolocation(image: NDArray[np.float64], panel_location: GeoDataFrame) -> list[float]:
@@ -61,7 +63,7 @@ def get_orthophoto_paths(dataset: Path) -> list[Path]:
 
 def load_panel_locations(dataset: Path, geopackage_filepath: Path | None) -> list[GeoDataFrame]:
     if geopackage_filepath is None:
-        canonical_filename = "panel_locations.gpk"
+        canonical_filename = "panel_locations.gpkg"
         path = dataset / canonical_filename
         if not path.exists():
             raise ValueError("No panel locations file found at {}.".format(path))
@@ -100,7 +102,8 @@ def save_orthophotos(paths: list[Path], converted_photos: list[list[NDArray[np.f
 def extract_intensities_from_orthophotos(batch_of_orthophotos: list[Path],
                                          paths_with_visibility: dict[Path, NDArray[np.bool]],
                                          panel_locations: list[GeoDataFrame],
-                                         number_of_bands: int) -> NDArray[np.float64]:
+                                         number_of_bands: int,
+                                         progress: Progress | None = None) -> NDArray[np.float64]:
     """
     This function extracts intensities from the orthophotos.
     It does so by looking at each photo and determining which panels are visible in the photo.
@@ -115,6 +118,9 @@ def extract_intensities_from_orthophotos(batch_of_orthophotos: list[Path],
     :type number_of_bands: int
     :return: The extracted intensities for all orthophotos, with np.Nan for values that could not be found.
     """
+    task = None
+    if progress is not None:
+        task = progress.add_task("Extracting intensities", total=len(batch_of_orthophotos), leave=False)
     intensities = np.zeros((len(batch_of_orthophotos), len(panel_locations), number_of_bands))
     for photo_index, orthophoto_path in enumerate(batch_of_orthophotos):
         for panel_index, panel_location in enumerate(panel_locations):
@@ -126,4 +132,8 @@ def extract_intensities_from_orthophotos(batch_of_orthophotos: list[Path],
             with rasterio.open(orthophoto_path) as orthophoto:
                 panel_intensities_per_band = extract_using_geolocation(orthophoto, panel_location)
             intensities[photo_index][panel_index] = panel_intensities_per_band
+        if progress is not None and task is not None:
+            progress.update(task, advance=1)
+    if progress is not None and task is not None:
+        progress.remove_task(task)
     return intensities

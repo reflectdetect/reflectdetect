@@ -1,8 +1,8 @@
 import queue
 import threading
+from typing import Callable, Any, Tuple, Dict, Optional
 
-
-def run_in_thread(func, *args, **kwargs):
+def run_in_thread(func: Callable[..., Any], *args: Any, **kwargs: Any) -> Optional[Any]:
     """
     Runs a function in a separate thread, suppresses its output, and ignores any exceptions.
 
@@ -11,16 +11,16 @@ def run_in_thread(func, *args, **kwargs):
     :param kwargs: Keyword arguments to pass to the function.
     :return: The result of the function, or None if an exception occurred.
     """
-    def wrapper(q, *args, **kwargs):
+    def wrapper(q: queue.Queue[Optional[Any]], *args: Any, **kwargs: Any) -> None:
         try:
             result = func(*args, **kwargs)
             q.put(result)
-        except Exception as e:
+        except Exception:
             # Ignore the exception and put None in the queue
             q.put(None)
 
     # Create a queue to store the result
-    q = queue.Queue()
+    q: queue.Queue[Optional[Any]] = queue.Queue()
 
     # Create and start the thread
     thread = threading.Thread(target=wrapper, args=(q, *args), kwargs=kwargs)

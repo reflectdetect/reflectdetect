@@ -77,6 +77,10 @@ include the reflectance values for each band
    - images
    - panel_properties
    -__ 
+## :white_square_button: Usage
+```bash
+python .\reflectdetect\apriltag_main.py --family "tag25h9" --panel_properties_file data/apriltags_run2/panel_properties.json --images_folder data/apriltags_run2/0001SET/000 ".\data\apriltags_run2\0001SET\000\" -d
+```
 # :artificial_satellite: Geolocation
 ## :artificial_satellite: Setup
 ### :artificial_satellite: Create a panel_properties.json file
@@ -117,7 +121,7 @@ In order for reflect-detect to be able to gather the necessary information about
 ```
 dataset_folder
 │   panels_properties.json
-│   panel_locations.gpk
+│   panel_locations.gpkg
 │
 └───orthophotos
 │   │   IMG_0000.tif

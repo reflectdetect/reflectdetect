@@ -1,16 +1,14 @@
 import json
-import logging
 import os
 import re
 from pathlib import Path
-from typing import Callable
 
 import cv2
 import numpy as np
 import shapely
 from numpy.typing import NDArray
 from rasterio.features import rasterize
-from rich.progress import Progress, TextColumn, BarColumn, MofNCompleteColumn, TimeElapsedColumn, TimeRemainingColumn
+from rich.progress import Progress, TextColumn, BarColumn, MofNCompleteColumn, TimeElapsedColumn, SpinnerColumn
 from rich.table import Column
 from robotpy_apriltag import AprilTagDetector
 from tap import Tap
@@ -21,7 +19,7 @@ from reflectdetect.pipeline import interpolate, convert, fit
 from reflectdetect.utils.apriltags import detect_tags, get_altitude_from_panels, get_panel, get_detector_config, \
     save_images
 from reflectdetect.utils.debug import debug_combine_and_plot_intensities, debug_show_panel, \
-    debug_save_intensities_single_band
+    debug_save_intensities_single_band, ProgressBar
 from reflectdetect.utils.exif import get_camera_properties
 from reflectdetect.utils.panel import calculate_panel_size_in_pixels, get_band_reflectance
 from reflectdetect.utils.paths import get_output_path
@@ -41,7 +39,7 @@ def load_panel_properties(dataset: Path, panel_properties_file: Path | None) -> 
 
 
 def convert_images_to_reflectance(paths: list[Path], intensities: NDArray[np.float64], band_index: int,
-                                  progress: Callable[[], None] | None = None) -> list[NDArray[np.float64] | None]:
+                                  progress: Progress | None = None) -> list[NDArray[np.float64] | None]:
     """
     This function converts the intensity values to reflectance values.
     For each photo we convert each band separately
@@ -54,26 +52,27 @@ def convert_images_to_reflectance(paths: list[Path], intensities: NDArray[np.flo
     :param intensities: intensity values matrix of shape (photo, panel, band)
     :return: list of reflectance photos, each photo is a list of bands, each band is a ndarray of shape (width, height)
     """
-    unconverted_photos = []
-    converted_photos: list[NDArray[np.float64] | None] = []
-    for image_index, path in enumerate(paths):
-        intensities_of_panels = intensities[image_index, :]
-        if np.isnan(intensities_of_panels).any():
-            # If for some reason not all intensities are present, we save the indices for debugging purposes
-            # A None value is appended to the converted photos to not lose
-            # the connection between orthophotos and converted photos based on the index
-            unconverted_photos.append(image_index)
-            converted_photos.append(None)
-            continue
-        coefficients = fit(intensities_of_panels, get_band_reflectance(panel_properties, band_index))
-        band = cv2.imread(path.as_posix(), cv2.IMREAD_GRAYSCALE)
-        converted_photos.append(convert(band, coefficients))
-        if progress is not None:
-            progress()
 
-    if len(unconverted_photos) > 0:
-        print("WARNING: Could not convert", len(unconverted_photos), "photos")
-    return converted_photos
+    with ProgressBar(progress, description="Converting images", total=len(paths)) as pb:
+        unconverted_photos = []
+        converted_photos: list[NDArray[np.float64] | None] = []
+        for image_index, path in enumerate(paths):
+            intensities_of_panels = intensities[image_index, :]
+            if np.isnan(intensities_of_panels).any():
+                # If for some reason not all intensities are present, we save the indices for debugging purposes
+                # A None value is appended to the converted photos to not lose
+                # the connection between orthophotos and converted photos based on the index
+                unconverted_photos.append(image_index)
+                converted_photos.append(None)
+                pb.update()
+                continue
+            coefficients = fit(intensities_of_panels, get_band_reflectance(panel_properties, band_index))
+            band = cv2.imread(path.as_posix(), cv2.IMREAD_GRAYSCALE)
+            converted_photos.append(convert(band, coefficients))
+            pb.update()
+        if len(unconverted_photos) > 0:
+            print("WARNING: Could not convert", len(unconverted_photos), "photos")
+        return converted_photos
 
 
 def extract_using_apriltags(path: Path, detector: AprilTagDetector, all_ids: list[int],
@@ -113,14 +112,14 @@ def extract_using_apriltags(path: Path, detector: AprilTagDetector, all_ids: lis
 
 def extract_intensities_from_apriltags(batch: list[Path], detector: AprilTagDetector, all_ids: list[int],
                                        panel_size_m: tuple[float, float], tag_size_m: float,
-                                       progress: Callable[[], None] | None = None) -> NDArray[np.float64]:
-    intensities = np.zeros((len(batch), len(panel_properties)))
-    for img_index, path in enumerate(batch):
-        panel_intensities = extract_using_apriltags(path, detector, all_ids, panel_size_m, tag_size_m)
-        intensities[img_index] = panel_intensities
-        if progress is not None:
-            progress()
-    return intensities
+                                       progress: Progress | None = None) -> NDArray[np.float64]:
+    with ProgressBar(progress, "Extracting intensities", total=len(batch)) as pb:
+        intensities = np.zeros((len(batch), len(panel_properties)))
+        for img_index, path in enumerate(batch):
+            panel_intensities = extract_using_apriltags(path, detector, all_ids, panel_size_m, tag_size_m)
+            intensities[img_index] = panel_intensities
+            pb.update()
+        return intensities
 
 
 def get_apriltag_paths(dataset: Path, images_folder: Path | None) -> list[Path]:
@@ -154,9 +153,10 @@ def build_batches_per_band(paths: list[Path]) -> list[list[Path]]:
 
 
 def apriltag_main(dataset: Path, images_folder: Path | None, debug: bool = False) -> None:
-    with Progress(TextColumn("[progress.description]{task.description}", table_column=Column(width=40)),
+    with Progress(SpinnerColumn(),
+                  TextColumn("[progress.description]{task.description}", table_column=Column(width=40)),
                   TextColumn("[progress.percentage]{task.percentage:>3.0f}%"), BarColumn(), MofNCompleteColumn(),
-                  TextColumn("•"), TimeElapsedColumn(), TextColumn("•"), TimeRemainingColumn(),
+                  TextColumn("•"), TimeElapsedColumn(),
                   ) as progress:
         img_paths = get_apriltag_paths(dataset, images_folder)
         os.system("cls||clear")
@@ -192,10 +192,7 @@ def apriltag_main(dataset: Path, images_folder: Path | None, debug: bool = False
                 p.unlink()
 
         for band_index, batch in enumerate(batches):
-            extract_task = progress.add_task("Extracting intensities", total=len(batch))
-            i = extract_intensities_from_apriltags(batch, d, all_ids, panel_size_m, tag_size_m,
-                                                   lambda: progress.update(extract_task, advance=1))
-            progress.remove_task(extract_task)
+            i = extract_intensities_from_apriltags(batch, d, all_ids, panel_size_m, tag_size_m, progress)
             os.system("cls||clear")
             if debug:
                 debug_save_intensities_single_band(i, band_index, output_folder / "intensity")
@@ -206,13 +203,9 @@ def apriltag_main(dataset: Path, images_folder: Path | None, debug: bool = False
             progress.remove_task(interpolate_task)
             if debug:
                 debug_save_intensities_single_band(i, band_index, output_folder / "intensity", "_interpolated")
-            convert_task = progress.add_task(description="Converting images", total=len(batch))
-            c = convert_images_to_reflectance(batch, i, band_index, lambda: progress.update(convert_task, advance=1))
-            progress.remove_task(convert_task)
+            c = convert_images_to_reflectance(batch, i, band_index, progress)
             del i
-            save_task = progress.add_task(description="Saving images", total=len(batch))
-            save_images(batch, c, lambda: progress.update(save_task, advance=1))
-            progress.remove_task(save_task)
+            save_images(batch, c, progress)
             del c
             progress.update(all_images_task, advance=len(batch))
         if debug:
@@ -225,8 +218,6 @@ def apriltag_main(dataset: Path, images_folder: Path | None, debug: bool = False
 
 if __name__ == '__main__':
     # --- Get input arguments from user
-    logging.basicConfig(level=logging.INFO)
-
 
     class ApriltagArgumentParser(Tap):
         dataset: str  # Path to the dataset folder

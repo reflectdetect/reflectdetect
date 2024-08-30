@@ -1,17 +1,20 @@
 import os
 from pathlib import Path
+from typing import Any
 
 import matplotlib
 import numpy as np
 import shapely
 from matplotlib import pyplot as plt
 from numpy.typing import NDArray
+from rich.progress import Progress, TaskID
 from robotpy_apriltag import AprilTagDetection
 
 from reflectdetect.utils.polygons import shrink_or_swell_shapely_polygon
 from reflectdetect.utils.thread import run_in_thread
 
 matplotlib.use('Agg')
+
 
 def debug_show_panel(img: NDArray[np.float64], tags: list[AprilTagDetection], corners: list[float],
                      output_path: Path | None = None) -> None:
@@ -102,3 +105,25 @@ def debug_save_intensities_single_band(intensities: NDArray[np.float64], band_in
         data = intensities[:, :].astype(str)
         data[data == 'nan'] = ''
         np.savetxt(f, data, delimiter=",", fmt="%s")
+
+
+class ProgressBar:
+    def __init__(self, progress: Progress | None, description: str, total: int | None = None) -> None:
+        self.progress = progress
+        self.description = description
+        self.total = total
+        self.task: TaskID | None = None
+
+    def __enter__(self) -> 'ProgressBar':
+        if self.progress is not None:
+            self.task = self.progress.add_task(self.description, total=self.total, leave=False)
+        return self
+
+    def __exit__(self, exc_type: type | None, exc_value: Exception | None,
+                 traceback: Any | None) -> None:
+        if self.progress is not None and self.task is not None:
+            self.progress.remove_task(self.task)
+
+    def update(self, advance: int = 1) -> None:
+        if self.progress is not None and self.task is not None:
+            self.progress.update(self.task, advance=advance)

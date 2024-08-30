@@ -5,19 +5,24 @@ from pathlib import Path
 import numpy as np
 import rasterio
 from numpy.typing import NDArray
-from rasterio import DatasetReader
+from rasterio import DatasetReader, logging as rasterio_logging
+from rich.progress import Progress, TextColumn, TimeElapsedColumn, BarColumn, MofNCompleteColumn, \
+    SpinnerColumn
+from rich.table import Column
 from tap import Tap
 
 from reflectdetect.PanelProperties import GeolocationPanelProperties
 from reflectdetect.constants import PANEL_PROPERTIES_FILENAME
 from reflectdetect.pipeline import interpolate_intensities, fit, convert
-from reflectdetect.utils.debug import debug_combine_and_plot_intensities, debug_save_intensities
+from reflectdetect.utils.debug import debug_combine_and_plot_intensities, debug_save_intensities, ProgressBar
 from reflectdetect.utils.iterators import get_next
 from reflectdetect.utils.orthophoto import load_panel_locations, get_orthophoto_paths, is_panel_in_orthophoto, \
     extract_intensities_from_orthophotos, save_orthophotos
 from reflectdetect.utils.panel import get_band_reflectance
 
 logger = logging.getLogger(__name__)
+
+rasterio_logging.disable()
 
 
 def load_panel_properties(dataset: Path, panel_properties_file: Path | None) -> list[GeolocationPanelProperties]:
@@ -32,7 +37,8 @@ def load_panel_properties(dataset: Path, panel_properties_file: Path | None) -> 
 
 
 def convert_orthophotos_to_reflectance(paths: list[Path],
-                                       intensities: NDArray[np.float64]) -> list[list[NDArray[np.float64]] | None]:
+                                       intensities: NDArray[np.float64], progress: Progress | None = None) -> list[
+    list[NDArray[np.float64]] | None]:
     """
     This function converts the intensity values to reflectance values.
     For each photo we convert each band separately
@@ -46,28 +52,30 @@ def convert_orthophotos_to_reflectance(paths: list[Path],
     """
     unconverted_photos = []
     converted_photos: list[list[NDArray[np.float64]] | None] = []
-    for photo_index, orthophoto_path in enumerate(paths):
-        converted_bands = []
-        orthophoto: DatasetReader
-        with rasterio.open(orthophoto_path) as orthophoto:
-            photo = orthophoto.read()
-        for band_index, band in enumerate(photo):
-            intensities_of_panels = intensities[photo_index, :, band_index]
-            if np.isnan(intensities_of_panels).any():
-                # If for some reason not all intensities are present, we save the indices for debugging purposes
-                # A None value is appended to the converted photos to not lose
-                # the connection between orthophotos and converted photos based on the index
-                unconverted_photos.append((photo_index, band_index))
-                converted_photos.append(None)
-                break
-            coefficients = fit(intensities_of_panels, get_band_reflectance(panel_properties, band_index))
-            converted_bands.append(convert(band, coefficients))
-        else:
-            # For loop did not break, therefore all bands were converted
-            converted_photos.append(converted_bands)
-    if len(unconverted_photos) > 0:
-        print("WARNING: Could not convert", len(unconverted_photos), "photos")
-    return converted_photos
+    with ProgressBar(progress, "Converting photos", len(paths)) as pb:
+        for photo_index, orthophoto_path in enumerate(paths):
+            converted_bands = []
+            orthophoto: DatasetReader
+            with rasterio.open(orthophoto_path) as orthophoto:
+                photo = orthophoto.read()
+            for band_index, band in enumerate(photo):
+                intensities_of_panels = intensities[photo_index, :, band_index]
+                if np.isnan(intensities_of_panels).any():
+                    # If for some reason not all intensities are present, we save the indices for debugging purposes
+                    # A None value is appended to the converted photos to not lose
+                    # the connection between orthophotos and converted photos based on the index
+                    unconverted_photos.append((photo_index, band_index))
+                    converted_photos.append(None)
+                    break
+                coefficients = fit(intensities_of_panels, get_band_reflectance(panel_properties, band_index))
+                converted_bands.append(convert(band, coefficients))
+            else:
+                # For loop did not break, therefore all bands were converted
+                converted_photos.append(converted_bands)
+            pb.update()
+        if len(unconverted_photos) > 0:
+            print("WARNING: Could not convert", len(unconverted_photos), "photos")
+        return converted_photos
 
 
 def build_batches_per_full_visibility(paths_with_visibility: dict[Path, NDArray[np.bool]]) -> list[list[Path]]:
@@ -93,49 +101,65 @@ def build_batches_per_full_visibility(paths_with_visibility: dict[Path, NDArray[
 
 
 def orthophoto_main(dataset: Path, panel_locations_file: Path | None, debug: bool = False) -> None:
-    panel_locations = load_panel_locations(dataset, panel_locations_file)
-    orthophoto_paths = get_orthophoto_paths(dataset)
+    with Progress(SpinnerColumn(),
+                  TextColumn("[progress.description]{task.description}", table_column=Column(width=40)),
+                  TextColumn("[progress.percentage]{task.percentage:>3.0f}%"), BarColumn(), MofNCompleteColumn(),
+                  TextColumn("•"), TimeElapsedColumn(),
+                  ) as progress:
+        panel_locations = load_panel_locations(dataset, panel_locations_file)
+        orthophoto_paths = get_orthophoto_paths(dataset)
+        all_images_task = progress.add_task("Total Progress", total=len(orthophoto_paths))
 
-    photo: DatasetReader
-    with rasterio.open(orthophoto_paths[0]) as photo:
-        number_of_bands = len(photo.read())
+        photo: DatasetReader
+        with rasterio.open(orthophoto_paths[0]) as photo:
+            number_of_bands = len(photo.read())
 
-    # --- Input validation
-    if len(panel_properties) != len(panel_locations):
-        raise Exception("Number of panel specifications does not match number of panel locations")
-    if number_of_bands != len(panel_properties[0].bands):
-        raise Exception("Number of bands in the images does not match number of bands in the panel specification")
+        # --- Input validation
+        if len(panel_properties) != len(panel_locations):
+            raise Exception("Number of panel specifications does not match number of panel locations")
+        if number_of_bands != len(panel_properties[0].bands):
+            raise Exception(
+                "Number of bands in the images does not match number of bands in the panel specification")
 
-    paths_with_visibility = {}
-    for path in orthophoto_paths:
-        panels_visible = np.array(
-            [is_panel_in_orthophoto(path, p) for p in panel_locations]
-        )
-        paths_with_visibility[path] = panels_visible
+        paths_with_visibility = {}
+        number_of_paths_with_visibility = 0
+        for path in orthophoto_paths:
+            panels_visible = np.array(
+                [is_panel_in_orthophoto(path, p) for p in panel_locations]
+            )
+            number_of_paths_with_visibility += panels_visible.sum() > 0
+            paths_with_visibility[path] = panels_visible
 
-    batches = build_batches_per_full_visibility(paths_with_visibility)
+        progress.console.print("Number of photos with panels visible: ",
+                               number_of_paths_with_visibility) if debug else None
 
-    output_folder = dataset / "debug/intensity"
+        batches = build_batches_per_full_visibility(paths_with_visibility)
 
-    if debug:
-        for p in output_folder.glob("*.csv"):
-            p.unlink()
+        output_folder = dataset / "debug/intensity"
 
-    for batch in batches:
-        # --- Run pipeline
-        i = extract_intensities_from_orthophotos(batch, paths_with_visibility, panel_locations, number_of_bands)
         if debug:
-            debug_save_intensities(i, number_of_bands, output_folder)
-        i = interpolate_intensities(i, number_of_bands, len(panel_properties))
-        if debug:
-            debug_save_intensities(i, number_of_bands, output_folder, "_interpolated")
-        c = convert_orthophotos_to_reflectance(batch, i)
-        del i
-        save_orthophotos(batch, c)
-        del c
+            for p in output_folder.glob("*.csv"):
+                p.unlink()
+
+        for batch in batches:
+            # --- Run pipeline
+            i = extract_intensities_from_orthophotos(batch, paths_with_visibility, panel_locations, number_of_bands,
+                                                     progress)
+            if debug:
+                debug_save_intensities(i, number_of_bands, output_folder)
+            i = interpolate_intensities(i, number_of_bands, len(panel_properties), progress)
+            if debug:
+                debug_save_intensities(i, number_of_bands, output_folder, "_interpolated")
+            c = convert_orthophotos_to_reflectance(batch, i)
+            del i
+            save_orthophotos(batch, c)
+            del c
+            progress.update(all_images_task, advance=len(batch))
     if debug:
-        debug_combine_and_plot_intensities(len(orthophoto_paths), number_of_bands, len(panel_properties), output_folder)
-        debug_combine_and_plot_intensities(len(orthophoto_paths), number_of_bands, len(panel_properties), output_folder,
+        debug_combine_and_plot_intensities(len(orthophoto_paths), number_of_bands, len(panel_properties),
+                                           output_folder)
+        debug_combine_and_plot_intensities(len(orthophoto_paths), number_of_bands, len(panel_properties),
+                                           output_folder,
                                            "_interpolated")
 
 
@@ -175,4 +199,4 @@ if __name__ == '__main__':
     # TODO: validate panel_location_file
     dataset = Path(args.dataset) if args.dataset is not None else None
     panel_properties = load_panel_properties(dataset, panel_properties_file)
-    orthophoto_main(dataset, panel_locations_file)
+    orthophoto_main(dataset, panel_locations_file, args.debug)

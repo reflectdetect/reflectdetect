@@ -1,6 +1,9 @@
 import numpy as np
 from numpy import ndarray
 from numpy.typing import NDArray
+from rich.progress import Progress
+
+from reflectdetect.utils.debug import ProgressBar
 
 
 def fit(intensities: NDArray[np.float64], expected_reflectances: NDArray[np.float64]) -> tuple[float, float]:
@@ -55,7 +58,9 @@ def convert(band_image: NDArray[np.int64], coefficients: tuple[float, float]) ->
 
 
 def interpolate_intensities(intensities: NDArray[np.float64],
-                            number_of_bands: int, panel_amount: int) -> NDArray[np.float64]:
+                            number_of_bands: int,
+                            panel_amount: int,
+                            progress: Progress | None) -> NDArray[np.float64]:
     """
     This function is used to piecewise linearly interpolate the intensity values to fill the `np.Nan` gaps in the data.
     To interpolate we select all the values captured in all the images for a given panel and band.
@@ -68,7 +73,9 @@ def interpolate_intensities(intensities: NDArray[np.float64],
     :param intensities: intensity values matrix of shape (photo, panel, band) with some values being np.NaN.
     :return: The interpolated intensity values
     """
-    for panel_index in range(0, panel_amount):
-        for band_index in range(0, number_of_bands):
-            intensities[:, panel_index, band_index] = interpolate(intensities[:, panel_index, band_index])
-    return intensities
+    with ProgressBar(progress, "Interpolating", total=panel_amount) as pb:
+        for panel_index in range(0, panel_amount):
+            for band_index in range(0, number_of_bands):
+                intensities[:, panel_index, band_index] = interpolate(intensities[:, panel_index, band_index])
+            pb.update()
+        return intensities
