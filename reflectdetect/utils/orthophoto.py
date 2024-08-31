@@ -19,27 +19,25 @@ from reflectdetect.utils.paths import get_output_path
 def is_panel_in_orthophoto(orthophoto_path: Path, panel: GeoDataFrame) -> bool:
     if panel.empty:
         raise Exception("Invalid panel location, no corner points included")
-
-    orthophoto: DatasetReader
     with (rasterio.open(orthophoto_path) as orthophoto):
-        bounds = orthophoto.bounds
+        bounds = BoundingBox(*orthophoto.bounds)
+        crs = orthophoto.crs
     orthophoto_polygon = Polygon([
         (bounds.left, bounds.bottom), (bounds.left, bounds.top),
         (bounds.right, bounds.top), (bounds.right, bounds.bottom)
     ])
 
-    # Ensure the GeoDataframe has the same CRS as the orthophoto box
-    if panel.crs.srs != orthophoto.crs:
-        # print("CRS mismatch, converting ", panel.crs, "to", orthophoto_box.crs)
-        panel = panel.to_crs(orthophoto.crs)
+    # TODO: add input for alternative crs
+    # Create a GeoDataFrame for the orthophoto polygon with its CRS
+    orthophoto_box = gpd.GeoDataFrame({'geometry': [orthophoto_polygon]}, crs=crs)
 
-    print(panel.bounds.values[0][0], orthophoto_polygon.bounds[0])
-    print(panel.bounds.values[0][1], orthophoto_polygon.bounds[1])
-    print(panel.bounds.values[0][2], orthophoto_polygon.bounds[2])
-    print(panel.bounds.values[0][3], orthophoto_polygon.bounds[3])
-    print()
+    # Ensure the GeoDataframe has the same CRS as the orthophoto box
+    if panel.crs.name != orthophoto_box.crs.name:
+        print("CRS mismatch, converting ", panel.crs, "to", orthophoto_box.crs)
+        panel = panel.to_crs(orthophoto_box.crs)
+
     # Check if all corner points of the panel are within the orthophoto bounds
-    return panel.within(orthophoto_polygon).all() is True
+    return bool(panel.within(orthophoto_polygon).all())
 
 
 def extract_using_geolocation(image: NDArray[np.float64], panel_location: GeoDataFrame) -> list[float]:
