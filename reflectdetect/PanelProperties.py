@@ -8,4 +8,5 @@ class ApriltagPanelProperties(BaseModel):
 
 
 class GeolocationPanelProperties(BaseModel):
+    layer_name: str
     bands: list[float]

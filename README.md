@@ -92,7 +92,7 @@ We assume that the first panel in the file corresponds to the first layer of coo
 ```json
 [
   {
-    "layer_id": 0,
+    "layer_name": "corner_27",
     "bands": [
       0.9,
       1.0,
@@ -103,7 +103,7 @@ We assume that the first panel in the file corresponds to the first layer of coo
     ]
   },
   {
-    "layer_id": 1,
+    "layer_name": "corner_28",
     "bands": [
       0.9,
       1.0,

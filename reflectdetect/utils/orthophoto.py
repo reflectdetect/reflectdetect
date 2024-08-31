@@ -60,7 +60,7 @@ def get_orthophoto_paths(dataset: Path) -> list[Path]:
     return list(sorted([filepath for filepath in (dataset / ORTHOPHOTO_FOLDER).glob("*.tif")]))
 
 
-def load_panel_locations(dataset: Path, geopackage_filepath: Path | None) -> list[GeoDataFrame]:
+def load_panel_locations(dataset: Path, geopackage_filepath: Path | None) -> list[tuple[str, GeoDataFrame]]:
     if geopackage_filepath is None:
         canonical_filename = "panel_locations.gpkg"
         path = dataset / canonical_filename
@@ -75,11 +75,12 @@ def load_panel_locations(dataset: Path, geopackage_filepath: Path | None) -> lis
             if layer == "android_metadata":
                 continue
             panel_corner_points = gpd.read_file(path, layer=layer)
-            panel_locations.append(panel_corner_points)
+            panel_locations.append((layer, panel_corner_points))
     return panel_locations
 
 
-def save_orthophotos(paths: list[Path], converted_photos: list[list[NDArray[np.float64]] | None], progress: Progress | None = None) -> None:
+def save_orthophotos(paths: list[Path], converted_photos: list[list[NDArray[np.float64]] | None],
+                     progress: Progress | None = None) -> None:
     """
     This function saves the converted photos as .tif files into a new "/transformed/" directory in the images folder
     :param paths: list of orthophoto paths

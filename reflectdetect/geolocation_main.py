@@ -1,5 +1,6 @@
 import json
 import logging
+import warnings
 from pathlib import Path
 
 import numpy as np
@@ -78,24 +79,26 @@ def convert_orthophotos_to_reflectance(paths: list[Path],
         return converted_photos
 
 
-def build_batches_per_full_visibility(paths_with_visibility: dict[Path, NDArray[np.bool]]) -> list[list[Path]]:
+def build_batches_per_full_visibility(paths_with_visibility: dict[Path, NDArray[np.bool]]) -> list[
+    tuple[bool, list[Path]]]:
     batches = []
-    current_batch = []
+    # Batch contains bool to signify whether the first path is there only for interpolation
+    current_batch = (False, [])
     for (path, panel_visibility), nextVisibility in get_next(paths_with_visibility.items()):
-        current_batch.append(path)
+        current_batch[1].append(path)
 
         all_panels_visible = panel_visibility.all()
         if all_panels_visible:
             batches.append(current_batch)
             if nextVisibility is not None and nextVisibility[1].all():
                 # The next image has all panels visible, so no need to include this one twice
-                current_batch = []
+                current_batch = (False, [])
             else:
                 # This results in photos at the end of a batch being also in the next batch.
                 # Therefore, they are calculated twice, but otherwise the interpolation would lose their information.
                 # The next batch could start with an images without panels in it,
                 # which would need the image with panels before it to be interpolated correctly
-                current_batch = [path]
+                current_batch = (True, [path])
     batches.append(current_batch)
     return batches
 
@@ -106,7 +109,10 @@ def orthophoto_main(dataset: Path, panel_locations_file: Path | None, debug: boo
                   TextColumn("[progress.percentage]{task.percentage:>3.0f}%"), BarColumn(), MofNCompleteColumn(),
                   TextColumn("•"), TimeElapsedColumn(),
                   ) as progress:
-        panel_locations = load_panel_locations(dataset, panel_locations_file)
+        with warnings.catch_warnings():
+            # Ignore BadApplicationID Warning (action: "once" does not seem to work)
+            warnings.filterwarnings("ignore", category=RuntimeWarning)
+            panel_locations = load_panel_locations(dataset, panel_locations_file)
         orthophoto_paths = get_orthophoto_paths(dataset)
         all_images_task = progress.add_task("Total Progress", total=len(orthophoto_paths))
 
@@ -117,16 +123,25 @@ def orthophoto_main(dataset: Path, panel_locations_file: Path | None, debug: boo
         # --- Input validation
         if len(panel_properties) != len(panel_locations):
             raise Exception("Number of panel specifications does not match number of panel locations")
+
+        panel_properties_layer_names = [panel.layer_name for panel in panel_properties]
+        panel_location_layer_names = [location[0] for location in panel_locations]
+        if set(panel_properties_layer_names) != set(panel_location_layer_names):
+            raise Exception("Panel properties layer names do not match panel locations layer names")
         if number_of_bands != len(panel_properties[0].bands):
             raise Exception(
                 "Number of bands in the images does not match number of bands in the panel specification")
+
+        # Reorder panel_locations to match panel_properties for easier indexing
+        panel_order = [panel_properties_layer_names.index(layer) for layer in panel_location_layer_names]
+        panel_locations = [panel_locations[i][1] for i in panel_order]
 
         paths_with_visibility = {}
         number_of_paths_with_visibility = 0
         with ProgressBar(progress, "Detecting visible panels", len(orthophoto_paths)) as pb:
             for path in orthophoto_paths:
                 panels_visible = np.array(
-                    [is_panel_in_orthophoto(path, p) for p in panel_locations]
+                    [is_panel_in_orthophoto(path, location) for location in panel_locations]
                 )
                 number_of_paths_with_visibility += panels_visible.sum() > 0
                 paths_with_visibility[path] = panels_visible
@@ -143,15 +158,15 @@ def orthophoto_main(dataset: Path, panel_locations_file: Path | None, debug: boo
             for p in output_folder.glob("*.csv"):
                 p.unlink()
 
-        for batch in batches:
+        for (first_path_is_duplicate, batch) in batches:
             # --- Run pipeline
             i = extract_intensities_from_orthophotos(batch, paths_with_visibility, panel_locations, number_of_bands,
                                                      progress)
             if debug:
-                debug_save_intensities(i, number_of_bands, output_folder)
+                debug_save_intensities(first_path_is_duplicate, i, number_of_bands, output_folder)
             i = interpolate_intensities(i, number_of_bands, len(panel_properties), progress)
             if debug:
-                debug_save_intensities(i, number_of_bands, output_folder, "_interpolated")
+                debug_save_intensities(first_path_is_duplicate, i, number_of_bands, output_folder, "_interpolated")
             c = convert_orthophotos_to_reflectance(batch, i, progress)
             del i
             save_orthophotos(batch, c, progress)
