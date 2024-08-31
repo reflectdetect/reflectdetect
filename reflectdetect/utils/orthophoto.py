@@ -13,6 +13,7 @@ from rich.progress import Progress
 from shapely.geometry import Polygon
 
 from reflectdetect.constants import ORTHOPHOTO_FOLDER
+from reflectdetect.utils.debug import ProgressBar
 from reflectdetect.utils.paths import get_output_path
 
 
@@ -78,23 +79,25 @@ def load_panel_locations(dataset: Path, geopackage_filepath: Path | None) -> lis
     return panel_locations
 
 
-def save_orthophotos(paths: list[Path], converted_photos: list[list[NDArray[np.float64]] | None]) -> None:
+def save_orthophotos(paths: list[Path], converted_photos: list[list[NDArray[np.float64]] | None], progress: Progress | None = None) -> None:
     """
     This function saves the converted photos as .tif files into a new "/transformed/" directory in the images folder
     :param paths: list of orthophoto paths
     :param converted_photos: list of reflectance photos, each photo is a list of bands,
     each band is a ndarray of shape (width, height)
     """
-    for path, photo in zip(paths, converted_photos):
-        if photo is None:
-            continue
-        output_path = get_output_path(path, "reflectance", "transformed")
-        with rasterio.open(path) as original:
-            meta = original.meta
-        meta.update(
-            dtype=rasterio.float32,
-        )
-        save_bands(output_path, photo, meta)
+    with ProgressBar(progress, "Saving orthophotos", len(converted_photos)) as pb:
+        for path, photo in zip(paths, converted_photos):
+            if photo is None:
+                continue
+            output_path = get_output_path(path, "reflectance", "transformed")
+            with rasterio.open(path) as original:
+                meta = original.meta
+            meta.update(
+                dtype=rasterio.float32,
+            )
+            save_bands(output_path, photo, meta)
+            pb.update()
 
 
 def extract_intensities_from_orthophotos(batch_of_orthophotos: list[Path],

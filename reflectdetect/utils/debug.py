@@ -86,6 +86,7 @@ def debug_combine_and_plot_intensities(number_of_images: int,
 
 def debug_save_intensities(intensities: NDArray[np.float64], number_of_bands: int, output_folder: Path,
                            suffix: str = "") -> None:
+    os.makedirs(output_folder, exist_ok=True)
     for band in range(0, number_of_bands):
         filename = f"band_{band}_intensities{suffix}.csv"
         output_path = output_folder / filename

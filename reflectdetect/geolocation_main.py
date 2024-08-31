@@ -123,15 +123,17 @@ def orthophoto_main(dataset: Path, panel_locations_file: Path | None, debug: boo
 
         paths_with_visibility = {}
         number_of_paths_with_visibility = 0
-        for path in orthophoto_paths:
-            panels_visible = np.array(
-                [is_panel_in_orthophoto(path, p) for p in panel_locations]
-            )
-            number_of_paths_with_visibility += panels_visible.sum() > 0
-            paths_with_visibility[path] = panels_visible
+        with ProgressBar(progress, "Detecting visible panels", len(orthophoto_paths)) as pb:
+            for path in orthophoto_paths:
+                panels_visible = np.array(
+                    [is_panel_in_orthophoto(path, p) for p in panel_locations]
+                )
+                number_of_paths_with_visibility += panels_visible.sum() > 0
+                paths_with_visibility[path] = panels_visible
+                pb.update()
 
         progress.console.print("Number of photos with panels visible: ",
-                               number_of_paths_with_visibility) if debug else None
+                               number_of_paths_with_visibility, "/", len(orthophoto_paths)) if debug else None
 
         batches = build_batches_per_full_visibility(paths_with_visibility)
 
@@ -150,9 +152,9 @@ def orthophoto_main(dataset: Path, panel_locations_file: Path | None, debug: boo
             i = interpolate_intensities(i, number_of_bands, len(panel_properties), progress)
             if debug:
                 debug_save_intensities(i, number_of_bands, output_folder, "_interpolated")
-            c = convert_orthophotos_to_reflectance(batch, i)
+            c = convert_orthophotos_to_reflectance(batch, i, progress)
             del i
-            save_orthophotos(batch, c)
+            save_orthophotos(batch, c, progress)
             del c
             progress.update(all_images_task, advance=len(batch))
     if debug:
