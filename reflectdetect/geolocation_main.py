@@ -5,6 +5,7 @@ from pathlib import Path
 
 import numpy as np
 import rasterio
+from geopandas import GeoDataFrame
 from numpy.typing import NDArray
 from rasterio import DatasetReader, logging as rasterio_logging
 from rich.progress import Progress, TextColumn, TimeElapsedColumn, BarColumn, MofNCompleteColumn, \
@@ -87,7 +88,7 @@ def build_batches_per_full_visibility(paths_with_visibility: dict[Path, NDArray[
     tuple[bool, list[Path]]]:
     batches = []
     # Batch contains bool to signify whether the first path is there only for interpolation
-    current_batch = (False, [])
+    current_batch: tuple[bool, list[Path]] = (False, [])
     for (path, panel_visibility), nextVisibility in get_next(paths_with_visibility.items()):
         current_batch[1].append(path)
 
@@ -138,14 +139,14 @@ def orthophoto_main(dataset: Path, panel_locations_file: Path | None, debug: boo
 
         # Reorder panel_locations to match panel_properties for easier indexing
         panel_order = [panel_properties_layer_names.index(layer) for layer in panel_location_layer_names]
-        panel_locations = [panel_locations[i][1] for i in panel_order]
+        ordered_panel_locations: list[GeoDataFrame] = [panel_locations[i][1] for i in panel_order]
 
         paths_with_visibility = {}
         number_of_paths_with_visibility = 0
         with ProgressBar(progress, "Detecting visible panels", len(orthophoto_paths)) as pb:
             for path in orthophoto_paths:
                 panels_visible = np.array(
-                    [is_panel_in_orthophoto(path, location) for location in panel_locations]
+                    [is_panel_in_orthophoto(path, location) for location in ordered_panel_locations]
                 )
                 number_of_paths_with_visibility += panels_visible.sum() > 0
                 paths_with_visibility[path] = panels_visible
@@ -163,20 +164,21 @@ def orthophoto_main(dataset: Path, panel_locations_file: Path | None, debug: boo
             for p in (output_folder / "panels").glob("*.tif"):
                 p.unlink()
             panel_polygons: list[Polygon] = [panel_location.union_all().convex_hull for panel_location in
-                                             panel_locations]
+                                             ordered_panel_locations]
 
             for path, visibility in paths_with_visibility.items():
                 if visibility.sum() == 0:
                     continue
-                output_path = get_output_path(path, "panels", "debug/panels")
+                output_path = get_output_path(dataset, path, "panels.tif", "debug/panels")
                 with rasterio.open(path) as photo:
                     polygon_xys = [panel_polygon for index, panel_polygon in
                                    enumerate(panel_polygons) if visibility[index]]
-                    run_in_thread(debug_show_geolocation, photo, polygon_xys, args.shrink_factor, output_path)
+                    run_in_thread(debug_show_geolocation, True, photo, polygon_xys, args.shrink_factor, output_path)
 
         for (first_path_is_duplicate, batch) in batches:
             # --- Run pipeline
-            i = extract_intensities_from_orthophotos(batch, paths_with_visibility, panel_locations, number_of_bands,
+            i = extract_intensities_from_orthophotos(batch, paths_with_visibility, ordered_panel_locations,
+                                                     number_of_bands,
                                                      args.shrink_factor, progress)
             if debug:
                 debug_save_intensities(first_path_is_duplicate, i, number_of_bands, output_folder / "intensity")
@@ -186,7 +188,7 @@ def orthophoto_main(dataset: Path, panel_locations_file: Path | None, debug: boo
                                        "_interpolated")
             c = convert_orthophotos_to_reflectance(batch, i, progress)
             del i
-            save_orthophotos(batch, c, progress)
+            save_orthophotos(dataset, batch, c, progress)
             del c
             progress.update(all_images_task, advance=len(batch))
     if debug:

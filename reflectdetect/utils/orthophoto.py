@@ -81,7 +81,7 @@ def load_panel_locations(dataset: Path, geopackage_filepath: Path | None) -> lis
     return panel_locations
 
 
-def save_orthophotos(paths: list[Path], converted_photos: list[list[NDArray[np.float64]] | None],
+def save_orthophotos(dataset: Path, paths: list[Path], converted_photos: list[list[NDArray[np.float64]] | None],
                      progress: Progress | None = None) -> None:
     """
     This function saves the converted photos as .tif files into a new "/transformed/" directory in the images folder
@@ -94,7 +94,7 @@ def save_orthophotos(paths: list[Path], converted_photos: list[list[NDArray[np.f
         for path, photo in zip(paths, converted_photos):
             if photo is None:
                 continue
-            output_path = get_output_path(path, "reflectance", "transformed")
+            output_path = get_output_path(dataset, path, "reflectance.tif", "transformed")
             with rasterio.open(path) as original:
                 meta = original.meta
             meta.update(

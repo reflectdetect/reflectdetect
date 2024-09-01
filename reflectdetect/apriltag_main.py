@@ -92,6 +92,8 @@ def extract_using_apriltags(path: Path, detector: AprilTagDetector, all_ids: lis
                                                       focal_plane_x_res, focal_plane_y_res, focal_plane_resolution_unit,
                                                       args.panel_smudge_factor)
     panel_intensities: list[float | None] = [None] * len(panel_properties)
+    debug_corners = []
+    debug_tags = []
     for tag in all_tags:
         # TODO remove family from filter
         panels = list(filter(lambda p: p.family == tag.getFamily() and p.tag_id == tag.getId(), panel_properties))
@@ -104,13 +106,17 @@ def extract_using_apriltags(path: Path, detector: AprilTagDetector, all_ids: lis
             continue
         else:
             if args.debug:
-                output_path = get_output_path(path, "panel_" + str(tag.getId()) + "_" + tag.getFamily(), "debug/panels")
-                run_in_thread(debug_show_panel, img, tag, corners, args.shrink_factor, output_path)
+                debug_corners.append(corners)
+                debug_tags.append(tag)
             polygon = shapely.Polygon(corners)
             polygon = shrink_or_swell_shapely_polygon(polygon, args.shrink_factor)
             panel_mask = rasterize([polygon], out_shape=img.shape)
             mean: float = float(np.ma.MaskedArray(img, mask=~(panel_mask.astype(np.bool_))).mean())  # type: ignore
             panel_intensities[panel_index] = mean
+    if args.debug:
+        output_path = get_output_path(dataset, path, "panels.tif",
+                                      "debug/panels")
+        run_in_thread(debug_show_panel, True, img, debug_tags, debug_corners, args.shrink_factor, output_path)
     return panel_intensities
 
 
@@ -163,7 +169,7 @@ def apriltag_main(dataset: Path, images_folder: Path | None, debug: bool = False
                   TextColumn("•"), TimeElapsedColumn(),
                   ) as progress:
         img_paths = get_apriltag_paths(dataset, images_folder)
-        os.system("cls||clear")
+        progress.console.print("Found", len(img_paths), "images") if debug else None
         all_images_task = progress.add_task("Total Progress", total=len(img_paths))
 
         progress.console.print("Batching...") if debug else None
@@ -184,36 +190,36 @@ def apriltag_main(dataset: Path, images_folder: Path | None, debug: bool = False
             d.addFamily(family)
         d.setConfig(detector_config)
 
-        output_folder = dataset / "debug"
+        debug_output_folder = dataset / "debug"
         if debug:
-            for p in (output_folder / "intensity").glob("*.csv"):
+            for p in (debug_output_folder / "intensity").glob("*.csv"):
                 p.unlink()
-            for p in (output_folder / "panels").glob("*.tif"):
+            for p in (debug_output_folder / "panels").glob("*.tif"):
                 p.unlink()
 
         for band_index, batch in enumerate(batches):
             i = extract_intensities_from_apriltags(batch, d, all_ids, panel_size_m, args.tag_size, progress)
             os.system("cls||clear")
             if debug:
-                debug_save_intensities_single_band(i, band_index, output_folder / "intensity")
+                debug_save_intensities_single_band(i, band_index, debug_output_folder / "intensity")
             interpolate_task = progress.add_task(description="Interpolating intensities", total=len(panel_properties))
             for panel_index, _ in enumerate(panel_properties):
                 i[:, panel_index] = interpolate(i[:, panel_index])
                 progress.update(interpolate_task, advance=1)
             progress.remove_task(interpolate_task)
             if debug:
-                debug_save_intensities_single_band(i, band_index, output_folder / "intensity", "_interpolated")
+                debug_save_intensities_single_band(i, band_index, debug_output_folder / "intensity", "_interpolated")
             c = convert_images_to_reflectance(batch, i, band_index, progress)
             del i
-            save_images(batch, c, progress)
+            save_images(dataset, batch, c, progress)
             del c
             progress.update(all_images_task, advance=len(batch))
         if debug:
             number_of_image_per_band = int(len(img_paths) / number_of_bands)
             debug_combine_and_plot_intensities(number_of_image_per_band, number_of_bands, len(panel_properties),
-                                               output_folder / "intensity", )
+                                               debug_output_folder / "intensity", )
             debug_combine_and_plot_intensities(number_of_image_per_band, number_of_bands, len(panel_properties),
-                                               output_folder / "intensity", "_interpolated")
+                                               debug_output_folder / "intensity", "_interpolated")
 
 
 if __name__ == '__main__':

@@ -43,18 +43,20 @@ def verify_estimate(tag: AprilTagDetection, estimate: Transform3d, valid_ids: li
 
 def detect_tags(img: NDArray[np.float64], detector: AprilTagDetector, valid_ids: list[int] | None = None) -> list[
     AprilTagDetection]:
-    tags: list[AprilTagDetection] = run_in_thread(detector.detect, img)  # type: ignore
+    tags: list[AprilTagDetection] = run_in_thread(detector.detect, True, img)  # type: ignore
     return [tag for tag in tags if verify_detections(tag, valid_ids)]
 
 
-def pose_estimate_tags(tags: list[AprilTagDetection], config: AprilTagPoseEstimator.Config) -> list[Transform3d]:
+def pose_estimate_tags(tags: list[AprilTagDetection], config: AprilTagPoseEstimator.Config) -> \
+        list[Transform3d]:
     pose_estimator = AprilTagPoseEstimator(config)
-    estimates: list[Transform3d] = [run_in_thread(pose_estimator.estimate, tag) for tag in tags]  # type: ignore
+    estimates: list[Transform3d] = [run_in_thread(pose_estimator.estimate, False, tag) for tag in
+                                    tags]  # type: ignore
     return estimates
 
 
 def get_altitude_from_panels(tags: list[AprilTagDetection], path: Path, resolution: tuple[int, int],
-                             tag_size: float, ) -> float:
+                             tag_size: float) -> float:
     config = get_pose_estimator_config(path, resolution, tag_size)
     with contextlib.redirect_stdout(io.StringIO()):
         estimates = pose_estimate_tags(tags, config)
@@ -123,7 +125,7 @@ def get_panel(tag: AprilTagDetection, panel_size_pixel: tuple[int, int], image_d
     return corners
 
 
-def save_images(paths: list[Path], converted_images: list[NDArray[np.float64] | None],
+def save_images(dataset: Path, paths: list[Path], converted_images: list[NDArray[np.float64] | None],
                 progress: Progress | None = None) -> None:
     """
     This function saves the converted photos as .tif files into a new "/transformed/" directory in the images folder
@@ -135,7 +137,7 @@ def save_images(paths: list[Path], converted_images: list[NDArray[np.float64] | 
             if photo is None:
                 pb.update()
                 continue
-            output_path = get_output_path(path, "reflectance", "transformed")
+            output_path = get_output_path(dataset, path, "reflectance.tif", "transformed")
             compression_factor = 10000  # convert from 0.1234 to 1234 TODO: Document compression factor
             scaled_to_int = np.array(photo * compression_factor, dtype=np.uint8)
             imwrite(output_path, scaled_to_int)

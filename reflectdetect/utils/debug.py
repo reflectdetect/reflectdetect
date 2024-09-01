@@ -114,7 +114,7 @@ def debug_combine_and_plot_intensities(number_of_images: int,
         output_path = output_folder / filename
         intensities[:, :, band] = np.genfromtxt(output_path, delimiter=",")
     output_path = output_folder / f"intensities{suffix}.tif"
-    run_in_thread(show_intensities, intensities, output_path.as_posix())
+    run_in_thread(show_intensities, True, intensities, output_path.as_posix())
 
 
 def debug_save_intensities(first_path_is_duplicate: bool, intensities: NDArray[np.float64], number_of_bands: int,
