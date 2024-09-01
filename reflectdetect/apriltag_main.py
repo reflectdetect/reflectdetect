@@ -87,8 +87,10 @@ def extract_using_apriltags(path: Path, detector: AprilTagDetector, all_ids: lis
     altitude = get_altitude_from_panels(all_tags, path, (len(img[0]), len(img)), tag_size_m)
 
     resolution = (len(img[0]), len(img))
-    properties = get_camera_properties(path)
-    panel_size_pixel = calculate_panel_size_in_pixels(altitude, resolution, panel_size_m, *properties)
+    focal_length_mm, focal_plane_x_res, focal_plane_y_res, focal_plane_resolution_unit = get_camera_properties(path)
+    panel_size_pixel = calculate_panel_size_in_pixels(altitude, resolution, panel_size_m, focal_length_mm,
+                                                      focal_plane_x_res, focal_plane_y_res, focal_plane_resolution_unit,
+                                                      1.2)
     panel_intensities: list[float | None] = [None] * len(panel_properties)
     for tag in all_tags:
         # TODO remove family from filter
@@ -96,7 +98,7 @@ def extract_using_apriltags(path: Path, detector: AprilTagDetector, all_ids: lis
         if not len(panels) == 1:
             raise Exception("Could not associate panel with found tag")
         panel_index = panel_properties.index(panels[0])
-        corners = get_panel(tag, panel_size_pixel[0], resolution)
+        corners = get_panel(tag, panel_size_pixel, resolution)
 
         if corners is None:
             continue
@@ -168,10 +170,6 @@ def apriltag_main(dataset: Path, images_folder: Path | None, debug: bool = False
         batches = build_batches_per_band(img_paths)
         number_of_bands = len(batches)
 
-        # TODO: add to args
-        tag_size_m = 0.3
-        panel_size_m = (0.8, 0.8)
-
         progress.console.print("Loading detector...") if debug else None
         d = AprilTagDetector()
         d.addFamily(args.family)
@@ -194,7 +192,7 @@ def apriltag_main(dataset: Path, images_folder: Path | None, debug: bool = False
                 p.unlink()
 
         for band_index, batch in enumerate(batches):
-            i = extract_intensities_from_apriltags(batch, d, all_ids, panel_size_m, tag_size_m, progress)
+            i = extract_intensities_from_apriltags(batch, d, all_ids, panel_size_m, args.tag_size, progress)
             os.system("cls||clear")
             if debug:
                 debug_save_intensities_single_band(i, band_index, output_folder / "intensity")
@@ -228,6 +226,9 @@ if __name__ == '__main__':
         debug: bool = False  # Prints logs and adds debug images into a /debug/ directory in the dataset folder
         images_folder: str | None = None  # Path to images folder instead "/images" in the dataset folder
         shrink_factor: float = 0.2  # How many percent to shrink the detected panel area, to avoid artifacts like bleed
+        tag_size: float  # Size of the apriltags in meter ()
+        panel_width: float
+        panel_height: float
 
         def configure(self) -> None:
             self.add_argument('dataset')
@@ -238,6 +239,7 @@ if __name__ == '__main__':
         description='Automatically detect reflection calibration panels in images and transform the given images to '
                     'reflectance', epilog='If you have any questions, please contact').parse_args()
 
+    panel_size_m = (args.panel_width, args.panel_height)
     panel_properties_file = Path(args.panel_properties_file) if args.panel_properties_file is not None else None
     images_folder = Path(args.images_folder) if args.images_folder is not None else None
     dataset = Path(args.dataset) if args.dataset is not None else None

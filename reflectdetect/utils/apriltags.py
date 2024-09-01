@@ -16,6 +16,9 @@ from reflectdetect.utils.panel import calculate_sensor_size
 from reflectdetect.utils.paths import get_output_path
 from reflectdetect.utils.thread import run_in_thread
 
+# The robotpy_apriltag.AprilTagDetector returns the inner apriltag square coordinates and not the whole apriltag area.
+# Therefore the detection area has to be converted to the full apriltag area to get the accurate distance
+# from the center of the tag to the edge of the panel
 tag_detection_to_total_width_conversions = {
     "tag16h5": 1.33,
     "tag25h9": 1.22,
@@ -84,7 +87,7 @@ def get_detector_config() -> AprilTagDetector.Config:
     return detector_config
 
 
-def get_panel(tag: AprilTagDetection, panel_size_pixel: float, image_dimensions: tuple[int, int],
+def get_panel(tag: AprilTagDetection, panel_size_pixel: tuple[int, int], image_dimensions: tuple[int, int],
               only_valid_panels: bool = True) -> list[float] | None:
     tag_corners = np.array(list(tag.getCorners((0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0))))
     tag_corners = np.array(list((zip(tag_corners[::2], tag_corners[1::2]))))
@@ -98,9 +101,10 @@ def get_panel(tag: AprilTagDetection, panel_size_pixel: float, image_dimensions:
 
     center = np.array([tag.getCenter().x, tag.getCenter().y])
     tag_panel_border = center + towards_panel * (tag_size / 2)
-    panel_length = towards_panel * panel_size_pixel
-    half_panel_length = panel_length / 2
-    panel_midpoint_to_corner = [-half_panel_length[1], half_panel_length[0]]
+    panel_length = towards_panel * panel_size_pixel[1]
+    panel_width = towards_panel * panel_size_pixel[0]
+    half_panel_width = panel_width / 2
+    panel_midpoint_to_corner = [-half_panel_width[1], half_panel_width[0]]
 
     corner_a = tag_panel_border + panel_midpoint_to_corner
     corner_b = tag_panel_border - panel_midpoint_to_corner

@@ -54,9 +54,11 @@ def calculate_sensor_size(image_resolution: tuple[int, int], focal_plane_x_res: 
 
 
 def calculate_panel_size_in_pixels(altitude: float, resolution: tuple[int, int],
-                                   physical_panel_size: tuple[float, float], focal_length_mm: float,
+                                   physical_panel_size: tuple[float, float],
+                                   focal_length_mm: float,
                                    focal_plane_x_res: float,
-                                   focal_plane_y_res: float, focal_plane_resolution_unit: int,
+                                   focal_plane_y_res: float,
+                                   focal_plane_resolution_unit: int,
                                    smudge_factor: float = 0.8) -> tuple[int, int]:
     """
     Calculate the expected size of an object in pixels based on camera parameters and object physical size.
