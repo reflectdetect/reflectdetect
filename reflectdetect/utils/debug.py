@@ -4,11 +4,15 @@ from typing import Any
 
 import matplotlib
 import numpy as np
+import rasterio
 import shapely
 from matplotlib import pyplot as plt
 from numpy.typing import NDArray
+from rasterio import DatasetReader
+from rasterio.plot import show
 from rich.progress import Progress, TaskID
 from robotpy_apriltag import AprilTagDetection
+from shapely import Polygon
 
 from reflectdetect.utils.polygons import shrink_or_swell_shapely_polygon
 from reflectdetect.utils.thread import run_in_thread
@@ -16,14 +20,43 @@ from reflectdetect.utils.thread import run_in_thread
 matplotlib.use('Agg')
 
 
-def debug_show_panel(img: NDArray[np.float64], tags: list[AprilTagDetection], corners: list[float],
+def debug_show_geolocation(img: DatasetReader, panels_corners: list[Polygon], shrink_factor: float,
+                           output_path: Path | None = None) -> None:
+    fig_2d = plt.figure()
+    ax = fig_2d.subplots(1, 1)
+    ax.axis("off")
+    rasterio.plot.show(img, ax=ax)
+
+    for corners in panels_corners:
+        x, y = corners.exterior.xy
+
+        # Append the first point to the end to close the rectangle/polygon
+        x = list(x) + [x[0]]
+        y = list(y) + [y[0]]
+        ax.plot(x, y, linewidth=1)
+        polygon = shrink_or_swell_shapely_polygon(corners, shrink_factor)
+        detection_corners = polygon.exterior.coords.xy
+        x, y = detection_corners
+        x = list(x) + [x[0]]
+        y = list(y) + [y[0]]
+        ax.plot(x, y, linewidth=1, linestyle="dotted")
+
+    if output_path is not None:
+        fig_2d.savefig(output_path, dpi=300)
+    else:
+        fig_2d.show()
+    plt.close(fig_2d)
+
+
+def debug_show_panel(img: NDArray[np.float64], tag: AprilTagDetection, corners: list[float],
+                     shrink_factor: float,
                      output_path: Path | None = None) -> None:
     fig_2d = plt.figure()
     ax = fig_2d.subplots(1, 1)
+    ax.axis("off")
     ax.imshow(img, cmap="grey")
 
-    for tag in tags:
-        ax.scatter(tag.getCenter().x, tag.getCenter().y)
+    ax.scatter(tag.getCenter().x, tag.getCenter().y)
     x, y = zip(*corners)
 
     # Append the first point to the end to close the rectangle/polygon
@@ -31,12 +64,12 @@ def debug_show_panel(img: NDArray[np.float64], tags: list[AprilTagDetection], co
     y = list(y) + [y[0]]
     ax.plot(x, y, linewidth=1)
     polygon = shapely.Polygon(corners)
-    polygon = shrink_or_swell_shapely_polygon(polygon, 0.2)
+    polygon = shrink_or_swell_shapely_polygon(polygon, shrink_factor)
     detection_corners = polygon.exterior.coords.xy
     x, y = detection_corners
     x = list(x) + [x[0]]
     y = list(y) + [y[0]]
-    plt.plot(x, y, linewidth=1, linestyle="dotted")
+    ax.plot(x, y, linewidth=1, linestyle="dotted")
 
     if output_path is not None:
         fig_2d.savefig(output_path)
@@ -84,7 +117,8 @@ def debug_combine_and_plot_intensities(number_of_images: int,
     run_in_thread(show_intensities, intensities, output_path.as_posix())
 
 
-def debug_save_intensities(first_path_is_duplicate: bool, intensities: NDArray[np.float64], number_of_bands: int, output_folder: Path,
+def debug_save_intensities(first_path_is_duplicate: bool, intensities: NDArray[np.float64], number_of_bands: int,
+                           output_folder: Path,
                            suffix: str = "") -> None:
     os.makedirs(output_folder, exist_ok=True)
     for band in range(0, number_of_bands):
@@ -92,7 +126,8 @@ def debug_save_intensities(first_path_is_duplicate: bool, intensities: NDArray[n
         output_path = output_folder / filename
         with open(output_path, "a") as f:
             f.write("\n")
-            data = intensities[1:, :, band].astype(str) if first_path_is_duplicate else intensities[:, :, band].astype(str)
+            data = intensities[1:, :, band].astype(str) if first_path_is_duplicate else intensities[:, :, band].astype(
+                str)
             data[data == 'nan'] = ''
             np.savetxt(f, data, delimiter=",", fmt="%s")
 

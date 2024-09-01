@@ -15,8 +15,9 @@ def run_in_thread(func: Callable[..., Any], *args: Any, **kwargs: Any) -> Option
         try:
             result = func(*args, **kwargs)
             q.put(result)
-        except Exception:
+        except Exception as e:
             # Ignore the exception and put None in the queue
+            # raise e
             q.put(None)
 
     # Create a queue to store the result

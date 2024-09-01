@@ -15,6 +15,7 @@ from shapely.geometry import Polygon
 from reflectdetect.constants import ORTHOPHOTO_FOLDER
 from reflectdetect.utils.debug import ProgressBar
 from reflectdetect.utils.paths import get_output_path
+from reflectdetect.utils.polygons import shrink_or_swell_shapely_polygon
 
 
 def is_panel_in_orthophoto(orthophoto_path: Path, panel: GeoDataFrame) -> bool:
@@ -41,9 +42,10 @@ def is_panel_in_orthophoto(orthophoto_path: Path, panel: GeoDataFrame) -> bool:
     return bool(panel.within(orthophoto_polygon).all())
 
 
-def extract_using_geolocation(image: NDArray[np.float64], panel_location: GeoDataFrame) -> list[float]:
+def extract_using_geolocation(image: DatasetReader, panel_location: GeoDataFrame) -> list[float]:
     # Extracts the mean intensity per band at the panel location
     panel_polygon = panel_location.union_all().convex_hull
+    panel_polygon = shrink_or_swell_shapely_polygon(panel_polygon, 0.2)
     out_image, out_transform = rasterio.mask.mask(image, [panel_polygon], crop=True, nodata=0)
 
     return [panel_band[panel_band > 0].mean() for panel_band in out_image]
@@ -83,6 +85,7 @@ def save_orthophotos(paths: list[Path], converted_photos: list[list[NDArray[np.f
                      progress: Progress | None = None) -> None:
     """
     This function saves the converted photos as .tif files into a new "/transformed/" directory in the images folder
+    :param progress:
     :param paths: list of orthophoto paths
     :param converted_photos: list of reflectance photos, each photo is a list of bands,
     each band is a ndarray of shape (width, height)
@@ -114,6 +117,7 @@ def extract_intensities_from_orthophotos(batch_of_orthophotos: list[Path],
     Therefore, extraction is skipped for that panel with `np.Nan` values saved in the output.
     Otherwise, the function uses the recorded gps location of the panel given by `panel_locations`
     to extract the mean intensity of the panel in that band for that photo
+    :param progress:
     :param panel_locations:
     :param paths_with_visibility:
     :param batch_of_orthophotos:

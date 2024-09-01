@@ -47,6 +47,7 @@ def convert_images_to_reflectance(paths: list[Path], intensities: NDArray[np.flo
     The intensities are then combined with the known reflectance values of the panels
     at the given band to fit a linear function (Empirical Line Method).
     Read more about ELM: https://www.asprs.org/wp-content/uploads/2015/05/3E%5B5%5D-paper.pdf
+    :param progress:
     :param band_index: index of the band of the image
     :param paths: list of image paths
     :param intensities: intensity values matrix of shape (photo, panel, band)
@@ -99,11 +100,12 @@ def extract_using_apriltags(path: Path, detector: AprilTagDetector, all_ids: lis
         if corners is None:
             continue
         else:
+            shrink_factor = 0.2
             if args.debug:
                 output_path = get_output_path(path, "panel_" + str(tag.getId()) + "_" + tag.getFamily(), "debug/panels")
-                run_in_thread(debug_show_panel, img, [tag], corners, output_path)
+                run_in_thread(debug_show_panel, img, tag, corners, shrink_factor, output_path)
             polygon = shapely.Polygon(corners)
-            polygon = shrink_or_swell_shapely_polygon(polygon, 0.2)
+            polygon = shrink_or_swell_shapely_polygon(polygon, shrink_factor)
             panel_mask = rasterize([polygon], out_shape=img.shape)
             mean: float = float(np.ma.MaskedArray(img, mask=~(panel_mask.astype(np.bool_))).mean())  # type: ignore
             panel_intensities[panel_index] = mean

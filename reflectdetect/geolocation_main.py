@@ -10,16 +10,20 @@ from rasterio import DatasetReader, logging as rasterio_logging
 from rich.progress import Progress, TextColumn, TimeElapsedColumn, BarColumn, MofNCompleteColumn, \
     SpinnerColumn
 from rich.table import Column
+from shapely import Polygon
 from tap import Tap
 
 from reflectdetect.PanelProperties import GeolocationPanelProperties
 from reflectdetect.constants import PANEL_PROPERTIES_FILENAME
 from reflectdetect.pipeline import interpolate_intensities, fit, convert
-from reflectdetect.utils.debug import debug_combine_and_plot_intensities, debug_save_intensities, ProgressBar
+from reflectdetect.utils.debug import debug_combine_and_plot_intensities, debug_save_intensities, ProgressBar, \
+    debug_show_geolocation
 from reflectdetect.utils.iterators import get_next
 from reflectdetect.utils.orthophoto import load_panel_locations, get_orthophoto_paths, is_panel_in_orthophoto, \
     extract_intensities_from_orthophotos, save_orthophotos
 from reflectdetect.utils.panel import get_band_reflectance
+from reflectdetect.utils.paths import get_output_path
+from reflectdetect.utils.thread import run_in_thread
 
 logger = logging.getLogger(__name__)
 
@@ -152,21 +156,34 @@ def orthophoto_main(dataset: Path, panel_locations_file: Path | None, debug: boo
 
         batches = build_batches_per_full_visibility(paths_with_visibility)
 
-        output_folder = dataset / "debug/intensity"
-
+        output_folder = dataset / "debug"
         if debug:
-            for p in output_folder.glob("*.csv"):
+            for p in (output_folder / "intensity").glob("*.csv"):
                 p.unlink()
+            for p in (output_folder / "panels").glob("*.tif"):
+                p.unlink()
+            panel_polygons: list[Polygon] = [panel_location.union_all().convex_hull for panel_location in
+                                             panel_locations]
+
+            for path, visibility in paths_with_visibility.items():
+                if visibility.sum() == 0:
+                    continue
+                output_path = get_output_path(path, "panels", "debug/panels")
+                with rasterio.open(path) as photo:
+                    polygon_xys = [panel_polygon for index, panel_polygon in
+                                   enumerate(panel_polygons) if visibility[index]]
+                    run_in_thread(debug_show_geolocation, photo, polygon_xys, 0.2, output_path)
 
         for (first_path_is_duplicate, batch) in batches:
             # --- Run pipeline
             i = extract_intensities_from_orthophotos(batch, paths_with_visibility, panel_locations, number_of_bands,
                                                      progress)
             if debug:
-                debug_save_intensities(first_path_is_duplicate, i, number_of_bands, output_folder)
+                debug_save_intensities(first_path_is_duplicate, i, number_of_bands, output_folder / "intensity")
             i = interpolate_intensities(i, number_of_bands, len(panel_properties), progress)
             if debug:
-                debug_save_intensities(first_path_is_duplicate, i, number_of_bands, output_folder, "_interpolated")
+                debug_save_intensities(first_path_is_duplicate, i, number_of_bands, output_folder / "intensity",
+                                       "_interpolated")
             c = convert_orthophotos_to_reflectance(batch, i, progress)
             del i
             save_orthophotos(batch, c, progress)
