@@ -11,7 +11,6 @@ from rasterio import DatasetReader, logging as rasterio_logging
 from rich.progress import Progress, TextColumn, TimeElapsedColumn, BarColumn, MofNCompleteColumn, \
     SpinnerColumn
 from rich.table import Column
-from shapely import Polygon
 from tap import Tap
 
 from reflectdetect.PanelProperties import GeolocationPanelProperties
@@ -163,17 +162,13 @@ def orthophoto_main(dataset: Path, panel_locations_file: Path | None, debug: boo
                 p.unlink()
             for p in (output_folder / "panels").glob("*.tif"):
                 p.unlink()
-            panel_polygons: list[Polygon] = [panel_location.union_all().convex_hull for panel_location in
-                                             ordered_panel_locations]
-
             for path, visibility in paths_with_visibility.items():
                 if visibility.sum() == 0:
                     continue
                 output_path = get_output_path(dataset, path, "panels.tif", "debug/panels")
-                with rasterio.open(path) as photo:
-                    polygon_xys = [panel_polygon for index, panel_polygon in
-                                   enumerate(panel_polygons) if visibility[index]]
-                    run_in_thread(debug_show_geolocation, True, photo, polygon_xys, args.shrink_factor, output_path)
+                run_in_thread(debug_show_geolocation, False, path, ordered_panel_locations, visibility,
+                              args.shrink_factor,
+                              output_path)
 
         for (first_path_is_duplicate, batch) in batches:
             # --- Run pipeline
@@ -199,7 +194,7 @@ def orthophoto_main(dataset: Path, panel_locations_file: Path | None, debug: boo
                                            "_interpolated")
 
 
-if __name__ == '__main__':
+def main():
     # --- Get input arguments from user
     logging.basicConfig(level=logging.INFO)
 

@@ -6,9 +6,9 @@ import matplotlib
 import numpy as np
 import rasterio
 import shapely
+from geopandas import GeoDataFrame
 from matplotlib import pyplot as plt
 from numpy.typing import NDArray
-from rasterio import DatasetReader
 from rasterio.plot import show
 from rich.progress import Progress, TaskID
 from robotpy_apriltag import AprilTagDetection
@@ -20,14 +20,17 @@ from reflectdetect.utils.thread import run_in_thread
 matplotlib.use('Agg')
 
 
-def debug_show_geolocation(img: DatasetReader, panels_corners: list[Polygon], shrink_factor: float,
+def debug_show_geolocation(path: Path, locations: list[GeoDataFrame], visibility: list[bool], shrink_factor: float,
                            output_path: Path | None = None) -> None:
     fig_2d = plt.figure()
     ax = fig_2d.subplots(1, 1)
     ax.axis("off")
-    rasterio.plot.show(img, ax=ax)
+    panel_polygons: list[Polygon] = [panel_location.union_all().convex_hull for index, panel_location in
+                                     enumerate(locations) if visibility[index]]
+    with rasterio.open(path) as photo:
+        rasterio.plot.show(photo, ax=ax)
 
-    for corners in panels_corners:
+    for corners in panel_polygons:
         x, y = corners.exterior.xy
 
         # Append the first point to the end to close the rectangle/polygon

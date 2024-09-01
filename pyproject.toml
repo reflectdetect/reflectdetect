@@ -6,6 +6,10 @@ authors = ["Luca Francis <lucajoshua.francis@stud.uni-goettingen.de>"]
 license = "Common Clause - MIT"
 readme = "README.md"
 
+[tool.poetry.scripts]
+reflectdetect-apriltag = "reflectdetect.apriltag_main:main"
+reflectdetect-geolocation = "reflectdetect.geolocation_main:main"
+
 [tool.poetry.dependencies]
 python = "^3.10"
 numpy = "^2.1.0"

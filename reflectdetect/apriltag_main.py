@@ -222,7 +222,7 @@ def apriltag_main(dataset: Path, images_folder: Path | None, debug: bool = False
                                                debug_output_folder / "intensity", "_interpolated")
 
 
-if __name__ == '__main__':
+def main():
     # --- Get input arguments from user
 
     class ApriltagArgumentParser(Tap):
