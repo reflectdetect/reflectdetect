@@ -12,8 +12,9 @@ from rasterio.mask import mask
 from rich.progress import Progress
 from shapely.geometry import Polygon
 
-from reflectdetect.constants import ORTHOPHOTO_FOLDER
+from reflectdetect.constants import ORTHOPHOTO_FOLDER, PANEL_LOCATIONS_FILENAME
 from reflectdetect.utils.debug import ProgressBar
+from reflectdetect.utils.iterators import get_next
 from reflectdetect.utils.paths import get_output_path
 from reflectdetect.utils.polygons import shrink_or_swell_shapely_polygon
 
@@ -64,8 +65,7 @@ def get_orthophoto_paths(dataset: Path) -> list[Path]:
 
 def load_panel_locations(dataset: Path, geopackage_filepath: Path | None) -> list[tuple[str, GeoDataFrame]]:
     if geopackage_filepath is None:
-        canonical_filename = "panel_locations.gpkg"
-        path = dataset / canonical_filename
+        path = dataset / PANEL_LOCATIONS_FILENAME
         if not path.exists():
             raise ValueError("No panel locations file found at {}.".format(path))
     else:
@@ -79,6 +79,30 @@ def load_panel_locations(dataset: Path, geopackage_filepath: Path | None) -> lis
             panel_corner_points = gpd.read_file(path, layer=layer)
             panel_locations.append((layer, panel_corner_points))
     return panel_locations
+
+
+def build_batches_per_full_visibility(paths_with_visibility: dict[Path, NDArray[np.bool]]) -> list[
+    tuple[bool, list[Path]]]:
+    batches = []
+    # Batch contains bool to signify whether the first path is there only for interpolation
+    current_batch: tuple[bool, list[Path]] = (False, [])
+    for (path, panel_visibility), nextVisibility in get_next(paths_with_visibility.items()):
+        current_batch[1].append(path)
+
+        all_panels_visible = panel_visibility.all()
+        if all_panels_visible:
+            batches.append(current_batch)
+            if nextVisibility is not None and nextVisibility[1].all():
+                # The next image has all panels visible, so no need to include this one twice
+                current_batch = (False, [])
+            else:
+                # This results in photos at the end of a batch being also in the next batch.
+                # Therefore, they are calculated twice, but otherwise the interpolation would lose their information.
+                # The next batch could start with an images without panels in it,
+                # which would need the image with panels before it to be interpolated correctly
+                current_batch = (True, [path])
+    batches.append(current_batch)
+    return batches
 
 
 def save_orthophotos(dataset: Path, paths: list[Path], converted_photos: list[list[NDArray[np.float64]] | None],
@@ -104,43 +128,4 @@ def save_orthophotos(dataset: Path, paths: list[Path], converted_photos: list[li
             pb.update()
 
 
-def extract_intensities_from_orthophotos(batch_of_orthophotos: list[Path],
-                                         paths_with_visibility: dict[Path, NDArray[np.bool]],
-                                         panel_locations: list[GeoDataFrame],
-                                         number_of_bands: int,
-                                         shrink_factor: float,
-                                         progress: Progress | None = None) -> NDArray[np.float64]:
-    """
-    This function extracts intensities from the orthophotos.
-    It does so by looking at each photo and determining which panels are visible in the photo.
-    If a panel is not visible in the image it is not visible in any of the bands
-    as the photos are assumed to rectified and aligned.
-    Therefore, extraction is skipped for that panel with `np.Nan` values saved in the output.
-    Otherwise, the function uses the recorded gps location of the panel given by `panel_locations`
-    to extract the mean intensity of the panel in that band for that photo
-    :param progress:
-    :param panel_locations:
-    :param paths_with_visibility:
-    :param batch_of_orthophotos:
-    :type number_of_bands: int
-    :return: The extracted intensities for all orthophotos, with np.Nan for values that could not be found.
-    """
-    task = None
-    if progress is not None:
-        task = progress.add_task("Extracting intensities", total=len(batch_of_orthophotos), leave=False)
-    intensities = np.zeros((len(batch_of_orthophotos), len(panel_locations), number_of_bands))
-    for photo_index, orthophoto_path in enumerate(batch_of_orthophotos):
-        for panel_index, panel_location in enumerate(panel_locations):
-            if not paths_with_visibility[orthophoto_path][panel_index]:
-                intensities[photo_index][panel_index] = np.full(number_of_bands, np.nan)
-                continue
-            # extract the mean intensity for each band at that panel location
-            orthophoto: DatasetReader
-            with rasterio.open(orthophoto_path) as orthophoto:
-                panel_intensities_per_band = extract_using_geolocation(orthophoto, panel_location, shrink_factor)
-            intensities[photo_index][panel_index] = panel_intensities_per_band
-        if progress is not None and task is not None:
-            progress.update(task, advance=1)
-    if progress is not None and task is not None:
-        progress.remove_task(task)
-    return intensities
+

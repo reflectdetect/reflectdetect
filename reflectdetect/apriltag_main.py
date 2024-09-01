@@ -53,6 +53,7 @@ class AprilTagEngine:
                                  MofNCompleteColumn(),
                                  TextColumn("•"), TimeElapsedColumn(),
                                  )
+        self.progress.start()
         self.panel_size_m = (args.panel_width, args.panel_height)
         self.dataset = Path(args.dataset) if args.dataset is not None else None
         self.debug = args.debug
@@ -228,12 +229,10 @@ class AprilTagEngine:
             os.system("cls||clear")
 
             debug_save_intensities_single_band(i, band_index, debug_output_folder / "intensity") if self.debug else None
-            interpolate_task = self.progress.add_task(description="Interpolating intensities",
-                                                      total=self.number_of_panels)
-            for panel_index, _ in enumerate(self.panel_properties):
-                i[:, panel_index] = interpolate(i[:, panel_index])
-                self.progress.update(interpolate_task, advance=1)
-            self.progress.remove_task(interpolate_task)
+            with ProgressBar(self.progress, "Interpolating intensities", self.number_of_panels) as pb:
+                for panel_index, _ in enumerate(self.panel_properties):
+                    i[:, panel_index] = interpolate(i[:, panel_index])
+                    pb.update()
             debug_save_intensities_single_band(i, band_index, debug_output_folder / "intensity",
                                                "_interpolated") if self.debug else None
             c = self.convert_images_to_reflectance(batch, i, band_index)
@@ -249,7 +248,7 @@ class AprilTagEngine:
                                                debug_output_folder / "intensity", "_interpolated")
 
 
-def main():
+def main() -> None:
     # --- Get input arguments from user
     args = ApriltagArgumentParser(
         description='Automatically detect reflection calibration panels in images and transform the given images to '

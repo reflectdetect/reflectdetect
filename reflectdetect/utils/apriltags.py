@@ -51,7 +51,7 @@ def detect_tags(img: NDArray[np.float64], detector: AprilTagDetector, valid_ids:
 def pose_estimate_tags(tags: list[AprilTagDetection], config: AprilTagPoseEstimator.Config) -> \
         list[Transform3d]:
     pose_estimator = AprilTagPoseEstimator(config)
-    estimates: list[Transform3d] = [run_in_thread(pose_estimator.estimate, True, tag) for tag in
+    estimates: list[Transform3d] = [run_in_thread(pose_estimator.estimate, True, tag) for tag in  # type: ignore
                                     tags]  # type: ignore
     return estimates
 
