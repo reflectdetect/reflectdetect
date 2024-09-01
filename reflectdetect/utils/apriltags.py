@@ -1,6 +1,7 @@
 import contextlib
 import io
 import math
+import re
 from pathlib import Path
 
 import numpy as np
@@ -87,6 +88,25 @@ def get_detector_config() -> AprilTagDetector.Config:
     detector_config.numThreads = 4
     detector_config.refineEdges = True
     return detector_config
+
+
+def build_batches_per_band(paths: list[Path]) -> list[list[Path]]:
+    # TODO also add visibility batching
+    batches: list[list[Path]] = []
+    # Regular expression to match file names and capture the base and suffix
+    pattern = re.compile(r".*_(\d+)\.tif$")  # TODO better path parsing generalization
+
+    for image_path in paths:
+        match = pattern.match(image_path.name)
+        if not match:
+            raise Exception(f"Could not extract band index from filename")
+        band_index = int(match.group(1)) - 1
+        if band_index > len(batches) or band_index < 0:
+            raise Exception("Problem with the sorting of the pats or regex")
+        if band_index == len(batches):
+            batches.append([])
+        batches[band_index].append(image_path)
+    return batches
 
 
 def get_panel(tag: AprilTagDetection, panel_size_pixel: tuple[int, int], image_dimensions: tuple[int, int],

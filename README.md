@@ -10,6 +10,7 @@ We provide two workflows
    - fly drone and capture images 
    - convert images to orthophotos by rectifying and georeferencing them
    - run reflect detect on photos to convert them to reflectance images
+Put panels close together as only images with all panels give a datapoint
 ### 2. :white_square_button: Apriltags
    - print out apriltags
    - place them according to the placement guide

@@ -59,7 +59,7 @@ def convert(band_image: NDArray[np.int64], coefficients: tuple[float, float]) ->
 
 def interpolate_intensities(intensities: NDArray[np.float64],
                             number_of_bands: int,
-                            panel_amount: int,
+                            number_of_panels: int,
                             progress: Progress | None) -> NDArray[np.float64]:
     """
     This function is used to piecewise linearly interpolate the intensity values to fill the `np.Nan` gaps in the data.
@@ -67,14 +67,14 @@ def interpolate_intensities(intensities: NDArray[np.float64],
     Only for photos where the panel was visible we have a value for the given band.
     8Bit Data might look like this: [np.NaN, np.NaN, 240.0, 241.0, 240.0, np.NaN, 242.0, np.NaN, np.NaN]
     After interpolation:            [240.00, 240.00, 240.0, 241.0, 240.0, 241.00, 242.0, 242.00, 242.00]
-    :param panel_amount: number of panels
+    :param number_of_panels: number of panels
     :param number_of_bands: number of bands in the images
     :rtype: ndarray[Any, dtype[np.float64]]
     :param intensities: intensity values matrix of shape (photo, panel, band) with some values being np.NaN.
     :return: The interpolated intensity values
     """
-    with ProgressBar(progress, "Interpolating", total=panel_amount) as pb:
-        for panel_index in range(0, panel_amount):
+    with ProgressBar(progress, "Interpolating", total=number_of_panels) as pb:
+        for panel_index in range(0, number_of_panels):
             for band_index in range(0, number_of_bands):
                 intensities[:, panel_index, band_index] = interpolate(intensities[:, panel_index, band_index])
             pb.update()

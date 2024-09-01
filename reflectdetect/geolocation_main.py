@@ -42,7 +42,9 @@ def load_panel_properties(dataset: Path, panel_properties_file: Path | None) -> 
 
 
 def convert_orthophotos_to_reflectance(paths: list[Path],
-                                       intensities: NDArray[np.float64], progress: Progress | None = None) -> list[
+                                       intensities: NDArray[np.float64],
+                                       panel_properties: list[GeolocationPanelProperties],
+                                       progress: Progress | None = None) -> list[
     list[NDArray[np.float64]] | None]:
     """
     This function converts the intensity values to reflectance values.
@@ -107,7 +109,8 @@ def build_batches_per_full_visibility(paths_with_visibility: dict[Path, NDArray[
     return batches
 
 
-def orthophoto_main(dataset: Path, panel_locations_file: Path | None, debug: bool = False) -> None:
+def orthophoto_main(dataset: Path, panel_locations_file: Path | None, debug: bool,
+                    panel_properties: list[GeolocationPanelProperties], shrink_factor: float) -> None:
     with Progress(SpinnerColumn(),
                   TextColumn("[progress.description]{task.description}", table_column=Column(width=40)),
                   TextColumn("[progress.percentage]{task.percentage:>3.0f}%"), BarColumn(), MofNCompleteColumn(),
@@ -167,21 +170,21 @@ def orthophoto_main(dataset: Path, panel_locations_file: Path | None, debug: boo
                     continue
                 output_path = get_output_path(dataset, path, "panels.tif", "debug/panels")
                 run_in_thread(debug_show_geolocation, False, path, ordered_panel_locations, visibility,
-                              args.shrink_factor,
+                              shrink_factor,
                               output_path)
 
         for (first_path_is_duplicate, batch) in batches:
             # --- Run pipeline
             i = extract_intensities_from_orthophotos(batch, paths_with_visibility, ordered_panel_locations,
                                                      number_of_bands,
-                                                     args.shrink_factor, progress)
+                                                     shrink_factor, progress)
             if debug:
                 debug_save_intensities(first_path_is_duplicate, i, number_of_bands, output_folder / "intensity")
             i = interpolate_intensities(i, number_of_bands, len(panel_properties), progress)
             if debug:
                 debug_save_intensities(first_path_is_duplicate, i, number_of_bands, output_folder / "intensity",
                                        "_interpolated")
-            c = convert_orthophotos_to_reflectance(batch, i, progress)
+            c = convert_orthophotos_to_reflectance(batch, i, panel_properties, progress)
             del i
             save_orthophotos(dataset, batch, c, progress)
             del c
@@ -198,7 +201,6 @@ def main():
     # --- Get input arguments from user
     logging.basicConfig(level=logging.INFO)
 
-
     class GeolocationArgumentParser(Tap):
         dataset: str  # Path to the dataset folder
         panel_locations_file: str | None = None  # Path to file instead "geolocations.gpk" in the dataset folder
@@ -209,7 +211,6 @@ def main():
         def configure(self) -> None:
             self.add_argument('dataset')
             self.add_argument('-d', '--debug')
-
 
     args = GeolocationArgumentParser(
         description='Automatically detect reflection calibration panels in images and transform the given images to '
@@ -231,4 +232,4 @@ def main():
     # TODO: validate panel_location_file
     dataset = Path(args.dataset) if args.dataset is not None else None
     panel_properties = load_panel_properties(dataset, panel_properties_file)
-    orthophoto_main(dataset, panel_locations_file, args.debug)
+    orthophoto_main(dataset, panel_locations_file, args.debug, panel_properties, args.shrink_factor)
