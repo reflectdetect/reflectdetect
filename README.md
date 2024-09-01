@@ -4,19 +4,37 @@ Automatic detection of reflectance calibration panels in multiband drone imagery
 TODO Explain both approaches and add images
 
 We provide two workflows
-1. :artificial_satellite: Geolocation
-2. :white_square_button: Apriltags
+### 1. :artificial_satellite: Geolocation
+   - place panels in field
+   - capture location of panel corners and save them to .gpkg file
+   - fly drone and capture images 
+   - convert images to orthophotos by rectifying and georeferencing them
+   - run reflect detect on photos to convert them to reflectance images
+### 2. :white_square_button: Apriltags
+   - print out apriltags
+   - place them according to the placement guide
+   - fly drone and capture images 
+   - run reflect detect on images to convert them to reflectance images
 
 
 ## Vocabulary
 ### Panel
-With the word panel we reference calibration sheets TODO
+With the word panel we reference calibration sheets
 ### Tag
+Apriltag
+
+#### Primary detection area vs total area
+### Field
+the area the drone images capture
+### Image
+### Orthophoto / Photo
 
 ## Installation
+TODO: Install python
 ```
 pip install reflectdetect
 ```
+
 # :white_square_button: Apriltags
 ## :white_square_button: Setup
 ### :white_square_button: Create a panel_properties.json file
@@ -64,6 +82,9 @@ dataset_folder
 │   │   IMG_0001_2.tif
 |   |   ...
 ```
+
+> [!TIP]
+> If any of the folders/files are located elsewhere, you can specify their location using the `--panel_properties_file` or `--images_folder` argument
 
 __either images or orthophotos
 images are one band at a time

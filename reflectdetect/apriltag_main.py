@@ -100,7 +100,7 @@ def extract_using_apriltags(path: Path, detector: AprilTagDetector, all_ids: lis
         if not len(panels) == 1:
             raise Exception("Could not associate panel with found tag")
         panel_index = panel_properties.index(panels[0])
-        corners = get_panel(tag, panel_size_pixel, resolution, args.tag_smudge_factor)
+        corners = get_panel(tag, panel_size_pixel, resolution, args.tag_smudge_factor, args.tag_direction)
 
         if corners is None:
             continue
@@ -231,10 +231,11 @@ if __name__ == '__main__':
         panel_properties_file: str | None = None  # Path to file instead "panel_properties.json" in the dataset folder
         debug: bool = False  # Prints logs and adds debug images into a /debug/ directory in the dataset folder
         images_folder: str | None = None  # Path to images folder instead "/images" in the dataset folder
-        shrink_factor: float = 0.2  # How many percent to shrink the detected panel area, to avoid artifacts like bleed
+        shrink_factor: float = 0.2  # How much to shrink the detected panel area, to avoid artifacts like bleed
         panel_smudge_factor: float = 1.0  # This factor gets multiplied to the panel width and height to account for inaccuracy in lens exif information given by the manufacturer
-        tag_smudge_factor: float = 1.0  # This factor gets multiplied to the panel width and height to account for inaccuracy in lens exif information given by the manufacturer
+        tag_smudge_factor: float = 1.0  # This factor gets multiplied to distance between tag and panel, useful if the tag was placed to far from the panel
         tag_size: float  # Size of the apriltags in meters (Only measure the primary detection area, see apriltag_primary.ipynb)
+        tag_direction: str = "up" # (up, down, left, right) Direction of the panel with respect to the tag. Down direction is where the text is printed on the tag
         panel_width: float
         panel_height: float
 
