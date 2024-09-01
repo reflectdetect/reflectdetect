@@ -91,6 +91,7 @@ def extract_using_apriltags(path: Path, detector: AprilTagDetector, all_ids: lis
     panel_size_pixel = calculate_panel_size_in_pixels(altitude, resolution, panel_size_m, *properties)
     panel_intensities: list[float | None] = [None] * len(panel_properties)
     for tag in all_tags:
+        # TODO remove family from filter
         panels = list(filter(lambda p: p.family == tag.getFamily() and p.tag_id == tag.getId(), panel_properties))
         if not len(panels) == 1:
             raise Exception("Could not associate panel with found tag")
@@ -100,12 +101,11 @@ def extract_using_apriltags(path: Path, detector: AprilTagDetector, all_ids: lis
         if corners is None:
             continue
         else:
-            shrink_factor = 0.2
             if args.debug:
                 output_path = get_output_path(path, "panel_" + str(tag.getId()) + "_" + tag.getFamily(), "debug/panels")
-                run_in_thread(debug_show_panel, img, tag, corners, shrink_factor, output_path)
+                run_in_thread(debug_show_panel, img, tag, corners, args.shrink_factor, output_path)
             polygon = shapely.Polygon(corners)
-            polygon = shrink_or_swell_shapely_polygon(polygon, shrink_factor)
+            polygon = shrink_or_swell_shapely_polygon(polygon, args.shrink_factor)
             panel_mask = rasterize([polygon], out_shape=img.shape)
             mean: float = float(np.ma.MaskedArray(img, mask=~(panel_mask.astype(np.bool_))).mean())  # type: ignore
             panel_intensities[panel_index] = mean
@@ -227,6 +227,7 @@ if __name__ == '__main__':
         panel_properties_file: str | None = None  # Path to file instead "panel_properties.json" in the dataset folder
         debug: bool = False  # Prints logs and adds debug images into a /debug/ directory in the dataset folder
         images_folder: str | None = None  # Path to images folder instead "/images" in the dataset folder
+        shrink_factor: float = 0.2  # How many percent to shrink the detected panel area, to avoid artifacts like bleed
 
         def configure(self) -> None:
             self.add_argument('dataset')

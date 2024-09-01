@@ -42,10 +42,10 @@ def is_panel_in_orthophoto(orthophoto_path: Path, panel: GeoDataFrame) -> bool:
     return bool(panel.within(orthophoto_polygon).all())
 
 
-def extract_using_geolocation(image: DatasetReader, panel_location: GeoDataFrame) -> list[float]:
+def extract_using_geolocation(image: DatasetReader, panel_location: GeoDataFrame, shrink_factor: float) -> list[float]:
     # Extracts the mean intensity per band at the panel location
     panel_polygon = panel_location.union_all().convex_hull
-    panel_polygon = shrink_or_swell_shapely_polygon(panel_polygon, 0.2)
+    panel_polygon = shrink_or_swell_shapely_polygon(panel_polygon, shrink_factor)
     out_image, out_transform = rasterio.mask.mask(image, [panel_polygon], crop=True, nodata=0)
 
     return [panel_band[panel_band > 0].mean() for panel_band in out_image]
@@ -108,6 +108,7 @@ def extract_intensities_from_orthophotos(batch_of_orthophotos: list[Path],
                                          paths_with_visibility: dict[Path, NDArray[np.bool]],
                                          panel_locations: list[GeoDataFrame],
                                          number_of_bands: int,
+                                         shrink_factor: float,
                                          progress: Progress | None = None) -> NDArray[np.float64]:
     """
     This function extracts intensities from the orthophotos.
@@ -136,7 +137,7 @@ def extract_intensities_from_orthophotos(batch_of_orthophotos: list[Path],
             # extract the mean intensity for each band at that panel location
             orthophoto: DatasetReader
             with rasterio.open(orthophoto_path) as orthophoto:
-                panel_intensities_per_band = extract_using_geolocation(orthophoto, panel_location)
+                panel_intensities_per_band = extract_using_geolocation(orthophoto, panel_location, shrink_factor)
             intensities[photo_index][panel_index] = panel_intensities_per_band
         if progress is not None and task is not None:
             progress.update(task, advance=1)

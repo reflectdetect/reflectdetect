@@ -172,12 +172,12 @@ def orthophoto_main(dataset: Path, panel_locations_file: Path | None, debug: boo
                 with rasterio.open(path) as photo:
                     polygon_xys = [panel_polygon for index, panel_polygon in
                                    enumerate(panel_polygons) if visibility[index]]
-                    run_in_thread(debug_show_geolocation, photo, polygon_xys, 0.2, output_path)
+                    run_in_thread(debug_show_geolocation, photo, polygon_xys, args.shrink_factor, output_path)
 
         for (first_path_is_duplicate, batch) in batches:
             # --- Run pipeline
             i = extract_intensities_from_orthophotos(batch, paths_with_visibility, panel_locations, number_of_bands,
-                                                     progress)
+                                                     args.shrink_factor, progress)
             if debug:
                 debug_save_intensities(first_path_is_duplicate, i, number_of_bands, output_folder / "intensity")
             i = interpolate_intensities(i, number_of_bands, len(panel_properties), progress)
@@ -207,6 +207,7 @@ if __name__ == '__main__':
         panel_locations_file: str | None = None  # Path to file instead "geolocations.gpk" in the dataset folder
         panel_properties_file: str | None = None  # Path to file instead "panel_properties.json" in the dataset folder
         debug: bool = False  # Prints logs and adds debug images into a /debug/ directory in the dataset folder
+        shrink_factor: float = 0.2  # How many percent to shrink the detected panel area, to avoid artifacts like bleed
 
         def configure(self) -> None:
             self.add_argument('dataset')
