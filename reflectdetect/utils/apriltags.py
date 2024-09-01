@@ -88,6 +88,7 @@ def get_detector_config() -> AprilTagDetector.Config:
 
 
 def get_panel(tag: AprilTagDetection, panel_size_pixel: tuple[int, int], image_dimensions: tuple[int, int],
+              tag_smudge_factor: float,
               only_valid_panels: bool = True) -> list[float] | None:
     tag_corners = np.array(list(tag.getCorners((0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0))))
     tag_corners = np.array(list((zip(tag_corners[::2], tag_corners[1::2]))))
@@ -100,7 +101,7 @@ def get_panel(tag: AprilTagDetection, panel_size_pixel: tuple[int, int], image_d
     towards_panel = towards_panel / np.linalg.norm(towards_panel)
 
     center = np.array([tag.getCenter().x, tag.getCenter().y])
-    tag_panel_border = center + towards_panel * (tag_size / 2)
+    tag_panel_border = center + towards_panel * (tag_size / 2) * tag_smudge_factor
     panel_length = towards_panel * panel_size_pixel[1]
     panel_width = towards_panel * panel_size_pixel[0]
     half_panel_width = panel_width / 2

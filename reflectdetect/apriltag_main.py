@@ -90,7 +90,7 @@ def extract_using_apriltags(path: Path, detector: AprilTagDetector, all_ids: lis
     focal_length_mm, focal_plane_x_res, focal_plane_y_res, focal_plane_resolution_unit = get_camera_properties(path)
     panel_size_pixel = calculate_panel_size_in_pixels(altitude, resolution, panel_size_m, focal_length_mm,
                                                       focal_plane_x_res, focal_plane_y_res, focal_plane_resolution_unit,
-                                                      1.2)
+                                                      args.panel_smudge_factor)
     panel_intensities: list[float | None] = [None] * len(panel_properties)
     for tag in all_tags:
         # TODO remove family from filter
@@ -98,7 +98,7 @@ def extract_using_apriltags(path: Path, detector: AprilTagDetector, all_ids: lis
         if not len(panels) == 1:
             raise Exception("Could not associate panel with found tag")
         panel_index = panel_properties.index(panels[0])
-        corners = get_panel(tag, panel_size_pixel, resolution)
+        corners = get_panel(tag, panel_size_pixel, resolution, args.tag_smudge_factor)
 
         if corners is None:
             continue
@@ -226,7 +226,9 @@ if __name__ == '__main__':
         debug: bool = False  # Prints logs and adds debug images into a /debug/ directory in the dataset folder
         images_folder: str | None = None  # Path to images folder instead "/images" in the dataset folder
         shrink_factor: float = 0.2  # How many percent to shrink the detected panel area, to avoid artifacts like bleed
-        tag_size: float  # Size of the apriltags in meter ()
+        panel_smudge_factor: float = 1.0  # This factor gets multiplied to the panel width and height to account for inaccuracy in lens exif information given by the manufacturer
+        tag_smudge_factor: float = 1.0  # This factor gets multiplied to the panel width and height to account for inaccuracy in lens exif information given by the manufacturer
+        tag_size: float  # Size of the apriltags in meters (Only measure the primary detection area, see apriltag_primary.ipynb)
         panel_width: float
         panel_height: float
 
