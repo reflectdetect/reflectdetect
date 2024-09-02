@@ -59,7 +59,7 @@ calibration of UAV imagery"
 1. Collect panel reflectance values for the bands you want to capture from the manufacturer (for commercial panels) or
    using a field spectrometer (for DIY panels) and save the values to a `panel_properties.json` file
 2. Print out an apriltag for each panel (pdf files for printing are available in our github repository
-   under `/apriltag_printouts`)
+   under `/apriltag_printouts/`) TODO: add pdf files
 3. Place panels in the field
 4. Place the apriltags according to the placement guide (TODO: Link Placement guide)
 5. Fly your remote sensing mission and save captured images
@@ -76,7 +76,7 @@ TODO: add good image of panels
 
 <img height="408" src="./images/panels_only.jpeg" width="230" alt="Panels in the field"/>
 
-#### Tag
+#### Apriltag / Tag
 
 Apriltag
 
@@ -89,8 +89,16 @@ the area the drone images capture
 #### Image
 
 Reflectdetect currently assumes that all the images were taken at equal time intervals
+images are one band at a time
+images are assumed to be named "*_{band_index}.tif"
+we use the regec
+so for examalpe IMG_0052_6.tif -> 6
+regexr.com/857r5
 
 #### Orthophoto / Photo
+
+orthophotos are all bands in one
+
 
 ## Table of Contents
 
@@ -117,7 +125,10 @@ Reflectdetect currently assumes that all the images were taken at equal time int
     * [:artificial_satellite: Create a panel_properties.json file](#artificial_satellite-create-a-panel_propertiesjson-file)
     * [:artificial_satellite: Create dataset folder](#artificial_satellite-create-dataset-folder)
   * [:artificial_satellite: Usage](#artificial_satellite-usage)
-  * [Planned Features](#planned-features)
+* [Planned Features](#planned-features)
+* [Contributing](#contributing)
+* [References](#references)
+* [License](#license)
 <!-- TOC -->
 
 ## Installation
@@ -134,7 +145,7 @@ pip install reflectdetect
 
 ## :white_square_button: Setup
 
-### :white_square_button: Create a panel_properties.json file
+### Create a panel_properties.json file
 
 To give access to the information about your calibration panels, create a `panel_properties.json` file. It
 includes the reflectance values of each panel for each of the bands you captured.
@@ -166,12 +177,11 @@ The tag id has to correspond to the id of the apriltag you placed next to the gi
       0.35,
       0.4
     ]
-  },
-  ...
+  }
 ]
-````
+```
 
-### :white_square_button: Create dataset folder
+### Create dataset folder
 
 In order for reflect-detect to be able to gather the necessary information about the images, panels, camera, etc. ,
 reflect-detect expects you to structure your data in the following format:
@@ -192,19 +202,6 @@ dataset_folder
 > If any of the folders/files are located elsewhere, you can specify their location using the `--panel_properties_file`
 > or `--images_folder` argument
 
-__either images or orthophotos
-images are one band at a time
-images are assumed to be named "*_{band_index}.tif"
-we use the regec
-so for examalpe IMG_0052_6.tif -> 6
-regexr.com/857r5
-orthophotos are all bands in one
-panel properties file
-include the reflectance values for each band
-
-- images
-- panel_properties
-  -__
 
 ## :white_square_button: Usage
 
@@ -216,7 +213,7 @@ python .\reflectdetect\apriltag_main.py --family "tag25h9" --panel_properties_fi
 
 ## :artificial_satellite: Setup
 
-### :artificial_satellite: Create a panel_properties.json file
+### Create a panel_properties.json file
 
 To access the information about your calibration panels, we need you to create a `panel_properties.json` file. It
 includes the reflectance values of each panel for each of the bands you captured.
@@ -226,7 +223,7 @@ between the first `{ }` and so on.
 We assume that the first panel in the file corresponds to the first layer of coordinates in the geopackage file (TODO:
 explain better)
 
-```json
+```json filename="panel_properties.json"
 [
   {
     "layer_name": "corner_27",
@@ -249,12 +246,11 @@ explain better)
       0.35,
       0.4
     ]
-  },
-  ...
+  }
 ]
 ````
 
-### :artificial_satellite: Create dataset folder
+###  Create dataset folder
 
 In order for reflect-detect to be able to gather the necessary information about the images, panels, camera, etc. ,
 reflect-detect expects you to structure your data in the following format:
@@ -275,7 +271,8 @@ dataset_folder
 ## :artificial_satellite: Usage
 
 # Planned Features
-- Support for unequal time intervals between images
+- [] Support for unequal time intervals between images
+- [] Customize parameters on a per panel basis
 # Contributing
 # References
 # License

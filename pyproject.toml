@@ -3,7 +3,7 @@ name = "reflectdetect"
 version = "0.1.0"
 description = ""
 authors = ["Luca Francis <lucajoshua.francis@stud.uni-goettingen.de>"]
-license = "Common Clause - MIT"
+license = "GPL-3.0-or-later"
 readme = "README.md"
 repository = "https://github.com/reflectdetect/reflectdetect"
 

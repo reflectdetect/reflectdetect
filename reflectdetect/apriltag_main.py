@@ -30,7 +30,7 @@ class ApriltagArgumentParser(Tap):
     dataset: str  # Path to the dataset folder
     panel_width: float  # Width of the calibration panel in meters
     panel_height: float  # Height of the calibration panel in meters
-    tag_size: float  # Size of the apriltags in meters (Only measure the primary detection area, see apriltag_primary.ipynb)
+    tag_size: float  # Size of the apriltags in meters (Only measure the primary detection area, see apriltag_area_measurement.ipynb)
     panel_properties_file: str | None = None  # Path to file instead "panel_properties.json" in the dataset folder
     images_folder: str | None = None  # Path to images folder instead "/images" in the dataset folder
     tag_direction: str = "up"  # (up, down, left, right) Direction of the panel with respect to the tag. Down direction is where the text is printed on the tag
@@ -147,11 +147,6 @@ class AprilTagEngine:
         img = cv2.imread(path.as_posix(), cv2.IMREAD_GRAYSCALE)
 
         all_tags = detect_tags(img, self.detector, self.all_ids)
-        if len(all_tags) != self.number_of_panels:
-            # Did not detect all panels in the image
-            # TODO: Problematic if no images contains all panels at once
-            return [None] * self.number_of_panels
-
         altitude = get_altitude_from_panels(all_tags, path, (len(img[0]), len(img)), self.tag_size_m)
 
         resolution = (len(img[0]), len(img))
