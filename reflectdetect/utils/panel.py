@@ -1,9 +1,10 @@
-import math
-
 import numpy as np
+from numpy.typing import NDArray
+
+from reflectdetect.PanelProperties import GeolocationPanelProperties, ApriltagPanelProperties
 
 
-def convert_resolution_unit(resolution, unit):
+def convert_resolution_unit(resolution: float, unit: int) -> float:
     """
     Convert focal plane resolution to pixels per millimeter.
 
@@ -28,7 +29,8 @@ def convert_resolution_unit(resolution, unit):
         raise ValueError("Unknown FocalPlaneResolutionUnit")
 
 
-def calculate_sensor_size(image_resolution, focal_plane_x_res, focal_plane_y_res, focal_plane_resolution_unit):
+def calculate_sensor_size(image_resolution: tuple[int, int], focal_plane_x_res: float, focal_plane_y_res: float,
+                          focal_plane_resolution_unit: int) -> tuple[float, float]:
     """
     Calculate the sensor size in millimeters using focal plane resolutions.
 
@@ -51,8 +53,13 @@ def calculate_sensor_size(image_resolution, focal_plane_x_res, focal_plane_y_res
     return sensor_width_mm, sensor_height_mm
 
 
-def calculate_panel_size_in_pixels(altitude, resolution, physical_panel_size, focal_length_mm, focal_plane_x_res,
-                                   focal_plane_y_res, focal_plane_resolution_unit):
+def calculate_panel_size_in_pixels(altitude: float, resolution: tuple[int, int],
+                                   physical_panel_size: tuple[float, float],
+                                   focal_length_mm: float,
+                                   focal_plane_x_res: float,
+                                   focal_plane_y_res: float,
+                                   focal_plane_resolution_unit: int,
+                                   smudge_factor: float = 0.8) -> tuple[int, int]:
     """
     Calculate the expected size of an object in pixels based on camera parameters and object physical size.
 
@@ -64,11 +71,12 @@ def calculate_panel_size_in_pixels(altitude, resolution, physical_panel_size, fo
         focal_plane_x_res (float): Focal plane X resolution.
         focal_plane_y_res (float): Focal plane Y resolution.
         focal_plane_resolution_unit (int): The unit of the focal plane resolution.
+        smudge_factor (float, optional): Adjustment factor to correct for systematic error caused by difference between
+        reported camera hyperparameters and actual values. Default is 0.8.
 
     Returns:
         tuple: Expected width and height of the object in pixels.
     """
-    resolution = (float(resolution[0]), float(resolution[1]))
 
     # Calculate the sensor size
     sensor_width_mm, sensor_height_mm = calculate_sensor_size(resolution, focal_plane_x_res, focal_plane_y_res,
@@ -78,20 +86,26 @@ def calculate_panel_size_in_pixels(altitude, resolution, physical_panel_size, fo
     sensor_height_m = sensor_height_mm / 1000
     focal_length_m = focal_length_mm / 1000
 
-    # Calculate horizontal and vertical Field of View (FoV)
-    fov_horizontal = 2 * math.atan(sensor_width_m / (2 * focal_length_m))
-    fov_vertical = 2 * math.atan(sensor_height_m / (2 * focal_length_m))
+    # Calculate Ground Sample Distance (GSD)
+    gsd_width = (altitude * sensor_width_m) / focal_length_m
+    gsd_height = (altitude * sensor_height_m) / focal_length_m
 
     # Calculate scale in pixels per meter for width and height
-    scale_pixels_per_meter_width = resolution[0] / (altitude * math.tan(fov_horizontal / 2))
-    scale_pixels_per_meter_height = resolution[1] / (altitude * math.tan(fov_vertical / 2))
+    scale_pixels_per_meter_width = float(resolution[0]) / gsd_width
+    scale_pixels_per_meter_height = float(resolution[1]) / gsd_height
+
+    # Apply smudge factor to correct for the observed discrepancy
+    scale_pixels_per_meter_width *= smudge_factor
+    scale_pixels_per_meter_height *= smudge_factor
 
     # Calculate expected panel size in pixels
-    panel_width_pixels = np.intp(physical_panel_size[0] * scale_pixels_per_meter_width)
-    panel_height_pixels = np.intp(physical_panel_size[1] * scale_pixels_per_meter_height)
+    panel_width_pixels = int(physical_panel_size[0] * scale_pixels_per_meter_width)
+    panel_height_pixels = int(physical_panel_size[1] * scale_pixels_per_meter_height)
 
     return panel_width_pixels, panel_height_pixels
 
 
-def get_panel_factors_for_band(panel_data, band):
-    return [panel["bands"][band]["factor"] for panel in panel_data]
+def get_band_reflectance(panels_properties: list[GeolocationPanelProperties] | list[ApriltagPanelProperties],
+                         band_index: int) -> NDArray[np.float64]:
+    # return the reflectance values of each panel at a given band
+    return np.array([properties.bands[band_index] for properties in panels_properties])
