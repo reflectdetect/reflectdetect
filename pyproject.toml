@@ -5,6 +5,7 @@ description = ""
 authors = ["Luca Francis <lucajoshua.francis@stud.uni-goettingen.de>"]
 license = "Common Clause - MIT"
 readme = "README.md"
+repository = "https://github.com/reflectdetect/reflectdetect"
 
 [tool.poetry.scripts]
 reflectdetect-apriltag = "reflectdetect.apriltag_main:main"
