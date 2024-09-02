@@ -16,5 +16,5 @@ jobs:
           ACCESS_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           PUBLISH_REGISTRY_PASSWORD: ${{ secrets.PYPI_TOKEN }}
           PACKAGE_DIRECTORY: "./reflectdetect/"
-          PYTHON_VERSION: "3.10^"
+          PYTHON_VERSION: "3.10"
           BRANCH: "main"
