@@ -7,7 +7,7 @@
 <p align="center">
   <a href="https://github.com/reflectdetect/reflectdetect/blob/main/LICENSE"><img src="https://img.shields.io/github/license/FawnRescue/frontend" alt="License"></a>
   <a href="https://github.com/reflectdetect/reflectdetect/network/members"><img src="https://img.shields.io/github/forks/reflectdetect/reflectdetect?style=social" alt="GitHub forks"></a>
-  <a href="https://github.com/reflectdetect/reflectdetect/stargazers"><img src="https://img.shields.io/github/stars/https://reflectdetect/reflectdetect?style=social" alt="GitHub stars"></a>
+  <a href="https://github.com/reflectdetect/reflectdetect/stargazers"><img src="https://img.shields.io/github/stars/reflectdetect/reflectdetect?style=social" alt="GitHub stars"></a>
 </p>
 <p>
 <a href="https://github.com/reflectdetect/reflectdetect/issues">Report Bug</a>
@@ -18,10 +18,10 @@
 
 ## Overview
 
-This is the official repository for the paper "Application Note: An automated workflow for in-flight radiometric
-calibration of UAV imagery"
+Welcome to the official repository for the paper, "Application Note: An automated workflow for in-flight radiometric
+calibration of UAV imagery".
 
-- TODO Properly cite paper
+<!-- TODO: Properly cite paper -->
 
 ### Abstract
 
@@ -36,106 +36,183 @@ calibration of UAV imagery"
 > efficiency through a user-friendly CLI.
 > ReflectDetect's modular design supports future enhancements and broader applicability across research fields.
 
-- TODO Explain both approaches and add images
+<!-- TODO: Add images -->
 
 > [!NOTE]
-> We provide two workflows. We summarize the two workflows here, for a detailed look at the technical details make
+> We provide two workflows. For a detailed look at the technical details make
 > sure to follow the upcoming `setup` and `usage` sections for your preferred workflow.
 
-### :artificial_satellite: Geolocation
+### :artificial_satellite: Workflow 1: Geolocation-Based Calibration
 
-1. Collect panel reflectance values for the bands you want to capture from the manufacturer (for commercial panels) or
-   using a field spectrometer (for DIY panels) and save the values to a `panel_properties.json` file
-2. Place panels in the field
-3. Capture the location of the panel corners (we used a (TODO: Add device name) in our testing) and save them to
-   a `panel_locations.gpkg` file
-4. Fly your remote sensing mission and save captured images
-5. Convert the images to orthophotos by rectifying and geo-referencing them. (We used (TODO: Add software name) in our
-   testing)
-6. Run reflectdetect on the orthophotos to convert them to reflectance data
+1. **Panel Reflectance Data**: Gather reflectance values of the panels for the bands you will capture images in, either
+   from the manufacturer (for commercial panels) or using a field spectrometer (for DIY panels). Save these values in
+   a `panel_properties.json` file.
+2. **Field Setup**: Position the calibration panels in the field.
+3. **Panel Location Data**: Capture the exact locations of the panel corners (we used a [Device Name](#) in our testing)
+   and save them in a `panel_locations.gpkg` file.
+4. **Image Capture**: Fly your drone mission, capturing images.
+5. **Image Processing**: Convert the captured images to orthophotos by rectifying and geo-referencing them (we
+   used [Software Name](#) in our testing).
+6. **Run ReflectDetect**: Use ReflectDetect to convert the orthophotos to reflectance data.
 
-### :white_square_button: Apriltags
+### :white_square_button: Workflow 2: AprilTag-Based Calibration
 
-1. Collect panel reflectance values for the bands you want to capture from the manufacturer (for commercial panels) or
-   using a field spectrometer (for DIY panels) and save the values to a `panel_properties.json` file
-2. Print out an apriltag for each panel (pdf files for printing are available in our github repository
-   under `/apriltag_printouts/`) TODO: add pdf files
-3. Place panels in the field
-4. Place the apriltags according to the placement guide (TODO: Link Placement guide)
-5. Fly your remote sensing mission and save captured images
-6. Run reflectdetect on the images to convert them to reflectance data
+1. **Panel Reflectance Data**: Gather reflectance values of the panels for the bands you will capture images in, either
+   from the manufacturer (for commercial panels) or using a field spectrometer (for DIY panels). Save these values in
+   a `panel_properties.json` file.
+2. **Print AprilTags**: Print an AprilTag for each panel. PDF files for printing are available in
+   the `/apriltag_printouts/` directory of this repository.
+   <!-- [TODO: Add PDF files] -->
+3. **Field Setup**: Position the calibration panels and place the AprilTags according to the placement guide.
+4. **Image Capture**: Fly your drone mission, capturing images.
+5. **Run ReflectDetect**: Use ReflectDetect to convert the images to reflectance data.
 
-### Vocabulary
+### Key Concepts and Vocabulary
 
-#### Panel
+- **Panel**: Calibration sheets placed in the field, used to compare captured intensity values in images with known
+  reflectance values in the `panel_properties.json` file.
 
-Panel refers to the calibration sheets that will be placed in the field. They allow us to compare their intensity value
-captured in the image to the known reflectance supplied in the `panel_properties.json` file.
+- **AprilTag / Tag**: A visual marker used for accurate detection in images.
 
-TODO: add good image of panels
+- **Field**: The area captured by drone imagery.
 
-<img height="408" src="./images/panels_only.jpeg" width="230" alt="Panels in the field"/>
+- **Image**: Individual bands of captured data. ReflectDetect assumes all images were taken at equal time intervals and
+  named in the format `*_{band_index}.tif`.  
+  For example, `IMG_0052_6.tif` indicates the 6th band.
 
-#### Apriltag / Tag
-
-Apriltag
-
-- Primary detection area vs total area
-
-#### Field
-
-the area the drone images capture
-
-#### Image
-
-Reflectdetect currently assumes that all the images were taken at equal time intervals
-images are one band at a time
-images are assumed to be named "*_{band_index}.tif"
-we use the regec
-so for examalpe IMG_0052_6.tif -> 6
-regexr.com/857r5
-
-#### Orthophoto / Photo
-
-orthophotos are all bands in one
-
-
-## Table of Contents
-
-<!-- TOC -->
-  * [Overview](#overview)
-    * [Abstract](#abstract)
-    * [:artificial_satellite: Geolocation](#artificial_satellite-geolocation)
-    * [:white_square_button: Apriltags](#white_square_button-apriltags)
-    * [Vocabulary](#vocabulary)
-      * [Panel](#panel)
-      * [Tag](#tag)
-      * [Field](#field)
-      * [Image](#image)
-      * [Orthophoto / Photo](#orthophoto--photo)
-  * [Table of Contents](#table-of-contents)
-  * [Installation](#installation)
-* [:white_square_button: Apriltags](#white_square_button-apriltags-1)
-  * [:white_square_button: Setup](#white_square_button-setup)
-    * [:white_square_button: Create a panel_properties.json file](#white_square_button-create-a-panel_propertiesjson-file)
-    * [:white_square_button: Create dataset folder](#white_square_button-create-dataset-folder)
-  * [:white_square_button: Usage](#white_square_button-usage)
-* [:artificial_satellite: Geolocation](#artificial_satellite-geolocation-1)
-  * [:artificial_satellite: Setup](#artificial_satellite-setup)
-    * [:artificial_satellite: Create a panel_properties.json file](#artificial_satellite-create-a-panel_propertiesjson-file)
-    * [:artificial_satellite: Create dataset folder](#artificial_satellite-create-dataset-folder)
-  * [:artificial_satellite: Usage](#artificial_satellite-usage)
-* [Planned Features](#planned-features)
-* [Contributing](#contributing)
-* [References](#references)
-* [License](#license)
-<!-- TOC -->
+- **Orthophoto / Photo**: An image where all bands are combined and geo-referenced.
 
 ## Installation
 
-TODO: Install python
+### Installing Python
 
-TODO: install exiftool
+To get started with this project, you'll need to have Python installed on your system. Follow the steps below to install
+Python:
+
+#### 1. Check if Python is Already Installed
+
+Before installing, check if Python is already installed on your system:
+
+- **Windows/Mac/Linux:**
+
+  Open a terminal or command prompt and run the following command:
+
+  ```sh
+  python --version
+  ```
+
+  or
+
+  ```sh
+  python3 --version
+  ```
+
+  If Python is installed, you will see a version number. (Python 3.10 or higher is required)
+
+#### 2. Download and Install Python
+
+If Python is not installed, follow these steps:
+
+- **Windows:**
+
+    1. Go to the official [Python website](https://www.python.org/downloads/).
+    2. Download the latest version for Windows.
+    3. Run the installer. Make sure to check the option "Add Python to PATH" during installation.
+    4. Complete the installation process.
+
+- **Mac:**
+
+    1. Download the latest version of Python from the [Python website](https://www.python.org/downloads/).
+    2. Open the downloaded `.pkg` file and follow the instructions to install.
+    3. Alternatively, you can use Homebrew:
+       ```sh
+       brew install python
+       ```
+
+- **Linux:**
+
+    1. Use the package manager for your distribution (e.g., `apt` for Ubuntu):
+       ```sh
+       sudo apt update
+       sudo apt install python3
+       ```
+    2. For other distributions, refer to your package manager's documentation.
+
+#### 3. Verify Installation
+
+After installation, verify that Python was installed correctly:
+
+- Open a terminal or command prompt and run:
+
+  ```sh
+  python --version
+  ```
+
+  or
+
+  ```sh
+  python3 --version
+  ```
+
+  You should see the version of Python that you installed.
+  Now you're ready to install project dependencies and start coding!
+
+### Installing ExifTool
+
+ExifTool is an essential tool for working with image metadata in ReflectDetect. Follow the instructions below to install
+ExifTool on your system.
+
+#### Windows Installation
+
+1. **Download ExifTool**:
+    - Visit the [ExifTool Home Page](https://exiftool.org) and download the latest 64bit Windows
+      Executable (`exiftool-xx.xx_64.zip`).
+
+2. **Extract the Zip File**:
+    - Double-click the downloaded `.zip` file to open it, then drag the `exiftool-xx.xx_64x` folder to your Desktop (
+      where `xx` represents the version).
+
+3. **Prepare for Command Line Use**:
+    - Open the `exiftool-12.96_xx` folder on your Desktop.
+    - Rename the `exiftool(-k).exe` file to `exiftool.exe`.
+    - Move the folder folder to a convenient location (e.g., `C:\ExifTool\` or another folder of your choice).
+
+4. **Add the Folder to the PATH**:
+    - Open the Start Menu, search for "Environment Variables" and select Edit the system environment variables.
+    - In the window that opens, click the Environment Variables button.
+    - Under the User variables section, find the variable named Path and select it. Then click Edit.
+    - In the new window, click New and enter the path to the folder where you moved exiftool.exe (e.g., C:\ExifTool).
+    - Click OK to close all the windows.
+
+5. **Verify Installation**:
+    - Open Command Prompt (`cmd`) and type `exiftool`. You should see ExifTool's help information, confirming it is
+      installed and recognized by your system.
+
+#### macOS Installation
+
+1. **Download ExifTool**:
+    - Visit the [ExifTool Home Page](https://exiftool.org) and download the latest MacOS Package (`ExifTool-12.96.pkg`).
+
+2. **Install ExifTool**:
+    - Double-click the downloaded `.pkg` file and follow the installation instructions.
+
+3. **Verify Installation**:
+    - Open Terminal and type `exiftool`. You should see ExifTool's help information, confirming it is installed and
+      recognized by your system.
+
+#### Linux Installation
+
+1. **Install via Package Manager**:
+    - On most Linux distributions, you can install ExifTool using the package manager. For example, on Ubuntu, run:
+      ```sh
+      sudo apt-get install exiftool
+      ```
+
+2. **Verify Installation**:
+    - Open your terminal and type `exiftool`. You should see ExifTool's help information, confirming it is installed and
+      recognized by your system.
+
+### Installing reflectdetect
 
 ```
 pip install reflectdetect
@@ -202,7 +279,6 @@ dataset_folder
 > If any of the folders/files are located elsewhere, you can specify their location using the `--panel_properties_file`
 > or `--images_folder` argument
 
-
 ## :white_square_button: Usage
 
 ```bash
@@ -250,7 +326,7 @@ explain better)
 ]
 ````
 
-###  Create dataset folder
+### Create dataset folder
 
 In order for reflect-detect to be able to gather the necessary information about the images, panels, camera, etc. ,
 reflect-detect expects you to structure your data in the following format:
@@ -271,8 +347,20 @@ dataset_folder
 ## :artificial_satellite: Usage
 
 # Planned Features
+
 - [] Support for unequal time intervals between images
 - [] Customize parameters on a per panel basis
+
 # Contributing
+
+# Gallery
+
+  <!--TODO: Add a good image of the panels]-->
+  <!--TODO: Add a good image of the apriltags]-->
+  <!--TODO: Add a good image of the captured images]-->
+
+# AI Usage Card
+
 # References
+
 # License
