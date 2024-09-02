@@ -38,7 +38,7 @@ calibration of UAV imagery"
 
 - TODO Explain both approaches and add images
 
-> [!INFO]
+> [!NOTE]
 > We provide two workflows. We summarize the two workflows here, for a detailed look at the technical details make
 > sure to follow the upcoming `setup` and `usage` sections for your preferred workflow.
 
