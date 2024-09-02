@@ -296,8 +296,8 @@ includes the reflectance values of each panel for each of the bands you captured
 In the following example we show how two panels might be configured. All the information about the first panel is
 between the first `{ }` and so on.
 
-We assume that the first panel in the file corresponds to the first layer of coordinates in the geopackage file (TODO:
-explain better)
+We assume that the first panel in the file corresponds to the first layer of coordinates in the geopackage file 
+<!-- TODO:explain better) -->
 
 ```json filename="panel_properties.json"
 [
