@@ -12,9 +12,9 @@ from numpy.typing import NDArray
 from rasterio.plot import show
 from rich.progress import Progress, TaskID
 from robotpy_apriltag import AprilTagDetection
-from shapely import Polygon
+from shapely import Polygon, centroid
 
-from reflectdetect.utils.polygons import shrink_or_swell_shapely_polygon
+from reflectdetect.utils.polygons import shrink_shapely_polygon
 from reflectdetect.utils.thread import run_in_thread
 
 matplotlib.use('Agg')
@@ -39,13 +39,12 @@ def debug_show_geolocation(path: Path, locations: list[GeoDataFrame], visibility
         x = list(x) + [x[0]]
         y = list(y) + [y[0]]
         ax.plot(x, y, linewidth=1)
-        polygon = shrink_or_swell_shapely_polygon(corners, shrink_factors[index])
+        polygon = shrink_shapely_polygon(corners, shrink_factors[index])
         detection_corners = polygon.exterior.coords.xy
         x, y = detection_corners
         x = list(x) + [x[0]]
         y = list(y) + [y[0]]
-        ax.plot(x, y, linewidth=1, linestyle="dotted")
-
+        ax.plot(x, y, linewidth=0.8, linestyle="dotted")
     if output_path is not None:
         fig_2d.savefig(output_path, dpi=300)
     else:
@@ -60,7 +59,7 @@ def debug_show_panels(img: NDArray[np.float64], tags: list[AprilTagDetection], c
     ax = fig_2d.subplots(1, 1)
     ax.axis("off")
     ax.imshow(img, cmap="grey")
-    for tag, corners, shrink_factors in zip(tags, corners_list, shrink_factors):
+    for tag, corners, shrink_factor in zip(tags, corners_list, shrink_factors):
         ax.scatter(tag.getCenter().x, tag.getCenter().y)
         x, y = zip(*corners)
 
@@ -69,7 +68,7 @@ def debug_show_panels(img: NDArray[np.float64], tags: list[AprilTagDetection], c
         y = list(y) + [y[0]]
         ax.plot(x, y, linewidth=1)
         polygon = shapely.Polygon(corners)
-        polygon = shrink_or_swell_shapely_polygon(polygon, 1 - shrink_factor)
+        polygon = shrink_shapely_polygon(polygon, shrink_factor)
         detection_corners = polygon.exterior.coords.xy
         x, y = detection_corners
         x = list(x) + [x[0]]

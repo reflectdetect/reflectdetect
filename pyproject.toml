@@ -27,6 +27,7 @@ pydantic = "^2.8.2"
 tifffile = "^2024.8.28"
 tqdm = "^4.66.5"
 rich = "^13.8.0"
+rich-argparse = "^1.5.2"
 
 [tool.poetry.group.dev.dependencies]
 mypy = "^1.11.2"

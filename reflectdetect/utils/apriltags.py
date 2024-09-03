@@ -3,6 +3,7 @@ import io
 import math
 import re
 from pathlib import Path
+from typing import Any
 
 import numpy as np
 from numpy.typing import NDArray
@@ -43,7 +44,8 @@ def verify_estimate(tag: AprilTagDetection, estimate: Transform3d, valid_ids: li
     return tag.getId() in valid_ids and math.isclose(estimate.z, flight_height, rel_tol=tolerance)
 
 
-def detect_tags(img: NDArray[np.float64], detector: AprilTagDetector, valid_ids: list[int] | None = None) -> list[
+def detect_tags(img: NDArray[Any], detector: AprilTagDetector,
+                valid_ids: list[int] | None = None) -> list[
     AprilTagDetection]:
     tags: list[AprilTagDetection] = run_in_thread(detector.detect, True, img)  # type: ignore
     return [tag for tag in tags if verify_detections(tag, valid_ids)]

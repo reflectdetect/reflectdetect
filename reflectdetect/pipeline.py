@@ -1,3 +1,5 @@
+from typing import Any
+
 import numpy as np
 from numpy import ndarray
 from numpy.typing import NDArray
@@ -52,7 +54,7 @@ def interpolate(values: NDArray[np.float64]) -> NDArray[np.float64]:
     return values
 
 
-def convert(band_image: NDArray[np.int64], coefficients: tuple[float, float]) -> NDArray[np.float64]:
+def convert(band_image: NDArray[Any], coefficients: tuple[float, float]) -> NDArray[np.float64]:
     # converts a photo based on a linear transformation.
     return np.poly1d(coefficients)(band_image)
 

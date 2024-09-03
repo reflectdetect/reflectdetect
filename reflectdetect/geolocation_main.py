@@ -10,8 +10,11 @@ from numpy.typing import NDArray
 from rasterio import DatasetReader, logging as rasterio_logging
 from rich.progress import Progress, TextColumn, TimeElapsedColumn, BarColumn, MofNCompleteColumn, SpinnerColumn
 from rich.table import Column
+from rich.traceback import install
+from rich_argparse import RichHelpFormatter
 from tap import Tap
 
+import reflectdetect
 from reflectdetect.PanelProperties import GeolocationPanelPropertiesFile, ValidatedGeolocationPanelProperties, \
     validate_geolocation_panel_properties
 from reflectdetect.constants import PANEL_PROPERTIES_FILENAME, ORTHOPHOTO_FOLDER
@@ -21,16 +24,17 @@ from reflectdetect.utils.debug import debug_combine_and_plot_intensities, debug_
 from reflectdetect.utils.orthophoto import load_panel_locations, get_orthophoto_paths, is_panel_in_orthophoto, \
     save_orthophotos, build_batches_per_full_visibility, extract_using_geolocation
 from reflectdetect.utils.panel import get_band_reflectance
-from reflectdetect.utils.paths import get_output_path
+from reflectdetect.utils.paths import get_output_path, default
 from reflectdetect.utils.thread import run_in_thread
 
+install(show_locals=False, suppress=[reflectdetect])
 logger = logging.getLogger(__name__)
 
 rasterio_logging.disable()
 
 
 class GeolocationArgumentParser(Tap):
-    dataset: str  # Path to the dataset folder
+    dataset: Path  # Path to the dataset folder
     panel_locations_file: str | None = None  # Path to file instead "geolocations.gpk" in the dataset folder
     panel_properties_file: str | None = None  # Path to file instead "panel_properties.json" in the dataset folder
     orthophotos_folder: str | None = None  # Path to orthophotos folder instead "/orthophotos" in the dataset folder
@@ -41,13 +45,12 @@ class GeolocationArgumentParser(Tap):
     default_panel_height: float | None = None  # Height of the calibration panel in meters
 
     def configure(self) -> None:
-        self.add_argument('dataset')
+        self.add_argument('dataset', nargs="?", default=".", type=Path)
         self.add_argument('-d', '--debug')
 
 
 class GeolocationEngine:
     def __init__(self, args: GeolocationArgumentParser) -> None:
-        self.panel_properties: list[ValidatedGeolocationPanelProperties] = []
         self.progress = Progress(SpinnerColumn(), TextColumn("[self.progress.description]{task.description}",
                                                              table_column=Column(width=40)),
                                  TextColumn("[self.progress.percentage]{task.percentage:>3.0f}%"), BarColumn(),
@@ -59,7 +62,7 @@ class GeolocationEngine:
         self.debug = args.debug
 
         # Validate Panel_properties file
-        self.validate_panel_properties(args)
+        self.panel_properties: list[ValidatedGeolocationPanelProperties] = self.validate_panel_properties(args)
         self.number_of_panels = len(self.panel_properties)
         self.progress.console.print("Collected information of", self.number_of_panels, "panels") if self.debug else None
 
@@ -107,7 +110,7 @@ class GeolocationEngine:
         panel_order = [panel_properties_layer_names.index(layer) for layer in panel_location_layer_names]
         self.panel_locations: list[GeoDataFrame] = [panel_locations[i][1] for i in panel_order]
 
-    def validate_panel_properties(self, args):
+    def validate_panel_properties(self, args: GeolocationArgumentParser) -> list[ValidatedGeolocationPanelProperties]:
         panel_properties_filepath = Path(args.panel_properties_file) if args.panel_properties_file is not None else None
         if panel_properties_filepath is not None:
             if not panel_properties_filepath.exists():
@@ -116,9 +119,6 @@ class GeolocationEngine:
             if not (self.dataset / PANEL_PROPERTIES_FILENAME).exists():
                 raise Exception(f"No panel properties file found at {self.dataset / PANEL_PROPERTIES_FILENAME}.")
         panel_properties_file = self.load_panel_properties(panel_properties_filepath)
-
-        def default(value, default):
-            return value if value is not None else default
 
         default_properties_names = ["default_panel_width", "default_panel_height", "default_panel_smudge_factor",
                                     "default_shrink_factor"]
@@ -130,7 +130,7 @@ class GeolocationEngine:
             # and one of the panels does not specify the value the default would be used for an Exception will be thrown
             # in the validate function below
             default_properties[prop_name] = default(getattr(args, prop_name), getattr(panel_properties_file, prop_name))
-        self.panel_properties: list[ValidatedGeolocationPanelProperties] = validate_geolocation_panel_properties(
+        return validate_geolocation_panel_properties(
             panel_properties_file.panel_properties, default_properties)
 
     def load_panel_properties(self, panel_properties_file: Path | None) -> GeolocationPanelPropertiesFile:
@@ -241,7 +241,7 @@ class GeolocationEngine:
                 if visibility.sum() == 0:
                     continue
                 output_path = get_output_path(self.dataset, path, "panels.tif", "debug/panels")
-                run_in_thread(debug_show_geolocation, False, path, self.panel_locations, visibility,
+                run_in_thread(debug_show_geolocation, True, path, self.panel_locations, visibility,
                               [panel.shrink_factor for panel in self.panel_properties],
                               output_path)
 
@@ -268,9 +268,10 @@ class GeolocationEngine:
 
 def main() -> None:
     # --- Get input arguments from user
-    args = GeolocationArgumentParser(
-        description='Automatically detect reflection calibration panels in images and transform the given images to '
-                    'reflectance', epilog='If you have any questions, please contact').parse_args()
+    args = GeolocationArgumentParser(formatter_class=RichHelpFormatter,
+                                     description='Automatically detect reflection calibration panels in images and transform the given images to '
+                                                 'reflectance',
+                                     epilog='If you have any questions, please contact').parse_args()
 
     GeolocationEngine(args).start()
 

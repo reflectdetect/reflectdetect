@@ -6,13 +6,13 @@ from pydantic import BaseModel
 class ApriltagPanelProperties(BaseModel):
     bands: list[float]
     tag_id: int
-    panel_width: float | None
-    panel_height: float | None
-    tag_smudge_factor: float | None
-    panel_smudge_factor: float | None
-    tag_family: str | None
-    tag_direction: str | None
-    shrink_factor: float | None
+    panel_width: float | None = None
+    panel_height: float | None = None
+    tag_smudge_factor: float | None = None
+    panel_smudge_factor: float | None = None
+    tag_family: str | None = None
+    tag_direction: str | None = None
+    shrink_factor: float | None = None
 
 
 class ValidatedApriltagPanelProperties(BaseModel):
@@ -30,22 +30,22 @@ class ValidatedApriltagPanelProperties(BaseModel):
 class ApriltagPanelPropertiesFile(BaseModel):
     panel_properties: list[ApriltagPanelProperties]
     tag_size: float
-    default_panel_width: float | None
-    default_panel_height: float | None
-    default_tag_family: str | None
-    default_tag_direction: str | None
-    default_panel_smudge_factor: float | None
-    default_tag_smudge_factor: float | None
-    default_shrink_factor: float | None
+    default_panel_width: float | None = None
+    default_panel_height: float | None = None
+    default_tag_family: str | None = None
+    default_tag_direction: str | None = None
+    default_panel_smudge_factor: float | None = None
+    default_tag_smudge_factor: float | None = None
+    default_shrink_factor: float | None = None
 
 
 class GeolocationPanelProperties(BaseModel):
     bands: list[float]
     layer_name: str
-    panel_width: float | None
-    panel_height: float | None
-    panel_smudge_factor: float | None
-    shrink_factor: float | None
+    panel_width: float | None = None
+    panel_height: float | None = None
+    panel_smudge_factor: float | None = None
+    shrink_factor: float | None = None
 
 
 class ValidatedGeolocationPanelProperties(BaseModel):
@@ -59,10 +59,10 @@ class ValidatedGeolocationPanelProperties(BaseModel):
 
 class GeolocationPanelPropertiesFile(BaseModel):
     panel_properties: list[GeolocationPanelProperties]
-    default_panel_width: float | None
-    default_panel_height: float | None
-    default_panel_smudge_factor: float | None
-    default_shrink_factor: float | None
+    default_panel_width: float | None = None
+    default_panel_height: float | None = None
+    default_panel_smudge_factor: float | None = None
+    default_shrink_factor: float | None = None
 
 
 def validate_apriltag_panel_properties(panels: list[ApriltagPanelProperties], default_properties: dict[str, Any]) -> \
@@ -94,6 +94,8 @@ def validate_apriltag_panel_properties(panels: list[ApriltagPanelProperties], de
         shrink_factor: float = set_with_default(panel.shrink_factor, "shrink_factor")
         if shrink_factor <= 0.0:
             raise Exception(f"Panel {index + 1}: shrink_factor must be greater than zero")
+        if shrink_factor > 1.0:
+            raise Exception(f"Panel {index + 1}: shrink_factor must be smaller than 1")
         validated_panel_properties.append(
             ValidatedApriltagPanelProperties(bands=bands, panel_width=panel_width, panel_height=panel_height,
                                              tag_id=tag_id,
@@ -128,6 +130,8 @@ def validate_geolocation_panel_properties(panels: list[GeolocationPanelPropertie
         shrink_factor: float = set_with_default(panel.shrink_factor, "shrink_factor")
         if shrink_factor <= 0.0:
             raise Exception(f"Panel {index + 1}: shrink_factor must be greater than zero")
+        if shrink_factor > 1.0:
+            raise Exception(f"Panel {index + 1}: shrink_factor must be smaller than 1")
         layer_name = panel.layer_name
         validated_panel_properties.append(
             ValidatedGeolocationPanelProperties(bands=bands, panel_width=panel_width, panel_height=panel_height,

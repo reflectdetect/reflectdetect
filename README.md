@@ -373,7 +373,7 @@ dataset_folder
 # Planned Features
 
 - [ ] Support for unequal time intervals between images
-- [ ] Customize parameters on a per panel basis
+- [x] Customize parameters on a per panel basis
 - [ ] Add dataset verification script
 
 # Contributing
