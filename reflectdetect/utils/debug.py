@@ -12,38 +12,39 @@ from numpy.typing import NDArray
 from rasterio.plot import show
 from rich.progress import Progress, TaskID
 from robotpy_apriltag import AprilTagDetection
-from shapely import Polygon
+from shapely import Polygon, centroid
 
-from reflectdetect.utils.polygons import shrink_or_swell_shapely_polygon
+from reflectdetect.utils.polygons import shrink_shapely_polygon
 from reflectdetect.utils.thread import run_in_thread
 
 matplotlib.use('Agg')
 
 
-def debug_show_geolocation(path: Path, locations: list[GeoDataFrame], visibility: list[bool], shrink_factor: float,
+def debug_show_geolocation(path: Path, locations: list[GeoDataFrame], visibility: list[bool],
+                           shrink_factors: list[float],
                            output_path: Path | None = None) -> None:
     fig_2d = plt.figure()
     ax = fig_2d.subplots(1, 1)
     ax.axis("off")
-    panel_polygons: list[Polygon] = [panel_location.union_all().convex_hull for index, panel_location in
-                                     enumerate(locations) if visibility[index]]
+    panel_polygons: list[tuple[int, Polygon]] = [(index, panel_location.union_all().convex_hull) for
+                                                 index, panel_location in
+                                                 enumerate(locations) if visibility[index]]
     with rasterio.open(path) as photo:
         rasterio.plot.show(photo, ax=ax)
 
-    for corners in panel_polygons:
+    for index, corners in panel_polygons:
         x, y = corners.exterior.xy
 
         # Append the first point to the end to close the rectangle/polygon
         x = list(x) + [x[0]]
         y = list(y) + [y[0]]
         ax.plot(x, y, linewidth=1)
-        polygon = shrink_or_swell_shapely_polygon(corners, shrink_factor)
+        polygon = shrink_shapely_polygon(corners, shrink_factors[index])
         detection_corners = polygon.exterior.coords.xy
         x, y = detection_corners
         x = list(x) + [x[0]]
         y = list(y) + [y[0]]
-        ax.plot(x, y, linewidth=1, linestyle="dotted")
-
+        ax.plot(x, y, linewidth=0.8, linestyle="dotted")
     if output_path is not None:
         fig_2d.savefig(output_path, dpi=300)
     else:
@@ -51,28 +52,28 @@ def debug_show_geolocation(path: Path, locations: list[GeoDataFrame], visibility
     plt.close(fig_2d)
 
 
-def debug_show_panel(img: NDArray[np.float64], tag: AprilTagDetection, corners: list[float],
-                     shrink_factor: float,
-                     output_path: Path | None = None) -> None:
+def debug_show_panels(img: NDArray[np.float64], tags: list[AprilTagDetection], corners_list: list[list[float]],
+                      shrink_factors: list[float],
+                      output_path: Path | None = None) -> None:
     fig_2d = plt.figure()
     ax = fig_2d.subplots(1, 1)
     ax.axis("off")
     ax.imshow(img, cmap="grey")
+    for tag, corners, shrink_factor in zip(tags, corners_list, shrink_factors):
+        ax.scatter(tag.getCenter().x, tag.getCenter().y)
+        x, y = zip(*corners)
 
-    ax.scatter(tag.getCenter().x, tag.getCenter().y)
-    x, y = zip(*corners)
-
-    # Append the first point to the end to close the rectangle/polygon
-    x = list(x) + [x[0]]
-    y = list(y) + [y[0]]
-    ax.plot(x, y, linewidth=1)
-    polygon = shapely.Polygon(corners)
-    polygon = shrink_or_swell_shapely_polygon(polygon, shrink_factor)
-    detection_corners = polygon.exterior.coords.xy
-    x, y = detection_corners
-    x = list(x) + [x[0]]
-    y = list(y) + [y[0]]
-    ax.plot(x, y, linewidth=1, linestyle="dotted")
+        # Append the first point to the end to close the rectangle/polygon
+        x = list(x) + [x[0]]
+        y = list(y) + [y[0]]
+        ax.plot(x, y, linewidth=1)
+        polygon = shapely.Polygon(corners)
+        polygon = shrink_shapely_polygon(polygon, shrink_factor)
+        detection_corners = polygon.exterior.coords.xy
+        x, y = detection_corners
+        x = list(x) + [x[0]]
+        y = list(y) + [y[0]]
+        ax.plot(x, y, linewidth=1, linestyle="dotted")
 
     if output_path is not None:
         fig_2d.savefig(output_path)

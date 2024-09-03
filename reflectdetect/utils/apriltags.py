@@ -3,6 +3,7 @@ import io
 import math
 import re
 from pathlib import Path
+from typing import Any
 
 import numpy as np
 from numpy.typing import NDArray
@@ -11,6 +12,7 @@ from robotpy_apriltag import AprilTagDetection, AprilTagDetector, AprilTagPoseEs
 from tifffile import imwrite
 from wpimath.geometry import Transform3d
 
+from reflectdetect.constants import COMPRESSION_FACTOR
 from reflectdetect.utils.debug import ProgressBar
 from reflectdetect.utils.exif import get_camera_properties
 from reflectdetect.utils.panel import calculate_sensor_size
@@ -42,7 +44,8 @@ def verify_estimate(tag: AprilTagDetection, estimate: Transform3d, valid_ids: li
     return tag.getId() in valid_ids and math.isclose(estimate.z, flight_height, rel_tol=tolerance)
 
 
-def detect_tags(img: NDArray[np.float64], detector: AprilTagDetector, valid_ids: list[int] | None = None) -> list[
+def detect_tags(img: NDArray[Any], detector: AprilTagDetector,
+                valid_ids: list[int] | None = None) -> list[
     AprilTagDetection]:
     tags: list[AprilTagDetection] = run_in_thread(detector.detect, True, img)  # type: ignore
     return [tag for tag in tags if verify_detections(tag, valid_ids)]
@@ -155,17 +158,18 @@ def get_panel(tag: AprilTagDetection, panel_size_pixel: tuple[int, int], image_d
 def save_images(dataset: Path, paths: list[Path], converted_images: list[NDArray[np.float64] | None],
                 progress: Progress | None = None) -> None:
     """
-    This function saves the converted photos as .tif files into a new "/transformed/" directory in the images folder
+    This function saves the converted images as .tif files into a new "/transformed/" directory in the images folder
+    :param dataset:
+    :param progress:
     :param paths: list of image paths
     :param converted_images: list of reflectance images
     """
     with ProgressBar(progress, description="Saving images", total=len(paths)) as pb:
-        for path, photo in zip(paths, converted_images):
-            if photo is None:
+        for path, image in zip(paths, converted_images):
+            if image is None:
                 pb.update()
                 continue
             output_path = get_output_path(dataset, path, "reflectance.tif", "transformed")
-            compression_factor = 10000  # convert from 0.1234 to 1234 TODO: Document compression factor
-            scaled_to_int = np.array(photo * compression_factor, dtype=np.uint8)
+            scaled_to_int = np.array(image * COMPRESSION_FACTOR, dtype=np.uint8)
             imwrite(output_path, scaled_to_int)
             pb.update()

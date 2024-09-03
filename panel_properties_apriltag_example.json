@@ -1,0 +1,45 @@
+{
+  "tag_size": 0.4,
+  "default_panel_width": 1.0,
+  "default_panel_height": 1.0,
+  "default_tag_family": "tag25h9",
+  "default_tag_direction": "left",
+  "default_panel_smudge_factor": 1.0,
+  "default_tag_smudge_factor": 1.0,
+  "default_shrink_factor": 0.8,
+  "panel_properties": [
+    {
+      "tag_id": 0,
+      "bands": [
+        0.9,
+        1.0,
+        1.0,
+        1.0,
+        0.72,
+        0.91
+      ]
+    },
+    {
+      "tag_id": 0,
+      "bands": [
+        0.9,
+        1.0,
+        0.43,
+        0.70,
+        0.35,
+        0.4
+      ]
+    },
+    {
+      "tag_id": 0,
+      "bands": [
+        0.9,
+        0.17,
+        0.09,
+        0.12,
+        0.12,
+        0.10
+      ]
+    }
+  ]
+}

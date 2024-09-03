@@ -191,7 +191,7 @@ ExifTool on your system.
 #### macOS Installation
 
 1. **Download ExifTool**:
-    - Visit the [ExifTool Home Page](https://exiftool.org) and download the latest MacOS Package (`ExifTool-12.96.pkg`).
+    - Visit the [ExifTool Home Page](https://exiftool.org) and download the latest MacOS Package (`ExifTool-xx.xx.pkg`).
 
 2. **Install ExifTool**:
     - Double-click the downloaded `.pkg` file and follow the installation instructions.
@@ -205,20 +205,29 @@ ExifTool on your system.
 1. **Install via Package Manager**:
     - On most Linux distributions, you can install ExifTool using the package manager. For example, on Ubuntu, run:
       ```sh
-      sudo apt-get install exiftool
+      sudo apt-get install libimage-exiftool-perl
       ```
+2. **Manual Install**:
+   - For manual installation instruction visit the [ExifTool Install Page](https://exiftool.org/install.html#Unix)
 
-2. **Verify Installation**:
+3. **Verify Installation**:
     - Open your terminal and type `exiftool`. You should see ExifTool's help information, confirming it is installed and
       recognized by your system.
 
 ### Installing reflectdetect
 
-```
+To install the reflectdetect CLI tools to your system, open a command line or terminal and run
+```bash
 pip install reflectdetect
 ```
+Now `reflectdetect-apriltag` and `reflectdetect-geolocation` should be available as CLI tools.
 
 # :white_square_button: Apriltags
+
+## :white_square_button: Printing the Apriltags
+## :white_square_button: Placement Guide
+## :white_square_button: Measurement Guide
+See: `apriltag_area_measurement.ipynb`
 
 ## :white_square_button: Setup
 
@@ -281,8 +290,23 @@ dataset_folder
 
 ## :white_square_button: Usage
 
+After preparing the dataset folder, you are ready to run reflectdetect.
+Open a command line or terminal.
+
+To print the available arguments, run `reflectdetect-apriltag --help`
+
+Assuming: 
+- the prepared dataset folder is at `C:\Users\username\Desktop\dataset_folder`
+- the tags used were of the default family `tag25h9`
+- the `panel_properties.json` files and the `images` folder are in the dataset folder and correctly named
+- the panel dimensions are 1.3m by 1.3m
+- the tags primary detection area width is 0.4
+
+
+### Minimal example:
+
 ```bash
-python .\reflectdetect\apriltag_main.py --family "tag25h9" --panel_properties_file data/apriltags_run2/panel_properties.json --images_folder data/apriltags_run2/0001SET/000 ".\data\apriltags_run2\0001SET\000\" -d
+reflectdetect-apriltag  --panel_width 1.3 --panel_height 1.3 --tag_size 0.4 "C:\Users\username\Desktop\dataset_folder"
 ```
 
 # :artificial_satellite: Geolocation
@@ -348,8 +372,9 @@ dataset_folder
 
 # Planned Features
 
-- [] Support for unequal time intervals between images
-- [] Customize parameters on a per panel basis
+- [ ] Support for unequal time intervals between images
+- [x] Customize parameters on a per panel basis
+- [ ] Add dataset verification script
 
 # Contributing
 

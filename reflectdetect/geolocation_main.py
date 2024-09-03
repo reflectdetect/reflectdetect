@@ -1,4 +1,4 @@
-import json
+import logging
 import logging
 import warnings
 from pathlib import Path
@@ -10,33 +10,42 @@ from numpy.typing import NDArray
 from rasterio import DatasetReader, logging as rasterio_logging
 from rich.progress import Progress, TextColumn, TimeElapsedColumn, BarColumn, MofNCompleteColumn, SpinnerColumn
 from rich.table import Column
+from rich.traceback import install
+from rich_argparse import RichHelpFormatter
 from tap import Tap
 
-from reflectdetect.PanelProperties import GeolocationPanelProperties
-from reflectdetect.constants import PANEL_PROPERTIES_FILENAME
+import reflectdetect
+from reflectdetect.PanelProperties import GeolocationPanelPropertiesFile, ValidatedGeolocationPanelProperties, \
+    validate_geolocation_panel_properties
+from reflectdetect.constants import PANEL_PROPERTIES_FILENAME, ORTHOPHOTO_FOLDER
 from reflectdetect.pipeline import interpolate_intensities, fit, convert
 from reflectdetect.utils.debug import debug_combine_and_plot_intensities, debug_save_intensities, ProgressBar, \
     debug_show_geolocation
 from reflectdetect.utils.orthophoto import load_panel_locations, get_orthophoto_paths, is_panel_in_orthophoto, \
     save_orthophotos, build_batches_per_full_visibility, extract_using_geolocation
 from reflectdetect.utils.panel import get_band_reflectance
-from reflectdetect.utils.paths import get_output_path
+from reflectdetect.utils.paths import get_output_path, default
 from reflectdetect.utils.thread import run_in_thread
 
+install(show_locals=False, suppress=[reflectdetect])
 logger = logging.getLogger(__name__)
 
 rasterio_logging.disable()
 
 
 class GeolocationArgumentParser(Tap):
-    dataset: str  # Path to the dataset folder
+    dataset: Path  # Path to the dataset folder
     panel_locations_file: str | None = None  # Path to file instead "geolocations.gpk" in the dataset folder
     panel_properties_file: str | None = None  # Path to file instead "panel_properties.json" in the dataset folder
+    orthophotos_folder: str | None = None  # Path to orthophotos folder instead "/orthophotos" in the dataset folder
     debug: bool = False  # Prints logs and adds debug images into a /debug/ directory in the dataset folder
-    shrink_factor: float = 0.2  # How many percent to shrink the detected panel area, to avoid artifacts like bleed
+    default_shrink_factor: float = 0.8  # This factor gets multiplied to the detected panel area, to avoid artifacts like bleed
+    default_panel_smudge_factor: float = 0.8  # This factor gets multiplied to the panel width and height to account for inaccuracy in lens exif information given by the manufacturer
+    default_panel_width: float | None = None  # Width of the calibration panel in meters
+    default_panel_height: float | None = None  # Height of the calibration panel in meters
 
     def configure(self) -> None:
-        self.add_argument('dataset')
+        self.add_argument('dataset', nargs="?", default=".", type=Path)
         self.add_argument('-d', '--debug')
 
 
@@ -47,19 +56,35 @@ class GeolocationEngine:
                                  TextColumn("[self.progress.percentage]{task.percentage:>3.0f}%"), BarColumn(),
                                  MofNCompleteColumn(), TextColumn("•"), TimeElapsedColumn(), )
         self.progress.start()
-        self.debug = args.debug
-        self.shrink_factor = args.shrink_factor
-
-        # Validate dataset
         self.dataset = Path(args.dataset) if args.dataset is not None else None
         if not self.dataset.exists():
             raise Exception(f"Could not find specified dataset folder: {args.dataset}")
-        self.orthophoto_paths = get_orthophoto_paths(self.dataset)
+        self.debug = args.debug
+
+        # Validate Panel_properties file
+        self.panel_properties: list[ValidatedGeolocationPanelProperties] = self.validate_panel_properties(args)
+        self.number_of_panels = len(self.panel_properties)
+        self.progress.console.print("Collected information of", self.number_of_panels, "panels") if self.debug else None
+
+        # Validate dataset
+        orthophoto_folder = Path(args.orthophotos_folder) if args.orthophotos_folder is not None else None
+        if orthophoto_folder is not None:
+            if not orthophoto_folder.exists():
+                raise Exception(f"Could not find specified orthophoto folder: {args.orthophotos_folder}")
+        else:
+            if not (self.dataset / ORTHOPHOTO_FOLDER).exists():
+                raise Exception(f"No orthophotos folder found at: {self.dataset / ORTHOPHOTO_FOLDER}")
+        self.orthophoto_paths = get_orthophoto_paths(self.dataset, orthophoto_folder)
         photo: DatasetReader
         with rasterio.open(self.orthophoto_paths[0]) as photo:
             self.number_of_bands = len(photo.read())
         self.number_of_photos = len(self.orthophoto_paths)
         self.progress.console.print("Found", self.number_of_photos, "photos") if self.debug else None
+
+        for index, panel in enumerate(self.panel_properties):
+            if len(panel.bands) != self.number_of_bands:
+                raise Exception(
+                    f"Panel {index}: Number of bands does not match number of bands in the panel specification")
 
         # Validate locations file
         panel_locations_file = Path(args.panel_locations_file) if args.panel_locations_file is not None else None
@@ -74,16 +99,6 @@ class GeolocationEngine:
             warnings.filterwarnings("ignore", category=RuntimeWarning)
             panel_locations = load_panel_locations(self.dataset, panel_locations_file)
 
-        # Validate properties file
-        panel_properties_file = Path(args.panel_properties_file) if args.panel_properties_file is not None else None
-        if panel_properties_file is not None and not panel_properties_file.exists():
-            raise Exception(f"Could not find specified panel properties file: {args.panel_properties_file}")
-        self.panel_properties = self.load_panel_properties(panel_properties_file)
-        if len(self.panel_properties[0].bands) != self.number_of_bands:
-            raise Exception("Number of bands in the images does not match number of bands in the panel specification")
-        self.number_of_panels = len(self.panel_properties)
-        self.progress.console.print("Collected information of", self.number_of_panels, "panels") if self.debug else None
-
         # Validate connection of locations and properties
         if self.number_of_panels != len(panel_locations):
             raise Exception("Number of panel specifications does not match number of panel locations")
@@ -95,15 +110,36 @@ class GeolocationEngine:
         panel_order = [panel_properties_layer_names.index(layer) for layer in panel_location_layer_names]
         self.panel_locations: list[GeoDataFrame] = [panel_locations[i][1] for i in panel_order]
 
-    def load_panel_properties(self, panel_properties_file: Path | None) -> list[GeolocationPanelProperties]:
+    def validate_panel_properties(self, args: GeolocationArgumentParser) -> list[ValidatedGeolocationPanelProperties]:
+        panel_properties_filepath = Path(args.panel_properties_file) if args.panel_properties_file is not None else None
+        if panel_properties_filepath is not None:
+            if not panel_properties_filepath.exists():
+                raise Exception(f"Could not find specified panel properties file: {args.panel_properties_file}")
+        else:
+            if not (self.dataset / PANEL_PROPERTIES_FILENAME).exists():
+                raise Exception(f"No panel properties file found at {self.dataset / PANEL_PROPERTIES_FILENAME}.")
+        panel_properties_file = self.load_panel_properties(panel_properties_filepath)
+
+        default_properties_names = ["default_panel_width", "default_panel_height", "default_panel_smudge_factor",
+                                    "default_shrink_factor"]
+        default_properties = {}
+        for prop_name in default_properties_names:
+            # Get the default values for the panel properties first from the CLI args
+            # and then from the panel_properties file.
+            # If one of the defaults is still None
+            # and one of the panels does not specify the value the default would be used for an Exception will be thrown
+            # in the validate function below
+            default_properties[prop_name] = default(getattr(args, prop_name), getattr(panel_properties_file, prop_name))
+        return validate_geolocation_panel_properties(
+            panel_properties_file.panel_properties, default_properties)
+
+    def load_panel_properties(self, panel_properties_file: Path | None) -> GeolocationPanelPropertiesFile:
         if panel_properties_file is None:
             path = self.dataset / PANEL_PROPERTIES_FILENAME
         else:
             path = panel_properties_file
 
-        with open(path) as f:
-            panels = [GeolocationPanelProperties.parse_obj(item) for item in json.load(f)]
-        return panels
+        return GeolocationPanelPropertiesFile.parse_file(path)
 
     def convert_orthophotos_to_reflectance(self, paths: list[Path], intensities: NDArray[np.float64], ) -> list[
         list[NDArray[np.float64]] | None]:
@@ -171,7 +207,8 @@ class GeolocationEngine:
                 orthophoto: DatasetReader
                 with rasterio.open(orthophoto_path) as orthophoto:
                     panel_intensities_per_band = extract_using_geolocation(orthophoto, panel_location,
-                                                                           self.shrink_factor)
+                                                                           self.panel_properties[
+                                                                               panel_index].shrink_factor)
                 intensities[photo_index][panel_index] = panel_intensities_per_band
             self.progress.update(task, advance=1)
         self.progress.remove_task(task)
@@ -204,7 +241,8 @@ class GeolocationEngine:
                 if visibility.sum() == 0:
                     continue
                 output_path = get_output_path(self.dataset, path, "panels.tif", "debug/panels")
-                run_in_thread(debug_show_geolocation, False, path, self.panel_locations, visibility, self.shrink_factor,
+                run_in_thread(debug_show_geolocation, True, path, self.panel_locations, visibility,
+                              [panel.shrink_factor for panel in self.panel_properties],
                               output_path)
 
         for (first_path_is_duplicate, batch) in batches:
@@ -230,9 +268,10 @@ class GeolocationEngine:
 
 def main() -> None:
     # --- Get input arguments from user
-    args = GeolocationArgumentParser(
-        description='Automatically detect reflection calibration panels in images and transform the given images to '
-                    'reflectance', epilog='If you have any questions, please contact').parse_args()
+    args = GeolocationArgumentParser(formatter_class=RichHelpFormatter,
+                                     description='Automatically detect reflection calibration panels in images and transform the given images to '
+                                                 'reflectance',
+                                     epilog='If you have any questions, please contact').parse_args()
 
     GeolocationEngine(args).start()
 

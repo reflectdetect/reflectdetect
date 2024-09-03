@@ -16,7 +16,7 @@ from reflectdetect.constants import ORTHOPHOTO_FOLDER, PANEL_LOCATIONS_FILENAME
 from reflectdetect.utils.debug import ProgressBar
 from reflectdetect.utils.iterators import get_next
 from reflectdetect.utils.paths import get_output_path
-from reflectdetect.utils.polygons import shrink_or_swell_shapely_polygon
+from reflectdetect.utils.polygons import shrink_shapely_polygon
 
 
 def is_panel_in_orthophoto(orthophoto_path: Path, panel: GeoDataFrame) -> bool:
@@ -30,7 +30,6 @@ def is_panel_in_orthophoto(orthophoto_path: Path, panel: GeoDataFrame) -> bool:
         (bounds.right, bounds.top), (bounds.right, bounds.bottom)
     ])
 
-    # TODO: add input for alternative crs
     # Create a GeoDataFrame for the orthophoto polygon with its CRS
     orthophoto_box = gpd.GeoDataFrame({'geometry': [orthophoto_polygon]}, crs=crs)
 
@@ -46,7 +45,7 @@ def is_panel_in_orthophoto(orthophoto_path: Path, panel: GeoDataFrame) -> bool:
 def extract_using_geolocation(image: DatasetReader, panel_location: GeoDataFrame, shrink_factor: float) -> list[float]:
     # Extracts the mean intensity per band at the panel location
     panel_polygon = panel_location.union_all().convex_hull
-    panel_polygon = shrink_or_swell_shapely_polygon(panel_polygon, shrink_factor)
+    panel_polygon = shrink_shapely_polygon(panel_polygon, shrink_factor)
     out_image, out_transform = rasterio.mask.mask(image, [panel_polygon], crop=True, nodata=0)
 
     return [panel_band[panel_band > 0].mean() for panel_band in out_image]
@@ -59,8 +58,15 @@ def save_bands(output_path: Path, band_images: list[NDArray[np.float64]], meta: 
             dst.write_band(band_index + 1, band)
 
 
-def get_orthophoto_paths(dataset: Path) -> list[Path]:
-    return list(sorted([filepath for filepath in (dataset / ORTHOPHOTO_FOLDER).glob("*.tif")]))
+def get_orthophoto_paths(dataset: Path, orthophotos_folder: Path | None) -> list[Path]:
+    if orthophotos_folder is None:
+        path = dataset / ORTHOPHOTO_FOLDER
+        if not path.exists():
+            raise ValueError(f"No images folder found at {path}.")
+    else:
+        path = orthophotos_folder
+
+    return list(sorted([filepath for filepath in path.glob("*.tif")]))
 
 
 def load_panel_locations(dataset: Path, geopackage_filepath: Path | None) -> list[tuple[str, GeoDataFrame]]:
@@ -126,6 +132,3 @@ def save_orthophotos(dataset: Path, paths: list[Path], converted_photos: list[li
             )
             save_bands(output_path, photo, meta)
             pb.update()
-
-
-
