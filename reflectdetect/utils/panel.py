@@ -1,7 +1,8 @@
 import numpy as np
 from numpy.typing import NDArray
 
-from reflectdetect.PanelProperties import GeolocationPanelProperties, ApriltagPanelProperties
+from reflectdetect.PanelProperties import GeolocationPanelProperties, ApriltagPanelProperties, \
+    ValidatedApriltagPanelProperties
 
 
 def convert_resolution_unit(resolution: float, unit: int) -> float:
@@ -105,7 +106,7 @@ def calculate_panel_size_in_pixels(altitude: float, resolution: tuple[int, int],
     return panel_width_pixels, panel_height_pixels
 
 
-def get_band_reflectance(panels_properties: list[GeolocationPanelProperties] | list[ApriltagPanelProperties],
+def get_band_reflectance(panels_properties: list[GeolocationPanelProperties] | list[ValidatedApriltagPanelProperties],
                          band_index: int) -> NDArray[np.float64]:
     # return the reflectance values of each panel at a given band
     return np.array([properties.bands[band_index] for properties in panels_properties])

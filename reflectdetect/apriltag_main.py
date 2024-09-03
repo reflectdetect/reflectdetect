@@ -1,4 +1,3 @@
-import json
 import os
 from pathlib import Path
 
@@ -12,7 +11,8 @@ from rich.table import Column
 from robotpy_apriltag import AprilTagDetector
 from tap import Tap
 
-from reflectdetect.PanelProperties import ApriltagPanelProperties
+from reflectdetect.PanelProperties import ApriltagPanelPropertiesFile, ValidatedApriltagPanelProperties, \
+    validate_apriltag_panel_properties
 from reflectdetect.constants import IMAGES_FOLDER, PANEL_PROPERTIES_FILENAME
 from reflectdetect.pipeline import interpolate, convert, fit
 from reflectdetect.utils.apriltags import detect_tags, get_altitude_from_panels, get_panel, get_detector_config, \
@@ -27,21 +27,21 @@ from reflectdetect.utils.thread import run_in_thread
 
 
 class ApriltagArgumentParser(Tap):
-    dataset: str  # Path to the dataset folder
-    panel_width: float  # Width of the calibration panel in meters
-    panel_height: float  # Height of the calibration panel in meters
-    tag_size: float  # Size of the apriltags in meters (Only measure the primary detection area, see apriltag_area_measurement.ipynb)
+    dataset: Path  # Path to the dataset folder
     panel_properties_file: str | None = None  # Path to file instead "panel_properties.json" in the dataset folder
     images_folder: str | None = None  # Path to images folder instead "/images" in the dataset folder
-    tag_direction: str = "up"  # (up, down, left, right) Direction of the panel with respect to the tag. Down direction is where the text is printed on the tag
-    family: str = "tag25h9"  # Name of the apriltag family used
-    shrink_factor: float = 0.2  # How much to shrink the detected panel area, to avoid artifacts like bleed
-    panel_smudge_factor: float = 1.0  # This factor gets multiplied to the panel width and height to account for inaccuracy in lens exif information given by the manufacturer
-    tag_smudge_factor: float = 1.0  # This factor gets multiplied to distance between tag and panel, useful if the tag was placed to far from the panel
+    default_panel_width: float | None = None  # Width of the calibration panel in meters
+    default_panel_height: float | None = None  # Height of the calibration panel in meters
+    tag_size: float | None = None  # Size of the apriltags in meters (Only measure the primary detection area, see apriltag_area_measurement.ipynb)
+    default_tag_direction: str = "up"  # (up, down, left, right) Direction of the panel with respect to the tag. Down direction is where the text is printed on the tag
+    default_tag_family: str = "tag25h9"  # Name of the apriltag family used
+    default_shrink_factor: float = 0.8  # This factor gets multiplied to the detected panel area, to avoid artifacts like bleed
+    default_panel_smudge_factor: float = 0.8  # This factor gets multiplied to the panel width and height to account for inaccuracy in lens exif information given by the manufacturer
+    default_tag_smudge_factor: float = 1.0  # This factor gets multiplied to distance between tag and panel, useful if the tag was placed to far from the panel
     debug: bool = False  # Prints logs and adds debug images into a /debug/ directory in the dataset folder
 
     def configure(self) -> None:
-        self.add_argument('dataset')
+        self.add_argument('dataset', nargs="?", default=".", type=Path)
         self.add_argument('-d', '--debug')
 
 
@@ -50,31 +50,46 @@ class AprilTagEngine:
         self.progress = Progress(SpinnerColumn(),
                                  TextColumn("[progress.description]{task.description}", table_column=Column(width=40)),
                                  TextColumn("[progress.percentage]{task.percentage:>3.0f}%"), BarColumn(),
-                                 MofNCompleteColumn(),
-                                 TextColumn("•"), TimeElapsedColumn(),
-                                 )
+                                 MofNCompleteColumn(), TextColumn("•"), TimeElapsedColumn(), )
         self.progress.start()
-        self.panel_size_m = (args.panel_width, args.panel_height)
         self.dataset = Path(args.dataset) if args.dataset is not None else None
         self.debug = args.debug
-        self.shrink_factor = args.shrink_factor
-        self.panel_smudge_factor = args.panel_smudge_factor
-        self.tag_direction = args.tag_direction
-        self.tag_smudge_factor = args.tag_smudge_factor
-        self.tag_size_m = args.tag_size
 
         # Input Validation
-        if self.tag_size_m <= 0.0:
-            raise Exception("Tag size must be greater than zero")
 
-        panel_properties_file = Path(args.panel_properties_file) if args.panel_properties_file is not None else None
-        if panel_properties_file is not None:
-            if not panel_properties_file.exists():
+        # Panel_properties file
+        panel_properties_filepath = Path(args.panel_properties_file) if args.panel_properties_file is not None else None
+        if panel_properties_filepath is not None:
+            if not panel_properties_filepath.exists():
                 raise Exception(f"Could not find specified panel properties file: {args.panel_properties_file}")
         else:
             if not (self.dataset / PANEL_PROPERTIES_FILENAME).exists():
                 raise Exception(f"No panel properties file found at {self.dataset / PANEL_PROPERTIES_FILENAME}.")
-        self.panel_properties = self.load_panel_properties(panel_properties_file)
+        panel_properties_file = self.load_panel_properties(panel_properties_filepath)
+
+        def default(value, default):
+            return value if value is not None else default
+
+        default_properties_names = ["default_panel_width", "default_panel_height"
+                                                           "default_tag_family", "default_tag_direction",
+                                    "default_panel_smudge_factor",
+                                    "default_tag_smudge_factor", "default_shrink_factor"]
+        default_properties = {}
+        for prop_name in default_properties_names:
+            # Get the default values for the panel properties first from the CLI args
+            # and then from the panel_properties file.
+            # If one of the defaults is still None
+            # and one of the panels does not specify the value the default would be used for an Exception will be thrown
+            # in the validate function below
+            default_properties[prop_name] = default(getattr(args, prop_name), getattr(panel_properties_file, prop_name))
+
+        self.panel_properties: list[ValidatedApriltagPanelProperties] = validate_apriltag_panel_properties(
+            panel_properties_file.panel_properties, default_properties)
+
+        self.tag_size = args.tag_size if args.tag_size is not None else panel_properties_file.tag_size
+        if self.tag_size is None:
+            raise Exception(f"Tag size not set via panel_properties file or CLI argument")
+
         self.number_of_panels = len(self.panel_properties)
         self.progress.console.print("Collected information of", self.number_of_panels, "panels") if self.debug else None
 
@@ -84,7 +99,7 @@ class AprilTagEngine:
                 raise Exception(f"Could not find specified images folder: {args.images_folder}")
         else:
             if not (self.dataset / IMAGES_FOLDER).exists():
-                raise Exception(f"Could not find specified images folder: {args.images_folder}")
+                raise Exception(f"No images folder found at: {self.dataset / IMAGES_FOLDER}")
 
         self.images_paths = self.get_apriltag_paths(images_folder)
         self.progress.console.print("Found", len(self.images_paths), "images") if self.debug else None
@@ -93,19 +108,18 @@ class AprilTagEngine:
 
         self.progress.console.print("Loading detector...") if self.debug else None
         self.detector = AprilTagDetector()
-        if not self.detector.addFamily(args.family):
-            raise Exception("Apriltag Family not recognized")
+        for family in [p.tag_family for p in self.panel_properties]:
+            if not self.detector.addFamily(family):
+                raise Exception("Apriltag Family not recognized:", family)
         self.detector.setConfig(get_detector_config())
 
-    def load_panel_properties(self, panel_properties_file: Path | None) -> list[ApriltagPanelProperties]:
+    def load_panel_properties(self, panel_properties_file: Path | None) -> ApriltagPanelPropertiesFile:
         if panel_properties_file is None:
             path = self.dataset / PANEL_PROPERTIES_FILENAME
         else:
             path = panel_properties_file
 
-        with open(path) as f:
-            panels = [ApriltagPanelProperties.parse_obj(item) for item in json.load(f)]
-        return panels
+        return ApriltagPanelPropertiesFile.parse_file(path)
 
     def convert_images_to_reflectance(self, paths: list[Path], intensities: NDArray[np.float64], band_index: int) -> \
             list[NDArray[np.float64] | None]:
@@ -147,25 +161,27 @@ class AprilTagEngine:
         img = cv2.imread(path.as_posix(), cv2.IMREAD_GRAYSCALE)
 
         all_tags = detect_tags(img, self.detector, self.all_ids)
-        altitude = get_altitude_from_panels(all_tags, path, (len(img[0]), len(img)), self.tag_size_m)
+        altitude = get_altitude_from_panels(all_tags, path, (len(img[0]), len(img)), self.tag_size)
 
         resolution = (len(img[0]), len(img))
         focal_length_mm, focal_plane_x_res, focal_plane_y_res, focal_plane_resolution_unit = get_camera_properties(path)
-        panel_size_pixel = calculate_panel_size_in_pixels(altitude, resolution, self.panel_size_m, focal_length_mm,
-                                                          focal_plane_x_res, focal_plane_y_res,
-                                                          focal_plane_resolution_unit,
-                                                          self.panel_smudge_factor)
         panel_intensities: list[float | None] = [None] * self.number_of_panels
         debug_corners = []
         debug_tags = []
         for tag in all_tags:
             # TODO remove family from filter
             panels = list(
-                filter(lambda p: p.family == tag.getFamily() and p.tag_id == tag.getId(), self.panel_properties))
+                filter(lambda p: p.tag_id == tag.getId(), self.panel_properties))
             if not len(panels) == 1:
                 raise Exception("Could not associate panel with found tag")
             panel_index = self.panel_properties.index(panels[0])
-            corners = get_panel(tag, panel_size_pixel, resolution, self.tag_smudge_factor, self.tag_direction)
+            panel: ValidatedApriltagPanelProperties = panels[0]
+            panel_size_pixel = calculate_panel_size_in_pixels(altitude, resolution,
+                                                              (panel.panel_width, panel.panel_height),
+                                                              focal_length_mm,
+                                                              focal_plane_x_res, focal_plane_y_res,
+                                                              focal_plane_resolution_unit, panel.panel_smudge_factor)
+            corners = get_panel(tag, panel_size_pixel, resolution, panel.tag_smudge_factor, panel.tag_direction)
 
             if corners is None:
                 continue
@@ -174,13 +190,13 @@ class AprilTagEngine:
                     debug_corners.append(corners)
                     debug_tags.append(tag)
                 polygon = shapely.Polygon(corners)
-                polygon = shrink_or_swell_shapely_polygon(polygon, self.shrink_factor)
+                polygon = shrink_or_swell_shapely_polygon(polygon, 1.0-panel.shrink_factor)
                 panel_mask = rasterize([polygon], out_shape=img.shape)
                 mean: float = float(np.ma.MaskedArray(img, mask=~(panel_mask.astype(np.bool_))).mean())  # type: ignore
                 panel_intensities[panel_index] = mean
         if self.debug:
             output_path = get_output_path(self.dataset, path, "panels.tif", "debug/panels")
-            run_in_thread(debug_show_panel, True, img, debug_tags, debug_corners, self.shrink_factor, output_path)
+            run_in_thread(debug_show_panel, True, img, debug_tags, debug_corners, output_path)
         return panel_intensities
 
     def extract_intensities_from_apriltags(self, batch: list[Path]) -> NDArray[np.float64]:
@@ -207,10 +223,6 @@ class AprilTagEngine:
         batches = build_batches_per_band(self.images_paths)
         number_of_bands = len(batches)
         self.progress.console.print("Processing", number_of_bands, "bands") if self.debug else None
-
-        # Hack TODO: remove, as panels should not specify family
-        for family in [p.family for p in self.panel_properties]:
-            self.detector.addFamily(family)
 
         debug_output_folder = self.dataset / "debug"
         if self.debug:

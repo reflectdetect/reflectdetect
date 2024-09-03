@@ -51,28 +51,28 @@ def debug_show_geolocation(path: Path, locations: list[GeoDataFrame], visibility
     plt.close(fig_2d)
 
 
-def debug_show_panel(img: NDArray[np.float64], tag: AprilTagDetection, corners: list[float],
+def debug_show_panel(img: NDArray[np.float64], tags: list[AprilTagDetection], corners_list: list[list[float]],
                      shrink_factor: float,
                      output_path: Path | None = None) -> None:
     fig_2d = plt.figure()
     ax = fig_2d.subplots(1, 1)
     ax.axis("off")
     ax.imshow(img, cmap="grey")
+    for tag, corners in zip(tags, corners_list):
+        ax.scatter(tag.getCenter().x, tag.getCenter().y)
+        x, y = zip(*corners)
 
-    ax.scatter(tag.getCenter().x, tag.getCenter().y)
-    x, y = zip(*corners)
-
-    # Append the first point to the end to close the rectangle/polygon
-    x = list(x) + [x[0]]
-    y = list(y) + [y[0]]
-    ax.plot(x, y, linewidth=1)
-    polygon = shapely.Polygon(corners)
-    polygon = shrink_or_swell_shapely_polygon(polygon, shrink_factor)
-    detection_corners = polygon.exterior.coords.xy
-    x, y = detection_corners
-    x = list(x) + [x[0]]
-    y = list(y) + [y[0]]
-    ax.plot(x, y, linewidth=1, linestyle="dotted")
+        # Append the first point to the end to close the rectangle/polygon
+        x = list(x) + [x[0]]
+        y = list(y) + [y[0]]
+        ax.plot(x, y, linewidth=1)
+        polygon = shapely.Polygon(corners)
+        polygon = shrink_or_swell_shapely_polygon(polygon, 1-shrink_factor)
+        detection_corners = polygon.exterior.coords.xy
+        x, y = detection_corners
+        x = list(x) + [x[0]]
+        y = list(y) + [y[0]]
+        ax.plot(x, y, linewidth=1, linestyle="dotted")
 
     if output_path is not None:
         fig_2d.savefig(output_path)
