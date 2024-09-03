@@ -30,7 +30,6 @@ def is_panel_in_orthophoto(orthophoto_path: Path, panel: GeoDataFrame) -> bool:
         (bounds.right, bounds.top), (bounds.right, bounds.bottom)
     ])
 
-    # TODO: add input for alternative crs
     # Create a GeoDataFrame for the orthophoto polygon with its CRS
     orthophoto_box = gpd.GeoDataFrame({'geometry': [orthophoto_polygon]}, crs=crs)
 
@@ -59,8 +58,15 @@ def save_bands(output_path: Path, band_images: list[NDArray[np.float64]], meta: 
             dst.write_band(band_index + 1, band)
 
 
-def get_orthophoto_paths(dataset: Path) -> list[Path]:
-    return list(sorted([filepath for filepath in (dataset / ORTHOPHOTO_FOLDER).glob("*.tif")]))
+def get_orthophoto_paths(dataset: Path, orthophotos_folder) -> list[Path]:
+    if orthophotos_folder is None:
+        path = dataset / ORTHOPHOTO_FOLDER
+        if not path.exists():
+            raise ValueError(f"No images folder found at {path}.")
+    else:
+        path = orthophotos_folder
+
+    return list(sorted([filepath for filepath in path.glob("*.tif")]))
 
 
 def load_panel_locations(dataset: Path, geopackage_filepath: Path | None) -> list[tuple[str, GeoDataFrame]]:
@@ -126,6 +132,3 @@ def save_orthophotos(dataset: Path, paths: list[Path], converted_photos: list[li
             )
             save_bands(output_path, photo, meta)
             pb.update()
-
-
-

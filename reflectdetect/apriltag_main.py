@@ -17,7 +17,7 @@ from reflectdetect.constants import IMAGES_FOLDER, PANEL_PROPERTIES_FILENAME
 from reflectdetect.pipeline import interpolate, convert, fit
 from reflectdetect.utils.apriltags import detect_tags, get_altitude_from_panels, get_panel, get_detector_config, \
     save_images, build_batches_per_band
-from reflectdetect.utils.debug import debug_combine_and_plot_intensities, debug_show_panel, \
+from reflectdetect.utils.debug import debug_combine_and_plot_intensities, debug_show_panels, \
     debug_save_intensities_single_band, ProgressBar
 from reflectdetect.utils.exif import get_camera_properties
 from reflectdetect.utils.panel import calculate_panel_size_in_pixels, get_band_reflectance
@@ -47,17 +47,47 @@ class ApriltagArgumentParser(Tap):
 
 class AprilTagEngine:
     def __init__(self, args: ApriltagArgumentParser):
+        self.tag_size = None
+        self.panel_properties: list[ValidatedApriltagPanelProperties] = []
         self.progress = Progress(SpinnerColumn(),
                                  TextColumn("[progress.description]{task.description}", table_column=Column(width=40)),
                                  TextColumn("[progress.percentage]{task.percentage:>3.0f}%"), BarColumn(),
                                  MofNCompleteColumn(), TextColumn("•"), TimeElapsedColumn(), )
         self.progress.start()
         self.dataset = Path(args.dataset) if args.dataset is not None else None
+        if not self.dataset.exists():
+            raise Exception(f"Could not find specified dataset folder: {args.dataset}")
         self.debug = args.debug
 
         # Input Validation
 
         # Panel_properties file
+        self.validate_panel_properties(args)
+        self.number_of_panels = len(self.panel_properties)
+        self.progress.console.print("Collected information of", self.number_of_panels, "panels") if self.debug else None
+
+        # Validate dataset
+        images_folder = Path(args.images_folder) if args.images_folder is not None else None
+        if images_folder is not None:
+            if not images_folder.exists():
+                raise Exception(f"Could not find specified images folder: {args.images_folder}")
+        else:
+            if not (self.dataset / IMAGES_FOLDER).exists():
+                raise Exception(f"No images folder found at: {self.dataset / IMAGES_FOLDER}")
+
+        self.images_paths = self.get_apriltag_paths(images_folder)
+        self.progress.console.print("Found", len(self.images_paths), "images") if self.debug else None
+
+        self.all_ids = list(set([p.tag_id for p in self.panel_properties]))
+
+        self.progress.console.print("Loading detector...") if self.debug else None
+        self.detector = AprilTagDetector()
+        for family in [p.tag_family for p in self.panel_properties]:
+            if not self.detector.addFamily(family):
+                raise Exception("Apriltag Family not recognized:", family)
+        self.detector.setConfig(get_detector_config())
+
+    def validate_panel_properties(self, args):
         panel_properties_filepath = Path(args.panel_properties_file) if args.panel_properties_file is not None else None
         if panel_properties_filepath is not None:
             if not panel_properties_filepath.exists():
@@ -82,36 +112,11 @@ class AprilTagEngine:
             # and one of the panels does not specify the value the default would be used for an Exception will be thrown
             # in the validate function below
             default_properties[prop_name] = default(getattr(args, prop_name), getattr(panel_properties_file, prop_name))
-
         self.panel_properties: list[ValidatedApriltagPanelProperties] = validate_apriltag_panel_properties(
             panel_properties_file.panel_properties, default_properties)
-
         self.tag_size = args.tag_size if args.tag_size is not None else panel_properties_file.tag_size
         if self.tag_size is None:
             raise Exception(f"Tag size not set via panel_properties file or CLI argument")
-
-        self.number_of_panels = len(self.panel_properties)
-        self.progress.console.print("Collected information of", self.number_of_panels, "panels") if self.debug else None
-
-        images_folder = Path(args.images_folder) if args.images_folder is not None else None
-        if images_folder is not None:
-            if not images_folder.exists():
-                raise Exception(f"Could not find specified images folder: {args.images_folder}")
-        else:
-            if not (self.dataset / IMAGES_FOLDER).exists():
-                raise Exception(f"No images folder found at: {self.dataset / IMAGES_FOLDER}")
-
-        self.images_paths = self.get_apriltag_paths(images_folder)
-        self.progress.console.print("Found", len(self.images_paths), "images") if self.debug else None
-
-        self.all_ids = list(set([p.tag_id for p in self.panel_properties]))
-
-        self.progress.console.print("Loading detector...") if self.debug else None
-        self.detector = AprilTagDetector()
-        for family in [p.tag_family for p in self.panel_properties]:
-            if not self.detector.addFamily(family):
-                raise Exception("Apriltag Family not recognized:", family)
-        self.detector.setConfig(get_detector_config())
 
     def load_panel_properties(self, panel_properties_file: Path | None) -> ApriltagPanelPropertiesFile:
         if panel_properties_file is None:
@@ -168,6 +173,7 @@ class AprilTagEngine:
         panel_intensities: list[float | None] = [None] * self.number_of_panels
         debug_corners = []
         debug_tags = []
+        debug_shrink_factors = []
         for tag in all_tags:
             # TODO remove family from filter
             panels = list(
@@ -189,80 +195,84 @@ class AprilTagEngine:
                 if self.debug:
                     debug_corners.append(corners)
                     debug_tags.append(tag)
+                    debug_shrink_factors.append(panel.shrink_factor)
                 polygon = shapely.Polygon(corners)
-                polygon = shrink_or_swell_shapely_polygon(polygon, 1.0-panel.shrink_factor)
+                polygon = shrink_or_swell_shapely_polygon(polygon, 1.0 - panel.shrink_factor)
                 panel_mask = rasterize([polygon], out_shape=img.shape)
                 mean: float = float(np.ma.MaskedArray(img, mask=~(panel_mask.astype(np.bool_))).mean())  # type: ignore
                 panel_intensities[panel_index] = mean
         if self.debug:
             output_path = get_output_path(self.dataset, path, "panels.tif", "debug/panels")
-            run_in_thread(debug_show_panel, True, img, debug_tags, debug_corners, output_path)
-        return panel_intensities
+            run_in_thread(debug_show_panels, True, img, debug_tags, debug_corners, debug_shrink_factors, output_path)
+            return panel_intensities
 
-    def extract_intensities_from_apriltags(self, batch: list[Path]) -> NDArray[np.float64]:
-        with ProgressBar(self.progress, "Extracting intensities", total=len(batch)) as pb:
-            intensities = np.zeros((len(batch), self.number_of_panels))
-            for img_index, path in enumerate(batch):
-                panel_intensities = self.extract_using_apriltags(path)
-                intensities[img_index] = panel_intensities
-                pb.update()
-            return intensities
-
-    def get_apriltag_paths(self, images_folder: Path | None) -> list[Path]:
-        if images_folder is None:
-            path = self.dataset / IMAGES_FOLDER
-            if not path.exists():
-                raise ValueError(f"No images folder found at {path}.")
-        else:
-            path = images_folder
-
-        return list(sorted([filepath for filepath in path.glob("*.tif")]))
-
-    def start(self) -> None:
-        all_images_task = self.progress.add_task("Total Progress", total=len(self.images_paths))
-        batches = build_batches_per_band(self.images_paths)
-        number_of_bands = len(batches)
-        self.progress.console.print("Processing", number_of_bands, "bands") if self.debug else None
-
-        debug_output_folder = self.dataset / "debug"
-        if self.debug:
-            for p in (debug_output_folder / "intensity").glob("*.csv"):
-                p.unlink()
-            for p in (debug_output_folder / "panels").glob("*.tif"):
-                p.unlink()
-
-        for band_index, batch in enumerate(batches):
-            i = self.extract_intensities_from_apriltags(batch)
-            os.system("cls||clear")
-
-            debug_save_intensities_single_band(i, band_index, debug_output_folder / "intensity") if self.debug else None
-            with ProgressBar(self.progress, "Interpolating intensities", self.number_of_panels) as pb:
-                for panel_index, _ in enumerate(self.panel_properties):
-                    i[:, panel_index] = interpolate(i[:, panel_index])
+        def extract_intensities_from_apriltags(self, batch: list[Path]) -> NDArray[np.float64]:
+            with ProgressBar(self.progress, "Extracting intensities", total=len(batch)) as pb:
+                intensities = np.zeros((len(batch), self.number_of_panels))
+                for img_index, path in enumerate(batch):
+                    panel_intensities = self.extract_using_apriltags(path)
+                    intensities[img_index] = panel_intensities
                     pb.update()
-            debug_save_intensities_single_band(i, band_index, debug_output_folder / "intensity",
-                                               "_interpolated") if self.debug else None
-            c = self.convert_images_to_reflectance(batch, i, band_index)
-            del i
-            save_images(self.dataset, batch, c, self.progress)
-            del c
-            self.progress.update(all_images_task, advance=len(batch))
-        if self.debug:
-            number_of_image_per_band = int(len(self.images_paths) / number_of_bands)
-            debug_combine_and_plot_intensities(number_of_image_per_band, number_of_bands, self.number_of_panels,
-                                               debug_output_folder / "intensity", )
-            debug_combine_and_plot_intensities(number_of_image_per_band, number_of_bands, self.number_of_panels,
-                                               debug_output_folder / "intensity", "_interpolated")
+                return intensities
 
+        def get_apriltag_paths(self, images_folder: Path | None) -> list[Path]:
+            if images_folder is None:
+                path = self.dataset / IMAGES_FOLDER
+                if not path.exists():
+                    raise ValueError(f"No images folder found at {path}.")
+            else:
+                path = images_folder
 
-def main() -> None:
-    # --- Get input arguments from user
-    args = ApriltagArgumentParser(
-        description='Automatically detect reflection calibration panels in images and transform the given images to '
-                    'reflectance', epilog='If you have any questions, please contact').parse_args()
+            return list(sorted([filepath for filepath in path.glob("*.tif")]))
 
-    AprilTagEngine(args).start()
+        def start(self) -> None:
+            all_images_task = self.progress.add_task("Total Progress", total=len(self.images_paths))
+            batches = build_batches_per_band(self.images_paths)
+            number_of_bands = len(batches)
+            for index, panel in enumerate(self.panel_properties):
+                if len(panel.bands) != number_of_bands:
+                    raise Exception(
+                        f"Panel {index}: Number of bands does not match number of bands in the panel specification")
+            self.progress.console.print("Processing", number_of_bands, "bands") if self.debug else None
 
+            debug_output_folder = self.dataset / "debug"
+            if self.debug:
+                for p in (debug_output_folder / "intensity").glob("*.csv"):
+                    p.unlink()
+                for p in (debug_output_folder / "panels").glob("*.tif"):
+                    p.unlink()
 
-if __name__ == '__main__':
-    main()
+            for band_index, batch in enumerate(batches):
+                i = self.extract_intensities_from_apriltags(batch)
+                os.system("cls||clear")
+
+                debug_save_intensities_single_band(i, band_index,
+                                                   debug_output_folder / "intensity") if self.debug else None
+                with ProgressBar(self.progress, "Interpolating intensities", self.number_of_panels) as pb:
+                    for panel_index, _ in enumerate(self.panel_properties):
+                        i[:, panel_index] = interpolate(i[:, panel_index])
+                        pb.update()
+                debug_save_intensities_single_band(i, band_index, debug_output_folder / "intensity",
+                                                   "_interpolated") if self.debug else None
+                c = self.convert_images_to_reflectance(batch, i, band_index)
+                del i
+                save_images(self.dataset, batch, c, self.progress)
+                del c
+                self.progress.update(all_images_task, advance=len(batch))
+            if self.debug:
+                number_of_image_per_band = int(len(self.images_paths) / number_of_bands)
+                debug_combine_and_plot_intensities(number_of_image_per_band, number_of_bands, self.number_of_panels,
+                                                   debug_output_folder / "intensity", )
+                debug_combine_and_plot_intensities(number_of_image_per_band, number_of_bands, self.number_of_panels,
+                                                   debug_output_folder / "intensity", "_interpolated")
+
+    def main() -> None:
+        # --- Get input arguments from user
+        args = ApriltagArgumentParser(
+            description='Automatically detect reflection calibration panels in images and transform the given images to '
+                        'reflectance', epilog='If you have any questions, please contact').parse_args()
+
+        AprilTagEngine(args).start()
+
+    if __name__ == '__main__':
+        main()

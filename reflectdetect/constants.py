@@ -2,4 +2,6 @@ PANEL_PROPERTIES_FILENAME = "panel_properties.json"
 PANEL_LOCATIONS_FILENAME = "panel_locations.gpkg"
 IMAGES_FOLDER = "images"
 ORTHOPHOTO_FOLDER = "orthophotos"
+COMPRESSION_FACTOR = 10000  # convert from 0.1234 to 1234 TODO: Document compression factor
+
 
