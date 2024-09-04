@@ -17,18 +17,18 @@ release = '0.1.4'
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#general-configuration
 
 extensions = [
-    'sphinx.ext.autodoc',	     # To generate autodocs
-    'sphinx.ext.mathjax',           # autodoc with maths
-    'sphinx.ext.napoleon'           # For auto-doc configuration
+    'sphinx.ext.autodoc',  # To generate autodocs
+    'sphinx.ext.mathjax',  # autodoc with maths
+    'sphinx.ext.napoleon'  # For auto-doc configuration
+    'sphinx_rtd_theme',
+
 ]
-napoleon_google_docstring = False   # Turn off googledoc strings
-napoleon_numpy_docstring = True     # Turn on numpydoc strings
-napoleon_use_ivar = True 	     # For maths symbology
+napoleon_google_docstring = False  # Turn off googledoc strings
+napoleon_numpy_docstring = True  # Turn on numpydoc strings
+napoleon_use_ivar = True  # For maths symbology
 
 templates_path = ['_templates']
 exclude_patterns = ['_build', 'Thumbs.db', '.DS_Store']
-
-
 
 # -- Options for HTML output -------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#options-for-html-output
