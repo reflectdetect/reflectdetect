@@ -1,19 +1,20 @@
 import numpy as np
 from numpy.typing import NDArray
 
-from reflectdetect.PanelProperties import ValidatedApriltagPanelProperties, ValidatedGeolocationPanelProperties
+from reflectdetect.PanelProperties import (
+    ValidatedApriltagPanelProperties,
+    ValidatedGeolocationPanelProperties,
+)
 
 
 def convert_resolution_unit(resolution: float, unit: int) -> float:
     """
     Convert focal plane resolution to pixels per millimeter.
 
-    Parameters:
-        resolution (float): Focal plane resolution.
-        unit (int): The unit of resolution (EXIF:FocalPlaneResolutionUnit).
+    :param resolution: Focal plane resolution.
+    :param unit:  The unit of resolution (EXIF:FocalPlaneResolutionUnit).
+    :return: Focal plane resolution in pixels per millimeter.
 
-    Returns:
-        float: Focal plane resolution in pixels per millimeter.
     """
     if unit == 1:  # No unit, not common, assume pixels per millimeter
         return resolution
@@ -29,23 +30,28 @@ def convert_resolution_unit(resolution: float, unit: int) -> float:
         raise ValueError("Unknown FocalPlaneResolutionUnit")
 
 
-def calculate_sensor_size(image_resolution: tuple[int, int], focal_plane_x_res: float, focal_plane_y_res: float,
-                          focal_plane_resolution_unit: int) -> tuple[float, float]:
+def calculate_sensor_size(
+    image_resolution: tuple[int, int],
+    focal_plane_x_res: float,
+    focal_plane_y_res: float,
+    focal_plane_resolution_unit: int,
+) -> tuple[float, float]:
     """
     Calculate the sensor size in millimeters using focal plane resolutions.
 
-    Parameters:
-        image_resolution (tuple): Image resolution (width, height) in pixels.
-        focal_plane_x_res (float): Focal plane X resolution.
-        focal_plane_y_res (float): Focal plane Y resolution.
-        focal_plane_resolution_unit (int): The unit of the focal plane resolution.
-
-    Returns:
-        tuple: Sensor width and height in millimeters.
+    :param image_resolution: Image resolution (width, height) in pixels.
+    :param focal_plane_x_res: Focal plane X resolution.
+    :param focal_plane_y_res: Focal plane Y resolution.
+    :param focal_plane_resolution_unit: The unit of the focal plane resolution.
+    :return: Sensor width and height in millimeters.
     """
     # Convert resolution to pixels per millimeter
-    focal_plane_x_res_mm = convert_resolution_unit(focal_plane_x_res, focal_plane_resolution_unit)
-    focal_plane_y_res_mm = convert_resolution_unit(focal_plane_y_res, focal_plane_resolution_unit)
+    focal_plane_x_res_mm = convert_resolution_unit(
+        focal_plane_x_res, focal_plane_resolution_unit
+    )
+    focal_plane_y_res_mm = convert_resolution_unit(
+        focal_plane_y_res, focal_plane_resolution_unit
+    )
 
     # Calculate sensor dimensions
     sensor_width_mm = image_resolution[0] / focal_plane_x_res_mm
@@ -53,13 +59,16 @@ def calculate_sensor_size(image_resolution: tuple[int, int], focal_plane_x_res: 
     return sensor_width_mm, sensor_height_mm
 
 
-def calculate_panel_size_in_pixels(altitude: float, resolution: tuple[int, int],
-                                   physical_panel_size: tuple[float, float],
-                                   focal_length_mm: float,
-                                   focal_plane_x_res: float,
-                                   focal_plane_y_res: float,
-                                   focal_plane_resolution_unit: int,
-                                   smudge_factor: float = 0.8) -> tuple[int, int]:
+def calculate_panel_size_in_pixels(
+    altitude: float,
+    resolution: tuple[int, int],
+    physical_panel_size: tuple[float, float],
+    focal_length_mm: float,
+    focal_plane_x_res: float,
+    focal_plane_y_res: float,
+    focal_plane_resolution_unit: int,
+    smudge_factor: float = 0.8,
+) -> tuple[int, int]:
     """
     Calculate the expected size of an object in pixels based on camera parameters and object physical size.
 
@@ -79,8 +88,9 @@ def calculate_panel_size_in_pixels(altitude: float, resolution: tuple[int, int],
     """
 
     # Calculate the sensor size
-    sensor_width_mm, sensor_height_mm = calculate_sensor_size(resolution, focal_plane_x_res, focal_plane_y_res,
-                                                              focal_plane_resolution_unit)
+    sensor_width_mm, sensor_height_mm = calculate_sensor_size(
+        resolution, focal_plane_x_res, focal_plane_y_res, focal_plane_resolution_unit
+    )
     # Convert sensor dimensions to meters
     sensor_width_m = sensor_width_mm / 1000
     sensor_height_m = sensor_height_mm / 1000
@@ -106,7 +116,14 @@ def calculate_panel_size_in_pixels(altitude: float, resolution: tuple[int, int],
 
 
 def get_band_reflectance(
-        panels_properties: list[ValidatedGeolocationPanelProperties] | list[ValidatedApriltagPanelProperties],
-        band_index: int) -> NDArray[np.float64]:
-    # return the reflectance values of each panel at a given band
+    panels_properties: list[ValidatedGeolocationPanelProperties]
+    | list[ValidatedApriltagPanelProperties],
+    band_index: int,
+) -> NDArray[np.float64]:
+    """
+
+    :param panels_properties: band reflectance values
+    :param band_index: which band to use
+    :return: the reflectance values of each panel at a given band
+    """
     return np.array([properties.bands[band_index] for properties in panels_properties])
