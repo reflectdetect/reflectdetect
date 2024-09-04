@@ -1,6 +1,5 @@
 import contextlib
 import io
-import math
 import re
 from pathlib import Path
 from typing import Any
@@ -33,59 +32,112 @@ tag_detection_to_total_width_conversions = {
 }
 
 
-def verify_detections(tag: AprilTagDetection, valid_ids: list[int] | None = None) -> bool:
-    if valid_ids is None:
-        valid_ids = [0, 4, 9]  # ids used by our system by default
+def verify_detections(tag: AprilTagDetection, valid_ids: list[int]) -> bool:
+    """
+    Check if the tag id is valid
+    :param tag: the apriltag
+    :param valid_ids: ids that are printed on the apriltags
+    :return: whether the tag has an expected id
+    """
     return tag.getId() in valid_ids
 
 
-def verify_estimate(tag: AprilTagDetection, estimate: Transform3d, valid_ids: list[int], flight_height: float,
-                    tolerance: float = 0.1) -> bool:
-    return tag.getId() in valid_ids and math.isclose(estimate.z, flight_height, rel_tol=tolerance)
-
-
-def detect_tags(img: NDArray[Any], detector: AprilTagDetector,
-                valid_ids: list[int] | None = None) -> list[
-    AprilTagDetection]:
+def detect_tags(
+    img: NDArray[Any], detector: AprilTagDetector, valid_ids: list[int]
+) -> list[AprilTagDetection]:
+    """
+    Detect apriltags in an image
+    :param img: the image to detect apriltags in
+    :param detector: the detector to use for detecting
+    :param valid_ids: the ids the apriltags can have, to discard wrong detections
+    :return: the detected apriltags
+    """
     tags: list[AprilTagDetection] = run_in_thread(detector.detect, True, img)  # type: ignore
     return [tag for tag in tags if verify_detections(tag, valid_ids)]
 
 
-def pose_estimate_tags(tags: list[AprilTagDetection], config: AprilTagPoseEstimator.Config) -> \
-        list[Transform3d]:
+def pose_estimate_tags(
+    tags: list[AprilTagDetection], config: AprilTagPoseEstimator.Config
+) -> list[Transform3d]:
+    """
+    Create a pose estimate for each given tag
+    :param tags: apriltags to pose estimate
+    :param config: configuration for the pose estimator
+    :return: the pose estimate
+    """
     pose_estimator = AprilTagPoseEstimator(config)
-    estimates: list[Transform3d] = [run_in_thread(pose_estimator.estimate, True, tag) for tag in  # type: ignore
-                                    tags]  # type: ignore
+    estimates: list[Transform3d] = [
+        run_in_thread(pose_estimator.estimate, True, tag)  # type: ignore
+        for tag in tags
+    ]
     return estimates
 
 
-def get_altitude_from_panels(tags: list[AprilTagDetection], path: Path, resolution: tuple[int, int],
-                             tag_size: float) -> float:
+def get_altitude_from_panels(
+    tags: list[AprilTagDetection],
+    path: Path,
+    resolution: tuple[int, int],
+    tag_size: float,
+) -> float:
+    """
+    Approximate the altitude of the drone taking the image by pose estimating the tags in the image
+    and meaning the height
+    :param tags: the tags to pose estimate
+    :param path: path to the image
+    :param resolution: resolution of the image
+    :param tag_size: size of the tags (detection area, not total area)
+    :return:  the approximate height of the drone taking the image
+    """
     config = get_pose_estimator_config(path, resolution, tag_size)
     with contextlib.redirect_stdout(io.StringIO()):
         estimates = pose_estimate_tags(tags, config)
     return float(np.mean([estimate.translation().z for estimate in estimates]))
 
 
-def get_pose_estimator_config(path: Path, resolution: tuple[int, int],
-                              tag_size: float, ) -> AprilTagPoseEstimator.Config:
-    focal_length_mm, focal_plane_x_res, focal_plane_y_res, focal_plane_resolution_unit = get_camera_properties(path)
+def get_pose_estimator_config(
+    path: Path,
+    resolution: tuple[int, int],
+    tag_size: float,
+) -> AprilTagPoseEstimator.Config:
+    """
+    Calculate the pose estimator configuration for the given image.
+    Camera properties will be extracted from the exif data
+    :param path: path to the image
+    :param resolution: resolution of the image
+    :param tag_size: size of the apriltag in meters (detection area, not total area)
+    :return:
+    """
+    (
+        focal_length_mm,
+        focal_plane_x_res,
+        focal_plane_y_res,
+        focal_plane_resolution_unit,
+    ) = get_camera_properties(path)
     horizontal_focal_length_pixels = focal_length_mm * focal_plane_x_res
     vertical_focal_length_pixels = focal_length_mm * focal_plane_y_res
 
-    sensor_width_mm, sensor_height_mm = calculate_sensor_size(resolution, focal_plane_x_res, focal_plane_y_res,
-                                                              focal_plane_resolution_unit)
+    sensor_width_mm, sensor_height_mm = calculate_sensor_size(
+        resolution, focal_plane_x_res, focal_plane_y_res, focal_plane_resolution_unit
+    )
     sensor_width_pixel = sensor_width_mm * focal_plane_x_res
     sensor_height_pixel = sensor_height_mm * focal_plane_y_res
     horizontal_focal_center_pixels = sensor_width_pixel / 2
     vertical_focal_center_pixels = sensor_height_pixel / 2
 
-    return AprilTagPoseEstimator.Config(tag_size, horizontal_focal_length_pixels,
-                                        vertical_focal_length_pixels,
-                                        horizontal_focal_center_pixels, vertical_focal_center_pixels)
+    return AprilTagPoseEstimator.Config(
+        tag_size,
+        horizontal_focal_length_pixels,
+        vertical_focal_length_pixels,
+        horizontal_focal_center_pixels,
+        vertical_focal_center_pixels,
+    )
 
 
 def get_detector_config() -> AprilTagDetector.Config:
+    """
+    Get the default apriltag detector configuration. QuadDecimate is set to 1 for best performance even with small tags
+    :return:  default apriltag detector configuration
+    """
     detector_config = AprilTagDetector.Config()
     detector_config.quadDecimate = 1.0
     detector_config.numThreads = 4
@@ -94,6 +146,11 @@ def get_detector_config() -> AprilTagDetector.Config:
 
 
 def build_batches_per_band(paths: list[Path]) -> list[list[Path]]:
+    """
+    Create a batch of images for each band
+    :param paths: image paths
+    :return: list of batches with each batch containing all images of a given band
+    """
     # TODO also add visibility batching
     batches: list[list[Path]] = []
     # Regular expression to match file names and capture the base and suffix
@@ -102,7 +159,7 @@ def build_batches_per_band(paths: list[Path]) -> list[list[Path]]:
     for image_path in paths:
         match = pattern.match(image_path.name)
         if not match:
-            raise Exception(f"Could not extract band index from filename")
+            raise Exception("Could not extract band index from filename")
         band_index = int(match.group(1)) - 1
         if band_index > len(batches) or band_index < 0:
             raise Exception("Problem with the sorting of the pats or regex")
@@ -112,10 +169,28 @@ def build_batches_per_band(paths: list[Path]) -> list[list[Path]]:
     return batches
 
 
-def get_panel(tag: AprilTagDetection, panel_size_pixel: tuple[int, int], image_dimensions: tuple[int, int],
-              tag_smudge_factor: float, tag_direction: str,
-              only_valid_panels: bool = True) -> list[float] | None:
-    tag_corners = np.array(list(tag.getCorners((0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0))))
+def get_panel(
+    tag: AprilTagDetection,
+    panel_size_pixel: tuple[int, int],
+    image_dimensions: tuple[int, int],
+    tag_smudge_factor: float,
+    tag_direction: str,
+    only_valid_panels: bool = True,
+) -> list[tuple[float, float]] | None:
+    """
+    Get the corners of a panel based on a apriltag to its side
+    :param tag: the apriltag that was detected in the image
+    :param panel_size_pixel: the size of the panel in the image
+    :param image_dimensions: the dimensions of the image
+    :param tag_smudge_factor: factor to change the distance of the apriltag to the panel,
+    it for example on of the tags was put further away from the panel as planned
+    :param tag_direction: direction of the panel relative to the tag (up, down, left, right)
+    :param only_valid_panels: whether to filter out panels that have corners outside the image dimensions
+    :return: the 4 corners of the panel in tuples of x y image coordinates
+    """
+    tag_corners = np.array(
+        list(tag.getCorners((0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0)))
+    )
     tag_corners = np.array(list((zip(tag_corners[::2], tag_corners[1::2]))))
 
     if tag_direction == "up":
@@ -128,7 +203,10 @@ def get_panel(tag: AprilTagDetection, panel_size_pixel: tuple[int, int], image_d
         towards_panel = tag_corners[0] - tag_corners[1]
 
     tag_detection_size_pixel = np.linalg.norm(towards_panel)
-    tag_size = tag_detection_size_pixel * tag_detection_to_total_width_conversions[tag.getFamily()]
+    tag_size = (
+        tag_detection_size_pixel
+        * tag_detection_to_total_width_conversions[tag.getFamily()]
+    )
 
     towards_panel = towards_panel / np.linalg.norm(towards_panel)
 
@@ -155,12 +233,16 @@ def get_panel(tag: AprilTagDetection, panel_size_pixel: tuple[int, int], image_d
     return corners
 
 
-def save_images(dataset: Path, paths: list[Path], converted_images: list[NDArray[np.float64] | None],
-                progress: Progress | None = None) -> None:
+def save_images(
+    dataset: Path,
+    paths: list[Path],
+    converted_images: list[NDArray[np.float64] | None],
+    progress: Progress | None = None,
+) -> None:
     """
     This function saves the converted images as .tif files into a new "/transformed/" directory in the images folder
-    :param dataset:
-    :param progress:
+    :param dataset: path to the dataset to save the images to
+    :param progress: optional progress bar
     :param paths: list of image paths
     :param converted_images: list of reflectance images
     """
@@ -169,7 +251,9 @@ def save_images(dataset: Path, paths: list[Path], converted_images: list[NDArray
             if image is None:
                 pb.update()
                 continue
-            output_path = get_output_path(dataset, path, "reflectance.tif", "transformed")
+            output_path = get_output_path(
+                dataset, path, "reflectance.tif", "transformed"
+            )
             scaled_to_int = np.array(image * COMPRESSION_FACTOR, dtype=np.uint8)
             imwrite(output_path, scaled_to_int)
             pb.update()

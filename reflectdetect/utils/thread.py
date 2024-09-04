@@ -3,12 +3,14 @@ import threading
 from typing import Callable, Any, Optional
 
 
-def run_in_thread(func: Callable[..., Any], throw_exceptions: bool = True, *args: Any, **kwargs: Any) -> Optional[Any]:
+def run_in_thread(
+    func: Callable[..., Any], throw_exceptions: bool = True, *args: Any, **kwargs: Any
+) -> Optional[Any]:
     """
     Runs a function in a separate thread, suppresses its output, and ignores any exceptions.
 
-    :param throw_exeptions:
     :param func: The function to run in a separate thread.
+    :param throw_exceptions:  whether to throw an exception that might occur in the thread
     :param args: Positional arguments to pass to the function.
     :param kwargs: Keyword arguments to pass to the function.
     :return: The result of the function, or None if an exception occurred.

@@ -65,15 +65,21 @@ class GeolocationPanelPropertiesFile(BaseModel):
     default_shrink_factor: float | None = None
 
 
-def validate_apriltag_panel_properties(panels: list[ApriltagPanelProperties], default_properties: dict[str, Any]) -> \
-        list[ValidatedApriltagPanelProperties]:
+def validate_apriltag_panel_properties(
+    panels: list[ApriltagPanelProperties], default_properties: dict[str, Any]
+) -> list[ValidatedApriltagPanelProperties]:
     validated_panel_properties: list[ValidatedApriltagPanelProperties] = []
 
     for index, panel in enumerate(panels):
+
         def set_with_default(value: Any | None, name: str) -> Any:
-            result = value if value is not None else default_properties["default_" + name]
+            result = (
+                value if value is not None else default_properties["default_" + name]
+            )
             if result is None:
-                raise Exception(f"Panel {index + 1}: {name} not set and no default supplied")
+                raise Exception(
+                    f"Panel {index + 1}: {name} not set and no default supplied"
+                )
             return result
 
         bands = panel.bands
@@ -83,39 +89,58 @@ def validate_apriltag_panel_properties(panels: list[ApriltagPanelProperties], de
             raise Exception(f"Panel {index + 1}: Panel width must be greater than zero")
         panel_height: float = set_with_default(panel.panel_height, "panel_height")
         if panel_height <= 0.0:
-            raise Exception(f"Panel {index + 1}: Panel height must be greater than zero")
+            raise Exception(
+                f"Panel {index + 1}: Panel height must be greater than zero"
+            )
         tag_id: int = panel.tag_id
         if tag_id < 0:
             raise Exception(f"Panel {index + 1}: tag_id can not be negative")
         tag_family: str = set_with_default(panel.tag_family, "tag_family")
-        tag_smudge_factor: float = set_with_default(panel.tag_smudge_factor, "tag_smudge_factor")
-        panel_smudge_factor: float = set_with_default(panel.panel_smudge_factor, "panel_smudge_factor")
+        tag_smudge_factor: float = set_with_default(
+            panel.tag_smudge_factor, "tag_smudge_factor"
+        )
+        panel_smudge_factor: float = set_with_default(
+            panel.panel_smudge_factor, "panel_smudge_factor"
+        )
         tag_direction: str = set_with_default(panel.tag_direction, "tag_direction")
         shrink_factor: float = set_with_default(panel.shrink_factor, "shrink_factor")
         if shrink_factor <= 0.0:
-            raise Exception(f"Panel {index + 1}: shrink_factor must be greater than zero")
+            raise Exception(
+                f"Panel {index + 1}: shrink_factor must be greater than zero"
+            )
         if shrink_factor > 1.0:
             raise Exception(f"Panel {index + 1}: shrink_factor must be smaller than 1")
         validated_panel_properties.append(
-            ValidatedApriltagPanelProperties(bands=bands, panel_width=panel_width, panel_height=panel_height,
-                                             tag_id=tag_id,
-                                             tag_family=tag_family,
-                                             tag_smudge_factor=tag_smudge_factor,
-                                             panel_smudge_factor=panel_smudge_factor, tag_direction=tag_direction,
-                                             shrink_factor=shrink_factor))
+            ValidatedApriltagPanelProperties(
+                bands=bands,
+                panel_width=panel_width,
+                panel_height=panel_height,
+                tag_id=tag_id,
+                tag_family=tag_family,
+                tag_smudge_factor=tag_smudge_factor,
+                panel_smudge_factor=panel_smudge_factor,
+                tag_direction=tag_direction,
+                shrink_factor=shrink_factor,
+            )
+        )
     return validated_panel_properties
 
 
-def validate_geolocation_panel_properties(panels: list[GeolocationPanelProperties],
-                                          default_properties: dict[str, Any]) -> \
-        list[ValidatedGeolocationPanelProperties]:
+def validate_geolocation_panel_properties(
+    panels: list[GeolocationPanelProperties], default_properties: dict[str, Any]
+) -> list[ValidatedGeolocationPanelProperties]:
     validated_panel_properties: list[ValidatedGeolocationPanelProperties] = []
 
     for index, panel in enumerate(panels):
+
         def set_with_default(value: Any | None, name: str) -> Any:
-            result = value if value is not None else default_properties["default_" + name]
+            result = (
+                value if value is not None else default_properties["default_" + name]
+            )
             if result is None:
-                raise Exception(f"Panel {index + 1}: {name} not set and no default supplied")
+                raise Exception(
+                    f"Panel {index + 1}: {name} not set and no default supplied"
+                )
             return result
 
         bands = panel.bands
@@ -125,16 +150,28 @@ def validate_geolocation_panel_properties(panels: list[GeolocationPanelPropertie
             raise Exception(f"Panel {index + 1}: Panel width must be greater than zero")
         panel_height: float = set_with_default(panel.panel_height, "panel_height")
         if panel_height <= 0.0:
-            raise Exception(f"Panel {index + 1}: Panel height must be greater than zero")
-        panel_smudge_factor: float = set_with_default(panel.panel_smudge_factor, "panel_smudge_factor")
+            raise Exception(
+                f"Panel {index + 1}: Panel height must be greater than zero"
+            )
+        panel_smudge_factor: float = set_with_default(
+            panel.panel_smudge_factor, "panel_smudge_factor"
+        )
         shrink_factor: float = set_with_default(panel.shrink_factor, "shrink_factor")
         if shrink_factor <= 0.0:
-            raise Exception(f"Panel {index + 1}: shrink_factor must be greater than zero")
+            raise Exception(
+                f"Panel {index + 1}: shrink_factor must be greater than zero"
+            )
         if shrink_factor > 1.0:
             raise Exception(f"Panel {index + 1}: shrink_factor must be smaller than 1")
         layer_name = panel.layer_name
         validated_panel_properties.append(
-            ValidatedGeolocationPanelProperties(bands=bands, panel_width=panel_width, panel_height=panel_height,
-                                                panel_smudge_factor=panel_smudge_factor, shrink_factor=shrink_factor,
-                                                layer_name=layer_name))
+            ValidatedGeolocationPanelProperties(
+                bands=bands,
+                panel_width=panel_width,
+                panel_height=panel_height,
+                panel_smudge_factor=panel_smudge_factor,
+                shrink_factor=shrink_factor,
+                layer_name=layer_name,
+            )
+        )
     return validated_panel_properties
