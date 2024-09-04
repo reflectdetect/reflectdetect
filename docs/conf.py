@@ -19,7 +19,7 @@ release = '0.1.4'
 extensions = [
     'sphinx.ext.autodoc',  # To generate autodocs
     'sphinx.ext.mathjax',  # autodoc with maths
-    'sphinx.ext.napoleon'  # For auto-doc configuration
+    'sphinx.ext.napoleon',  # For auto-doc configuration
     'sphinx_rtd_theme',
 
 ]
