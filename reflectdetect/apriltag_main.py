@@ -16,7 +16,8 @@ from tap import Tap
 import reflectdetect
 from reflectdetect.PanelProperties import ApriltagPanelPropertiesFile, ValidatedApriltagPanelProperties, \
     validate_apriltag_panel_properties
-from reflectdetect.constants import IMAGES_FOLDER, PANEL_PROPERTIES_FILENAME
+from reflectdetect.constants import IMAGES_FOLDER, PANEL_PROPERTIES_FILENAME, DEFAULT_TAG_DIRECTION, DEFAULT_TAG_FAMILY, \
+    DEFAULT_SHRINK_FACTOR, DEFAULT_PANEL_SMUDGE_FACTOR, DEFAULT_TAG_SMUDGE_FACTOR
 from reflectdetect.pipeline import interpolate, convert, fit
 from reflectdetect.utils.apriltags import detect_tags, get_altitude_from_panels, get_panel, get_detector_config, \
     save_images, build_batches_per_band
@@ -24,7 +25,7 @@ from reflectdetect.utils.debug import debug_combine_and_plot_intensities, debug_
     debug_save_intensities_single_band, ProgressBar
 from reflectdetect.utils.exif import get_camera_properties
 from reflectdetect.utils.panel import calculate_panel_size_in_pixels, get_band_reflectance
-from reflectdetect.utils.paths import get_output_path, default
+from reflectdetect.utils.paths import get_output_path, default, is_tool_installed
 from reflectdetect.utils.polygons import shrink_shapely_polygon
 from reflectdetect.utils.thread import run_in_thread
 
@@ -38,11 +39,11 @@ class ApriltagArgumentParser(Tap):
     default_panel_width: float | None = None  # Width of the calibration panel in meters
     default_panel_height: float | None = None  # Height of the calibration panel in meters
     tag_size: float | None = None  # Size of the apriltags in meters (Only measure the primary detection area, see apriltag_area_measurement.ipynb)
-    default_tag_direction: str = "up"  # (up, down, left, right) Direction of the panel with respect to the tag. Down direction is where the text is printed on the tag
-    default_tag_family: str = "tag25h9"  # Name of the apriltag family used
-    default_shrink_factor: float = 0.8  # This factor gets multiplied to the detected panel area, to avoid artifacts like bleed
-    default_panel_smudge_factor: float = 0.8  # This factor gets multiplied to the panel width and height to account for inaccuracy in lens exif information given by the manufacturer
-    default_tag_smudge_factor: float = 1.0  # This factor gets multiplied to distance between tag and panel, useful if the tag was placed to far from the panel
+    default_tag_direction: str = DEFAULT_TAG_DIRECTION  # (up, down, left, right) Direction of the panel with respect to the tag. Down direction is where the text is printed on the tag
+    default_tag_family: str = DEFAULT_TAG_FAMILY  # Name of the apriltag family used
+    default_shrink_factor: float = DEFAULT_SHRINK_FACTOR  # This factor gets multiplied to the detected panel area, to avoid artifacts like bleed
+    default_panel_smudge_factor: float = DEFAULT_PANEL_SMUDGE_FACTOR  # This factor gets multiplied to the panel width and height to account for inaccuracy in lens exif information given by the manufacturer
+    default_tag_smudge_factor: float = DEFAULT_TAG_SMUDGE_FACTOR  # This factor gets multiplied to distance between tag and panel, useful if the tag was placed to far from the panel
     debug: bool = False  # Prints logs and adds debug images into a /debug/ directory in the dataset folder
 
     def configure(self) -> None:
@@ -276,6 +277,8 @@ def main() -> None:
         description='Automatically detect reflection calibration panels in images and transform the given images to '
                     'reflectance', epilog='If you have any questions, please contact').parse_args()
 
+    if not is_tool_installed("exiftool"):
+        raise Exception("Exiftool is not installed. Follow the readme to install it")
     AprilTagEngine(args).start()
 
 

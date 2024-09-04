@@ -208,7 +208,7 @@ ExifTool on your system.
       sudo apt-get install libimage-exiftool-perl
       ```
 2. **Manual Install**:
-   - For manual installation instruction visit the [ExifTool Install Page](https://exiftool.org/install.html#Unix)
+    - For manual installation instruction visit the [ExifTool Install Page](https://exiftool.org/install.html#Unix)
 
 3. **Verify Installation**:
     - Open your terminal and type `exiftool`. You should see ExifTool's help information, confirming it is installed and
@@ -217,59 +217,213 @@ ExifTool on your system.
 ### Installing reflectdetect
 
 To install the reflectdetect CLI tools to your system, open a command line or terminal and run
+
 ```bash
 pip install reflectdetect
 ```
+
 Now `reflectdetect-apriltag` and `reflectdetect-geolocation` should be available as CLI tools.
 
-# :white_square_button: Apriltags
+# :artificial_satellite: Workflow 1: Geolocation-Based Calibration
 
-## :white_square_button: Printing the Apriltags
-## :white_square_button: Placement Guide
-## :white_square_button: Measurement Guide
+# :artificial_satellite: Setup
+
+## Create a panel_properties.json file
+
+To access the information about your calibration panels, we need you to create a `panel_properties.json` file. It
+includes the reflectance values of each panel for each of the bands you captured.
+In the following example we show how two panels might be configured. All the information about the first panel is
+between the first `{ }` and so on.
+
+The layer name corresponds to the name of the layer the coordinates of the panel corners are stored in, in the
+`panel_locations.gpkg` file
+
+```json
+{
+  "default_panel_width": 1.3,
+  "default_panel_height": 1.3,
+  "panel_properties": [
+    {
+      "layer_name": "corner_27",
+      "bands": [
+        0.9,
+        1.0,
+        1.0,
+        1.0,
+        0.72,
+        0.91
+      ]
+    },
+    {
+      "layer_name": "corner_28",
+      "bands": [
+        0.9,
+        1.0,
+        0.43,
+        0.70,
+        0.35,
+        0.4
+      ]
+    }
+  ]
+}
+````
+
+## Create dataset folder
+
+In order for reflect-detect to be able to gather the necessary information about the images, panels, camera, etc. ,
+reflect-detect expects you to structure your data in the following format:
+
+```
+dataset_folder
+│   panels_properties.json
+│   panel_locations.gpkg
+│
+└───orthophotos
+│   │   IMG_0000.tif
+│   │   IMG_0001.tif
+│   │   IMG_0002.tif
+│   │   IMG_0003.tif
+|   |   ...
+```
+
+# :artificial_satellite: Usage
+
+After preparing the dataset folder, you are ready to run reflectdetect.
+Open a command line or terminal.
+
+To print the available arguments, run `reflectdetect-geolocation --help`
+
+Assuming:
+
+- the prepared dataset folder is at `C:\Users\username\Desktop\dataset_folder`
+- the `panel_properties.json` and `panel_locations.gpkg` files and the `images` folder are in the dataset folder and correctly named
+
+## Minimal example:
+
+To start the program, open your terminal or command line and run
+
+```bash
+cd C:\Users\username\Desktop\dataset_folder
+```
+
+then
+
+```bash
+reflectdetect-geolocation
+```
+
+Alternatively you can run the program from anywhere using
+
+```bash
+reflectdetect-geolocation "C:\Users\username\Desktop\dataset_folder"
+```
+
+# :white_square_button: Workflow 2: AprilTag-Based Calibration
+
+# :white_square_button: Printing the Apriltags
+
+# :white_square_button: Placement Guide
+
+# :white_square_button: Measurement Guide
+
 See: `apriltag_area_measurement.ipynb`
 
-## :white_square_button: Setup
+# :white_square_button: Setup
 
-### Create a panel_properties.json file
+## Create a panel_properties.json file
 
 To give access to the information about your calibration panels, create a `panel_properties.json` file. It
 includes the reflectance values of each panel for each of the bands you captured.
-The following example shows how two panels might be configured. All the information about the first panel is
+The following examples show how two panels might be configured. All the information about the first panel is
 between the first `{ }` and so on.
 
+### Minimal Example
+
+```json
+{
+  "default_panel_width": 1.3,
+  "default_panel_height": 1.3,
+  "panel_properties": [
+    {
+      "tag_id": 1,
+      "bands": [
+        0.9,
+        1.0,
+        1.0,
+        1.0,
+        0.72,
+        0.91
+      ]
+    },
+    {
+      "tag_id": 2,
+      "bands": [
+        0.9,
+        1.0,
+        0.43,
+        0.70,
+        0.35,
+        0.4
+      ]
+    }
+  ]
+}
+```
+
+### Customizing the parameters
+
+The first panel will use the default values, while the second panel specifies some of its own parameters.
+Only `default_panel_width` and `default_panel_height` are required, the other parameters will have the default values as
+below if not specified.
 The tag id has to correspond to the id of the apriltag you placed next to the given panel. No id can be used twice!
 
 ```json
-[
-  {
-    "tag_id": 1,
-    "bands": [
-      0.9,
-      1.0,
-      1.0,
-      1.0,
-      0.72,
-      0.91
-    ]
-  },
-  {
-    "tag_id": 2,
-    "bands": [
-      0.9,
-      1.0,
-      0.43,
-      0.70,
-      0.35,
-      0.4
-    ]
-  }
-]
+{
+  "default_panel_width": 1.3,
+  "default_panel_height": 1.3,
+  "default_tag_family": "tag25h9",
+  "default_tag_direction": "up",
+  "default_panel_smudge_factor": 0.8,
+  "default_tag_smudge_factor": 1.0,
+  "default_shrink_factor": 0.8,
+  "panel_properties": [
+    {
+      "tag_id": 1,
+      "bands": [
+        0.9,
+        1.0,
+        1.0,
+        1.0,
+        0.72,
+        0.91
+      ]
+    },
+    {
+      "tag_id": 2,
+      "panel_width": 2.0,
+      "shrink_factor": 0.5,
+      "bands": [
+        0.9,
+        1.0,
+        0.43,
+        0.70,
+        0.35,
+        0.4
+      ]
+    }
+  ]
+}
 ```
 
-### Create dataset folder
+> [!TIP]
+> The default parameters can also be overwritten using CLI arguments
+>
+> Run ```reflectdetect-apriltag -h``` to get a list
 
-In order for reflect-detect to be able to gather the necessary information about the images, panels, camera, etc. ,
+## Create dataset folder
+
+In order for reflect-detect to be able to gather the necessary information about the images, panels, etc. ,
 reflect-detect expects you to structure your data in the following format:
 
 ```
@@ -288,87 +442,37 @@ dataset_folder
 > If any of the folders/files are located elsewhere, you can specify their location using the `--panel_properties_file`
 > or `--images_folder` argument
 
-## :white_square_button: Usage
+# :white_square_button: Usage
 
 After preparing the dataset folder, you are ready to run reflectdetect.
 Open a command line or terminal.
 
 To print the available arguments, run `reflectdetect-apriltag --help`
 
-Assuming: 
+Assuming:
+
 - the prepared dataset folder is at `C:\Users\username\Desktop\dataset_folder`
-- the tags used were of the default family `tag25h9`
-- the `panel_properties.json` files and the `images` folder are in the dataset folder and correctly named
-- the panel dimensions are 1.3m by 1.3m
-- the tags primary detection area width is 0.4
+- the `panel_properties.json` file and the `images` folder are in the dataset folder and correctly named
 
+## Minimal example:
 
-### Minimal example:
+To start the program, open your terminal or command line and run
 
 ```bash
-reflectdetect-apriltag  --panel_width 1.3 --panel_height 1.3 --tag_size 0.4 "C:\Users\username\Desktop\dataset_folder"
+cd C:\Users\username\Desktop\dataset_folder
 ```
 
-# :artificial_satellite: Geolocation
+then
 
-## :artificial_satellite: Setup
-
-### Create a panel_properties.json file
-
-To access the information about your calibration panels, we need you to create a `panel_properties.json` file. It
-includes the reflectance values of each panel for each of the bands you captured.
-In the following example we show how two panels might be configured. All the information about the first panel is
-between the first `{ }` and so on.
-
-We assume that the first panel in the file corresponds to the first layer of coordinates in the geopackage file 
-<!-- TODO:explain better) -->
-
-```json filename="panel_properties.json"
-[
-  {
-    "layer_name": "corner_27",
-    "bands": [
-      0.9,
-      1.0,
-      1.0,
-      1.0,
-      0.72,
-      0.91
-    ]
-  },
-  {
-    "layer_name": "corner_28",
-    "bands": [
-      0.9,
-      1.0,
-      0.43,
-      0.70,
-      0.35,
-      0.4
-    ]
-  }
-]
-````
-
-### Create dataset folder
-
-In order for reflect-detect to be able to gather the necessary information about the images, panels, camera, etc. ,
-reflect-detect expects you to structure your data in the following format:
-
-```
-dataset_folder
-│   panels_properties.json
-│   panel_locations.gpkg
-│
-└───orthophotos
-│   │   IMG_0000.tif
-│   │   IMG_0001.tif
-│   │   IMG_0002.tif
-│   │   IMG_0003.tif
-|   |   ...
+```bash
+reflectdetect-apriltag
 ```
 
-## :artificial_satellite: Usage
+Alternatively you can run the program from anywhere using
+
+```bash
+reflectdetect-apriltag "C:\Users\username\Desktop\dataset_folder"
+```
 
 # Planned Features
 

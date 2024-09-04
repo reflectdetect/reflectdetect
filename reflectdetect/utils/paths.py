@@ -16,3 +16,13 @@ def get_output_path(dataset: Path, filepath: Path, new_ending: str, folder: str)
 
 def default(value: Any, default: Any) -> Any:
     return value if value is not None else default
+
+
+def is_tool_installed(name: str) -> bool:
+    # https://stackoverflow.com/a/34177358
+    """Check whether `name` is on PATH and marked as executable."""
+
+    # from whichcraft import which
+    from shutil import which
+
+    return which(name) is not None
