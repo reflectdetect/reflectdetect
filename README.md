@@ -235,34 +235,38 @@ includes the reflectance values of each panel for each of the bands you captured
 In the following example we show how two panels might be configured. All the information about the first panel is
 between the first `{ }` and so on.
 
-We assume that the first panel in the file corresponds to the first layer of coordinates in the geopackage file
-<!-- TODO:explain better) -->
+The layer name corresponds to the name of the layer the coordinates of the panel corners are stored in, in the
+`panel_locations.gpkg` file
 
-```json filename="panel_properties.json"
-[
-  {
-    "layer_name": "corner_27",
-    "bands": [
-      0.9,
-      1.0,
-      1.0,
-      1.0,
-      0.72,
-      0.91
-    ]
-  },
-  {
-    "layer_name": "corner_28",
-    "bands": [
-      0.9,
-      1.0,
-      0.43,
-      0.70,
-      0.35,
-      0.4
-    ]
-  }
-]
+```json
+{
+  "default_panel_width": 1.3,
+  "default_panel_height": 1.3,
+  "panel_properties": [
+    {
+      "layer_name": "corner_27",
+      "bands": [
+        0.9,
+        1.0,
+        1.0,
+        1.0,
+        0.72,
+        0.91
+      ]
+    },
+    {
+      "layer_name": "corner_28",
+      "bands": [
+        0.9,
+        1.0,
+        0.43,
+        0.70,
+        0.35,
+        0.4
+      ]
+    }
+  ]
+}
 ````
 
 ## Create dataset folder
@@ -284,6 +288,36 @@ dataset_folder
 ```
 
 # :artificial_satellite: Usage
+
+After preparing the dataset folder, you are ready to run reflectdetect.
+Open a command line or terminal.
+
+To print the available arguments, run `reflectdetect-geolocation --help`
+
+Assuming:
+
+- the prepared dataset folder is at `C:\Users\username\Desktop\dataset_folder`
+- the `panel_properties.json` and `panel_locations.gpkg` files and the `images` folder are in the dataset folder and correctly named
+
+## Minimal example:
+
+To start the program, open your terminal or command line and run
+
+```bash
+cd C:\Users\username\Desktop\dataset_folder
+```
+
+then
+
+```bash
+reflectdetect-geolocation
+```
+
+Alternatively you can run the program from anywhere using
+
+```bash
+reflectdetect-geolocation "C:\Users\username\Desktop\dataset_folder"
+```
 
 # :white_square_button: Workflow 2: AprilTag-Based Calibration
 
@@ -339,7 +373,7 @@ between the first `{ }` and so on.
 
 ### Customizing the parameters
 
-The first panel will use the default values, while the second panel specifies its own parameters.
+The first panel will use the default values, while the second panel specifies some of its own parameters.
 Only `default_panel_width` and `default_panel_height` are required, the other parameters will have the default values as
 below if not specified.
 The tag id has to correspond to the id of the apriltag you placed next to the given panel. No id can be used twice!
@@ -368,7 +402,6 @@ The tag id has to correspond to the id of the apriltag you placed next to the gi
     {
       "tag_id": 2,
       "panel_width": 2.0,
-      "panel_height": 1.3,
       "shrink_factor": 0.5,
       "bands": [
         0.9,
@@ -419,7 +452,7 @@ To print the available arguments, run `reflectdetect-apriltag --help`
 Assuming:
 
 - the prepared dataset folder is at `C:\Users\username\Desktop\dataset_folder`
-- the `panel_properties.json` files and the `images` folder are in the dataset folder and correctly named
+- the `panel_properties.json` file and the `images` folder are in the dataset folder and correctly named
 
 ## Minimal example:
 

@@ -31,6 +31,7 @@ rich-argparse = "^1.5.2"
 
 [tool.poetry.group.dev.dependencies]
 mypy = "^1.11.2"
+sphinx-rtd-theme = "^2.0.0"
 
 [build-system]
 requires = ["poetry-core"]
