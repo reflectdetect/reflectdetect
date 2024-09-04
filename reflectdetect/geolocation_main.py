@@ -1,5 +1,4 @@
 import logging
-import logging
 import warnings
 from pathlib import Path
 
@@ -17,14 +16,15 @@ from tap import Tap
 import reflectdetect
 from reflectdetect.PanelProperties import GeolocationPanelPropertiesFile, ValidatedGeolocationPanelProperties, \
     validate_geolocation_panel_properties
-from reflectdetect.constants import PANEL_PROPERTIES_FILENAME, ORTHOPHOTO_FOLDER
+from reflectdetect.constants import PANEL_PROPERTIES_FILENAME, ORTHOPHOTO_FOLDER, DEFAULT_SHRINK_FACTOR, \
+    DEFAULT_PANEL_SMUDGE_FACTOR
 from reflectdetect.pipeline import interpolate_intensities, fit, convert
 from reflectdetect.utils.debug import debug_combine_and_plot_intensities, debug_save_intensities, ProgressBar, \
     debug_show_geolocation
 from reflectdetect.utils.orthophoto import load_panel_locations, get_orthophoto_paths, is_panel_in_orthophoto, \
     save_orthophotos, build_batches_per_full_visibility, extract_using_geolocation
 from reflectdetect.utils.panel import get_band_reflectance
-from reflectdetect.utils.paths import get_output_path, default
+from reflectdetect.utils.paths import get_output_path, default, is_tool_installed
 from reflectdetect.utils.thread import run_in_thread
 
 install(show_locals=False, suppress=[reflectdetect])
@@ -39,8 +39,8 @@ class GeolocationArgumentParser(Tap):
     panel_properties_file: str | None = None  # Path to file instead "panel_properties.json" in the dataset folder
     orthophotos_folder: str | None = None  # Path to orthophotos folder instead "/orthophotos" in the dataset folder
     debug: bool = False  # Prints logs and adds debug images into a /debug/ directory in the dataset folder
-    default_shrink_factor: float = 0.8  # This factor gets multiplied to the detected panel area, to avoid artifacts like bleed
-    default_panel_smudge_factor: float = 0.8  # This factor gets multiplied to the panel width and height to account for inaccuracy in lens exif information given by the manufacturer
+    default_shrink_factor: float = DEFAULT_SHRINK_FACTOR  # This factor gets multiplied to the detected panel area, to avoid artifacts like bleed
+    default_panel_smudge_factor: float = DEFAULT_PANEL_SMUDGE_FACTOR  # This factor gets multiplied to the panel width and height to account for inaccuracy in lens exif information given by the manufacturer
     default_panel_width: float | None = None  # Width of the calibration panel in meters
     default_panel_height: float | None = None  # Height of the calibration panel in meters
 
@@ -272,7 +272,8 @@ def main() -> None:
                                      description='Automatically detect reflection calibration panels in images and transform the given images to '
                                                  'reflectance',
                                      epilog='If you have any questions, please contact').parse_args()
-
+    if not is_tool_installed("exiftool"):
+        raise Exception("Exiftool is not installed. Follow the readme to install it")
     GeolocationEngine(args).start()
 
 
