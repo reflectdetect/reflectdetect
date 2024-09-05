@@ -185,7 +185,7 @@ class GeolocationEngine:
         ]
 
     def validate_panel_properties(
-        self, args: GeolocationArgumentParser
+            self, args: GeolocationArgumentParser
     ) -> list[ValidatedGeolocationPanelProperties]:
         panel_properties_filepath = (
             Path(args.panel_properties_file)
@@ -225,7 +225,7 @@ class GeolocationEngine:
         )
 
     def load_panel_properties(
-        self, panel_properties_file: Path | None
+            self, panel_properties_file: Path | None
     ) -> GeolocationPanelPropertiesFile:
         if panel_properties_file is None:
             path = self.dataset / PANEL_PROPERTIES_FILENAME
@@ -235,9 +235,9 @@ class GeolocationEngine:
         return GeolocationPanelPropertiesFile.parse_file(path)
 
     def convert_orthophotos_to_reflectance(
-        self,
-        paths: list[Path],
-        intensities: NDArray[np.float64],
+            self,
+            paths: list[Path],
+            intensities: NDArray[np.float64],
     ) -> list[list[NDArray[np.float64]] | None]:
         """
         This function converts the intensity values to reflectance values.
@@ -257,7 +257,7 @@ class GeolocationEngine:
                 converted_bands = []
                 orthophoto: DatasetReader
                 with rasterio.open(orthophoto_path) as orthophoto:
-                    photo = orthophoto.read()
+                    photo = orthophoto.read(masked=True)
                 for band_index, band in enumerate(photo):
                     intensities_of_panels = intensities[photo_index, :, band_index]
                     if np.isnan(intensities_of_panels).any():
@@ -281,9 +281,9 @@ class GeolocationEngine:
             return converted_photos
 
     def extract_intensities_from_orthophotos(
-        self,
-        batch_of_orthophotos: list[Path],
-        paths_with_visibility: dict[Path, NDArray[np.bool]],
+            self,
+            batch_of_orthophotos: list[Path],
+            paths_with_visibility: dict[Path, NDArray[np.bool]],
     ) -> NDArray[np.float64]:
         """
         This function extracts intensities from the orthophotos.
@@ -331,7 +331,7 @@ class GeolocationEngine:
         paths_with_visibility = {}
         number_of_paths_with_visibility = 0
         with ProgressBar(
-            self.progress, "Detecting visible panels", self.number_of_photos
+                self.progress, "Detecting visible panels", self.number_of_photos
         ) as pb:
             for path in self.orthophoto_paths:
                 panels_visible = np.array(
@@ -422,11 +422,13 @@ def main() -> None:
     args = GeolocationArgumentParser(
         formatter_class=RichHelpFormatter,
         description="Automatically detect reflection calibration panels in images and transform the given images to "
-        "reflectance",
+                    "reflectance",
         epilog="If you have any questions, please contact",
     ).parse_args()
     if not is_tool_installed("exiftool"):
         raise Exception("Exiftool is not installed. Follow the readme to install it")
+
+    install(show_locals=args.debug, suppress=[reflectdetect])
     GeolocationEngine(args).start()
 
 

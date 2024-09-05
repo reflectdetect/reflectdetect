@@ -9,6 +9,7 @@ import shapely
 from geopandas import GeoDataFrame
 from matplotlib import pyplot as plt
 from numpy.typing import NDArray
+from rasterio import plot
 from rich.progress import Progress, TaskID
 from robotpy_apriltag import AprilTagDetection
 from shapely import Polygon
@@ -20,11 +21,11 @@ matplotlib.use("Agg")
 
 
 def debug_show_geolocation(
-    path: Path,
-    locations: list[GeoDataFrame],
-    visibility: list[bool],
-    shrink_factors: list[float],
-    output_path: Path | None = None,
+        path: Path,
+        locations: list[GeoDataFrame],
+        visibility: list[bool],
+        shrink_factors: list[float],
+        output_path: Path | None = None,
 ) -> None:
     fig_2d = plt.figure()
     ax = fig_2d.subplots(1, 1)
@@ -58,11 +59,11 @@ def debug_show_geolocation(
 
 
 def debug_show_panels(
-    img: NDArray[np.float64],
-    tags: list[AprilTagDetection],
-    corners_list: list[list[float]],
-    shrink_factors: list[float],
-    output_path: Path | None = None,
+        img: NDArray[np.float64],
+        tags: list[AprilTagDetection],
+        corners_list: list[list[float]],
+        shrink_factors: list[float],
+        output_path: Path | None = None,
 ) -> None:
     fig_2d = plt.figure()
     ax = fig_2d.subplots(1, 1)
@@ -92,7 +93,7 @@ def debug_show_panels(
 
 
 def show_intensities(
-    intensities: NDArray[np.float64], output_path: str | None = None
+        intensities: NDArray[np.float64], output_path: str | None = None
 ) -> None:
     fig, axes = plt.subplots(len(intensities[0, 0, :]), sharex=True, figsize=(15, 15))
     max_intensity = np.nanmax(intensities)
@@ -124,11 +125,11 @@ def show_intensities(
 
 
 def debug_combine_and_plot_intensities(
-    number_of_images: int,
-    number_of_bands: int,
-    number_of_panels: int,
-    output_folder: Path,
-    suffix: str = "",
+        number_of_images: int,
+        number_of_bands: int,
+        number_of_panels: int,
+        output_folder: Path,
+        suffix: str = "",
 ) -> None:
     intensities = np.zeros((number_of_images, number_of_panels, number_of_bands))
     for band in range(0, number_of_bands):
@@ -140,11 +141,11 @@ def debug_combine_and_plot_intensities(
 
 
 def debug_save_intensities(
-    first_path_is_duplicate: bool,
-    intensities: NDArray[np.float64],
-    number_of_bands: int,
-    output_folder: Path,
-    suffix: str = "",
+        first_path_is_duplicate: bool,
+        intensities: NDArray[np.float64],
+        number_of_bands: int,
+        output_folder: Path,
+        suffix: str = "",
 ) -> None:
     os.makedirs(output_folder, exist_ok=True)
     for band in range(0, number_of_bands):
@@ -162,10 +163,10 @@ def debug_save_intensities(
 
 
 def debug_save_intensities_single_band(
-    intensities: NDArray[np.float64],
-    band_index: int,
-    output_folder: Path,
-    suffix: str = "",
+        intensities: NDArray[np.float64],
+        band_index: int,
+        output_folder: Path,
+        suffix: str = "",
 ) -> None:
     os.makedirs(output_folder, exist_ok=True)
     output_path = output_folder / f"band_{str(band_index)}_intensities{suffix}.csv"
@@ -178,7 +179,7 @@ def debug_save_intensities_single_band(
 
 class ProgressBar:
     def __init__(
-        self, progress: Progress | None, description: str, total: int | None = None
+            self, progress: Progress | None, description: str, total: int | None = None
     ) -> None:
         self.progress = progress
         self.description = description
@@ -193,7 +194,7 @@ class ProgressBar:
         return self
 
     def __exit__(
-        self, exc_type: type | None, exc_value: Exception | None, traceback: Any | None
+            self, exc_type: type | None, exc_value: Exception | None, traceback: Any | None
     ) -> None:
         if self.progress is not None and self.task is not None:
             self.progress.remove_task(self.task)

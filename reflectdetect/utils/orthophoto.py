@@ -7,6 +7,7 @@ import rasterio
 from geopandas import GeoDataFrame
 from numpy.typing import NDArray
 from rasterio import DatasetReader
+from rasterio.mask import mask
 from rasterio.coords import BoundingBox
 from rich.progress import Progress
 from shapely.geometry import Polygon
@@ -56,6 +57,7 @@ def extract_using_geolocation(
 ) -> list[float]:
     """
     Extract the mean intensity values from an orthophoto inside a polygon give by 4 corner points of a panel
+
     :param photo: the orthophoto to take the intensity values from
     :param panel_location: the 4 corner points in a geodataframe
     :param shrink_factor: factor to shrink the polygon by to avoid bleed or similar artifacts

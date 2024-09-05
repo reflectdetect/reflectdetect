@@ -31,10 +31,10 @@ def convert_resolution_unit(resolution: float, unit: int) -> float:
 
 
 def calculate_sensor_size(
-    image_resolution: tuple[int, int],
-    focal_plane_x_res: float,
-    focal_plane_y_res: float,
-    focal_plane_resolution_unit: int,
+        image_resolution: tuple[int, int],
+        focal_plane_x_res: float,
+        focal_plane_y_res: float,
+        focal_plane_resolution_unit: int,
 ) -> tuple[float, float]:
     """
     Calculate the sensor size in millimeters using focal plane resolutions.
@@ -60,14 +60,14 @@ def calculate_sensor_size(
 
 
 def calculate_panel_size_in_pixels(
-    altitude: float,
-    resolution: tuple[int, int],
-    physical_panel_size: tuple[float, float],
-    focal_length_mm: float,
-    focal_plane_x_res: float,
-    focal_plane_y_res: float,
-    focal_plane_resolution_unit: int,
-    smudge_factor: float = 0.8,
+        altitude: float,
+        resolution: tuple[int, int],
+        physical_panel_size: tuple[float, float],
+        focal_length_mm: float,
+        focal_plane_x_res: float,
+        focal_plane_y_res: float,
+        focal_plane_resolution_unit: int,
+        smudge_factor: float = 0.8,
 ) -> tuple[int, int]:
     """
     Calculate the expected size of an object in pixels based on camera parameters and object physical size.
@@ -116,9 +116,8 @@ def calculate_panel_size_in_pixels(
 
 
 def get_band_reflectance(
-    panels_properties: list[ValidatedGeolocationPanelProperties]
-    | list[ValidatedApriltagPanelProperties],
-    band_index: int,
+        panels_properties: list[ValidatedGeolocationPanelProperties] | list[ValidatedApriltagPanelProperties],
+        band_index: int,
 ) -> NDArray[np.float64]:
     """
 
