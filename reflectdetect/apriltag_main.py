@@ -59,8 +59,6 @@ from reflectdetect.utils.paths import get_output_path, default, is_tool_installe
 from reflectdetect.utils.polygons import shrink_shapely_polygon
 from reflectdetect.utils.thread import run_in_thread
 
-install(show_locals=False, suppress=[reflectdetect])
-
 
 class ApriltagArgumentParser(Tap):
     dataset: Path  # Path to the dataset folder
@@ -422,6 +420,9 @@ def main() -> None:
 
     if not is_tool_installed("exiftool"):
         raise Exception("Exiftool is not installed. Follow the readme to install it")
+
+    install(show_locals=args.debug, suppress=[reflectdetect] if not args.debug else [])
+
     AprilTagEngine(args).start()
 
 

@@ -51,7 +51,6 @@ from reflectdetect.utils.panel import get_band_reflectance
 from reflectdetect.utils.paths import get_output_path, default, is_tool_installed
 from reflectdetect.utils.thread import run_in_thread
 
-install(show_locals=False, suppress=[reflectdetect])
 logger = logging.getLogger(__name__)
 
 rasterio_logging.disable()
@@ -75,6 +74,7 @@ class GeolocationArgumentParser(Tap):
     default_panel_height: float | None = (
         None  # Height of the calibration panel in meters
     )
+    no_data_value: int = 65535  # The value in the tiff image to interpret as no-data
 
     def configure(self) -> None:
         self.add_argument("dataset", nargs="?", default=".", type=Path)
@@ -100,7 +100,7 @@ class GeolocationEngine:
         if not self.dataset.exists():
             raise Exception(f"Could not find specified dataset folder: {args.dataset}")
         self.debug = args.debug
-
+        self.no_data_value = args.no_data_value
         # Validate Panel_properties file
         self.panel_properties: list[ValidatedGeolocationPanelProperties] = (
             self.validate_panel_properties(args)
@@ -238,6 +238,7 @@ class GeolocationEngine:
             self,
             paths: list[Path],
             intensities: NDArray[np.float64],
+            no_data_value: int,
     ) -> list[list[NDArray[np.float64]] | None]:
         """
         This function converts the intensity values to reflectance values.
@@ -257,7 +258,7 @@ class GeolocationEngine:
                 converted_bands = []
                 orthophoto: DatasetReader
                 with rasterio.open(orthophoto_path) as orthophoto:
-                    photo = orthophoto.read(masked=True)
+                    photo = orthophoto.read(masked=True, )
                 for band_index, band in enumerate(photo):
                     intensities_of_panels = intensities[photo_index, :, band_index]
                     if np.isnan(intensities_of_panels).any():
@@ -271,7 +272,7 @@ class GeolocationEngine:
                         intensities_of_panels,
                         get_band_reflectance(self.panel_properties, band_index),
                     )
-                    converted_bands.append(convert(band, coefficients))
+                    converted_bands.append(convert(band, coefficients, band != no_data_value))
                 else:
                     # For loop did not break, therefore all bands were converted
                     converted_photos.append(converted_bands)
@@ -396,7 +397,7 @@ class GeolocationEngine:
                     output_folder / "intensity",
                     "_interpolated",
                 )
-            c = self.convert_orthophotos_to_reflectance(batch, i)
+            c = self.convert_orthophotos_to_reflectance(batch, i, self.no_data_value)
             del i
             save_orthophotos(self.dataset, batch, c, self.progress)
             del c
@@ -428,7 +429,7 @@ def main() -> None:
     if not is_tool_installed("exiftool"):
         raise Exception("Exiftool is not installed. Follow the readme to install it")
 
-    install(show_locals=args.debug, suppress=[reflectdetect])
+    install(show_locals=args.debug, suppress=[reflectdetect] if not args.debug else [])
     GeolocationEngine(args).start()
 
 
