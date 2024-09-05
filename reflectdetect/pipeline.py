@@ -10,6 +10,7 @@ from reflectdetect.utils.debug import ProgressBar
 def fit(x: NDArray[np.float64], y: NDArray[np.float64]) -> tuple[float, float]:
     """
     Fits a linear function to the data
+
     :param x: 1D float array
     :param y: 1D float array
     :return: slope and intercept of the linear function
@@ -23,6 +24,7 @@ def interpolate(values: NDArray[np.float64]) -> NDArray[np.float64]:
     Interpolates the values to remove all np.nan values.
     NaN values that only have a datapoint on one side take the value of the closest datapoint
     NaN values that have a datapoint on each side get linearly interpolated between the two datapoints
+
     :param values: 1D float array
     :return: 1D float array without np.Nan values
     """
@@ -73,6 +75,7 @@ def convert(
 ) -> NDArray[np.float64]:
     """
     Uses coefficients of a linear function to convert a 2D image
+
     :param band_image: 2D image of intensity values
     :param coefficients: slope and intercept of a linear function
     :return: the band image with every datapoint being transformed by the linear function
@@ -93,6 +96,7 @@ def interpolate_intensities(
     Only for photos where the panel was visible we have a value for the given band.
     Data might look like this: [np.NaN, np.NaN, 240.0, 241.0, 240.0, np.NaN, 242.0, np.NaN, np.NaN]
     After interpolation:            [240.00, 240.00, 240.0, 241.0, 240.0, 241.00, 242.0, 242.00, 242.00]
+
     :param number_of_panels: number of panels
     :param number_of_bands: number of bands in the images
     :rtype: ndarray[Any, dtype[np.float64]]

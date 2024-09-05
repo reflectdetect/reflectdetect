@@ -149,7 +149,7 @@ class AprilTagEngine:
         self.detector.setConfig(get_detector_config())
 
     def validate_panel_properties(
-        self, args: ApriltagArgumentParser
+            self, args: ApriltagArgumentParser
     ) -> tuple[float, list[ValidatedApriltagPanelProperties]]:
         panel_properties_filepath = (
             Path(args.panel_properties_file)
@@ -170,7 +170,8 @@ class AprilTagEngine:
 
         default_properties_names = [
             "default_panel_width",
-            "default_panel_height" "default_tag_family",
+            "default_panel_height",
+            "default_tag_family",
             "default_tag_direction",
             "default_panel_smudge_factor",
             "default_tag_smudge_factor",
@@ -191,19 +192,15 @@ class AprilTagEngine:
                 panel_properties_file.panel_properties, default_properties
             )
         )
-        tag_size = (
-            args.tag_size
-            if args.tag_size is not None
-            else panel_properties_file.tag_size
-        )
-        if self.tag_size is None:
+        tag_size = default(args.tag_size, panel_properties_file.tag_size)
+        if tag_size is None:
             raise Exception(
                 "Tag size not set via panel_properties file or CLI argument"
             )
         return tag_size, panel_properties
 
     def load_panel_properties(
-        self, panel_properties_file: Path | None
+            self, panel_properties_file: Path | None
     ) -> ApriltagPanelPropertiesFile:
         if panel_properties_file is None:
             path = self.dataset / PANEL_PROPERTIES_FILENAME
@@ -213,7 +210,7 @@ class AprilTagEngine:
         return ApriltagPanelPropertiesFile.parse_file(path)
 
     def convert_images_to_reflectance(
-        self, paths: list[Path], intensities: NDArray[np.float64], band_index: int
+            self, paths: list[Path], intensities: NDArray[np.float64], band_index: int
     ) -> list[NDArray[np.float64] | None]:
         """
         This function converts the intensity values to reflectance values.
@@ -229,7 +226,7 @@ class AprilTagEngine:
         """
 
         with ProgressBar(
-            self.progress, description="Converting images", total=len(paths)
+                self.progress, description="Converting images", total=len(paths)
         ) as pb:
             unconverted_photos = []
             converted_photos: list[NDArray[np.float64] | None] = []
@@ -332,10 +329,10 @@ class AprilTagEngine:
         return panel_intensities
 
     def extract_intensities_from_apriltags(
-        self, batch: list[Path]
+            self, batch: list[Path]
     ) -> NDArray[np.float64]:
         with ProgressBar(
-            self.progress, "Extracting intensities", total=len(batch)
+                self.progress, "Extracting intensities", total=len(batch)
         ) as pb:
             intensities = np.zeros((len(batch), self.number_of_panels))
             for img_index, path in enumerate(batch):
@@ -384,7 +381,7 @@ class AprilTagEngine:
                 i, band_index, debug_output_folder / "intensity"
             ) if self.debug else None
             with ProgressBar(
-                self.progress, "Interpolating intensities", self.number_of_panels
+                    self.progress, "Interpolating intensities", self.number_of_panels
             ) as pb:
                 for panel_index, _ in enumerate(self.panel_properties):
                     i[:, panel_index] = interpolate(i[:, panel_index])
@@ -419,7 +416,7 @@ def main() -> None:
     args = ApriltagArgumentParser(
         formatter_class=RichHelpFormatter,
         description="Automatically detect reflection calibration panels in images and transform the given images to "
-        "reflectance",
+                    "reflectance",
         epilog="If you have any questions, please contact",
     ).parse_args()
 
