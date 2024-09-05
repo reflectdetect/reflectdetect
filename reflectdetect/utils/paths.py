@@ -18,6 +18,7 @@ def get_output_path(
     """
     Gets the output path of a new file based on a filepath.
     It extracts the filename form the filepath and saves it with new ending to the specified folder in the dataset
+
     :param dataset: The main folder
     :param filepath: filepath the filename will be based on
     :param new_ending: new file ending
