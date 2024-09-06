@@ -163,17 +163,14 @@ class GeolocationEngine:
             panel_locations = load_panel_locations(self.dataset, panel_locations_file)
 
         # Validate connection of locations and properties
-        if self.number_of_panels != len(panel_locations):
-            raise Exception(
-                "Number of panel specifications does not match number of panel locations"
-            )
         panel_properties_layer_names = [
             panel.layer_name for panel in self.panel_properties
         ]
         panel_location_layer_names = [location[0] for location in panel_locations]
-        if set(panel_properties_layer_names) != set(panel_location_layer_names):
+        if set(panel_location_layer_names).intersection(set(panel_properties_layer_names)) != set(
+                panel_properties_layer_names):
             raise Exception(
-                "Panel properties layer names do not match panel locations layer names"
+                f"Panel properties layer names do not match panel locations layer names: location_file: {panel_location_layer_names} and panel_properties_file: {panel_location_layer_names}"
             )
         # Reorder panel_locations to match panel_properties for easier indexing
         panel_order = [
@@ -337,7 +334,7 @@ class GeolocationEngine:
             for path in self.orthophoto_paths:
                 panels_visible = np.array(
                     [
-                        is_panel_in_orthophoto(path, location)
+                        is_panel_in_orthophoto(path, location, self.no_data_value)
                         for location in self.panel_locations
                     ]
                 )

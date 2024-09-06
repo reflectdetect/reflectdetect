@@ -4,11 +4,12 @@ import fiona
 import geopandas as gpd
 import numpy as np
 import rasterio
+import rasterio.plot
 from geopandas import GeoDataFrame
 from numpy.typing import NDArray
 from rasterio import DatasetReader
-from rasterio.mask import mask
 from rasterio.coords import BoundingBox
+from rasterio.mask import mask
 from rich.progress import Progress
 from shapely.geometry import Polygon
 
@@ -19,7 +20,7 @@ from reflectdetect.utils.paths import get_output_path
 from reflectdetect.utils.polygons import shrink_shapely_polygon
 
 
-def is_panel_in_orthophoto(orthophoto_path: Path, panel: GeoDataFrame) -> bool:
+def is_panel_in_orthophoto(orthophoto_path: Path, panel: GeoDataFrame, no_data_value: int) -> bool:
     """
     Checks if a panel is in an orthophoto based on its coordinates
     :param orthophoto_path: path to the orthophoto tiff file
@@ -30,30 +31,29 @@ def is_panel_in_orthophoto(orthophoto_path: Path, panel: GeoDataFrame) -> bool:
         raise Exception("Invalid panel location, no corner points included")
     with rasterio.open(orthophoto_path) as orthophoto:
         bounds = BoundingBox(*orthophoto.bounds)
-        crs = orthophoto.crs
-    orthophoto_polygon = Polygon(
-        [
-            (bounds.left, bounds.bottom),
-            (bounds.left, bounds.top),
-            (bounds.right, bounds.top),
-            (bounds.right, bounds.bottom),
-        ]
-    )
+        panel_polygon = panel.union_all().convex_hull
+        out_image, out_transform = rasterio.mask.mask(
+            orthophoto, [panel_polygon], crop=True,
+        )
+        orthophoto_polygon = Polygon(
+            [
+                (bounds.left, bounds.bottom),
+                (bounds.left, bounds.top),
+                (bounds.right, bounds.top),
+                (bounds.right, bounds.bottom),
+            ]
+        )
+        for band in out_image:
+            rasterio.plot.show(band)
 
-    # Create a GeoDataFrame for the orthophoto polygon with its CRS
-    orthophoto_box = gpd.GeoDataFrame({"geometry": [orthophoto_polygon]}, crs=crs)
-
-    # Ensure the GeoDataframe has the same CRS as the orthophoto box
-    if panel.crs.name != orthophoto_box.crs.name:
-        print("CRS mismatch, converting ", panel.crs, "to", orthophoto_box.crs)
-        panel = panel.to_crs(orthophoto_box.crs)
+        has_no_invalid_values = not np.any(out_image == no_data_value)
 
     # Check if all corner points of the panel are within the orthophoto bounds
-    return bool(panel.within(orthophoto_polygon).all())
+    return bool(panel.within(orthophoto_polygon).all()) and has_no_invalid_values
 
 
 def extract_using_geolocation(
-    photo: DatasetReader, panel_location: GeoDataFrame, shrink_factor: float
+        photo: DatasetReader, panel_location: GeoDataFrame, shrink_factor: float
 ) -> list[float]:
     """
     Extract the mean intensity values from an orthophoto inside a polygon give by 4 corner points of a panel
@@ -67,14 +67,14 @@ def extract_using_geolocation(
     panel_polygon = panel_location.union_all().convex_hull
     panel_polygon = shrink_shapely_polygon(panel_polygon, shrink_factor)
     out_image, out_transform = rasterio.mask.mask(
-        photo, [panel_polygon], crop=True, nodata=0
+        photo, [panel_polygon], crop=True
     )
 
     return [panel_band[panel_band > 0].mean() for panel_band in out_image]
 
 
 def save_bands(
-    output_path: Path, band_images: list[NDArray[np.float64]], meta: dict[str, str]
+        output_path: Path, band_images: list[NDArray[np.float64]], meta: dict[str, str]
 ) -> None:
     """
     Save the bands to a new file
@@ -106,7 +106,7 @@ def get_orthophoto_paths(dataset: Path, orthophotos_folder: Path | None) -> list
 
 
 def load_panel_locations(
-    dataset: Path, geopackage_filepath: Path | None
+        dataset: Path, geopackage_filepath: Path | None
 ) -> list[tuple[str, GeoDataFrame]]:
     """
     Loads the panel location file. The default layer "android_metadata" is ignored
@@ -133,7 +133,7 @@ def load_panel_locations(
 
 
 def build_batches_per_full_visibility(
-    paths_with_visibility: dict[Path, NDArray[np.bool]],
+        paths_with_visibility: dict[Path, NDArray[np.bool]],
 ) -> list[tuple[bool, list[Path]]]:
     """
     Batches a list of images based on a precomputed property indicating which panels are visible.
@@ -146,7 +146,7 @@ def build_batches_per_full_visibility(
     # Batch contains bool to signify whether the first path is there only for interpolation
     current_batch: tuple[bool, list[Path]] = (False, [])
     for (path, panel_visibility), nextVisibility in get_next(
-        paths_with_visibility.items()
+            paths_with_visibility.items()
     ):
         current_batch[1].append(path)
 
@@ -167,10 +167,10 @@ def build_batches_per_full_visibility(
 
 
 def save_orthophotos(
-    dataset: Path,
-    paths: list[Path],
-    converted_photos: list[list[NDArray[np.float64]] | None],
-    progress: Progress | None = None,
+        dataset: Path,
+        paths: list[Path],
+        converted_photos: list[list[NDArray[np.float64]] | None],
+        progress: Progress | None = None,
 ) -> None:
     """
     This function saves the converted photos as .tif files into a new "/transformed/" directory in the images folder

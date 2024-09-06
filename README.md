@@ -479,6 +479,7 @@ reflectdetect-apriltag "C:\Users\username\Desktop\dataset_folder"
 - [ ] Support for unequal time intervals between images
 - [x] Customize parameters on a per panel basis
 - [ ] Add dataset verification script
+- [ ] Remove 5% of outliers in panel intensities value
 
 # Contributing
 

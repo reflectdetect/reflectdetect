@@ -271,7 +271,6 @@ class AprilTagEngine:
         debug_tags = []
         debug_shrink_factors = []
         for tag in all_tags:
-            # TODO remove family from filter
             panels = list(
                 filter(lambda p: p.tag_id == tag.getId(), self.panel_properties)
             )
@@ -312,18 +311,19 @@ class AprilTagEngine:
                 )
                 panel_intensities[panel_index] = mean
         if self.debug:
-            output_path = get_output_path(
-                self.dataset, path, "panels.tif", "debug/panels"
-            )
-            run_in_thread(
-                debug_show_panels,
-                True,
-                img,
-                debug_tags,
-                debug_corners,
-                debug_shrink_factors,
-                output_path,
-            )
+            if len(debug_tags) > 0:
+                output_path = get_output_path(
+                    self.dataset, path, "panels.tif", "debug/panels"
+                )
+                run_in_thread(
+                    debug_show_panels,
+                    True,
+                    img,
+                    debug_tags,
+                    debug_corners,
+                    debug_shrink_factors,
+                    output_path,
+                )
         return panel_intensities
 
     def extract_intensities_from_apriltags(
