@@ -398,13 +398,6 @@ class AprilTagEngine:
                 self.number_of_panels,
                 debug_output_folder / "intensity",
             )
-            debug_combine_and_plot_intensities(
-                number_of_image_per_band,
-                number_of_bands,
-                self.number_of_panels,
-                debug_output_folder / "intensity",
-                "_interpolated",
-            )
 
 
 def main() -> None:

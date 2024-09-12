@@ -7,7 +7,7 @@ import numpy as np
 import rasterio
 import shapely
 from geopandas import GeoDataFrame
-from matplotlib import pyplot as plt
+from matplotlib import pyplot as plt, cm
 from numpy.typing import NDArray
 from rasterio import plot
 from rich.progress import Progress, TaskID
@@ -93,9 +93,12 @@ def debug_show_panels(
 
 
 def show_intensities(
-        intensities: NDArray[np.float64], output_path: str | None = None
+        intensities: NDArray[np.float64],
+        interpolated_intensities: NDArray[np.float64],
+        output_path: str | None = None
 ) -> None:
-    fig, axes = plt.subplots(len(intensities[0, 0, :]), sharex=True, figsize=(15, 15))
+    number_of_bands = len(intensities[0, 0, :])
+    fig, axes = plt.subplots(number_of_bands, sharex=True, figsize=(15, 15))
     max_intensity = np.nanmax(intensities)
 
     for band_index, ax in enumerate(axes):
@@ -103,7 +106,7 @@ def show_intensities(
         ax.set_ylim([0, max_intensity * 1.2])
         ax.set_ylabel("Intensity")
         ax.annotate(
-            "Band " + str(band_index),
+            "Band " + str(band_index + 1),
             xy=(0, 1),
             xycoords="axes fraction",
             xytext=(+0.5, -0.5),
@@ -113,10 +116,13 @@ def show_intensities(
             fontfamily="serif",
             bbox=dict(facecolor="0.7", edgecolor="none", pad=3.0),
         )
-        for panel_index in range(0, len(intensities[0, :, 0])):
-            ax.plot(intensities[:, panel_index, band_index])
+        number_of_panels = len(intensities[0, :, 0])
+        for panel_index in range(0, number_of_panels):
+            line, = ax.plot(interpolated_intensities[:, panel_index, band_index], ls='--', lw=1)
+            ax.plot(intensities[:, panel_index, band_index], color=line.get_color(), lw=1.5)
     plt.xlabel("Image index")
-    plt.xlim([0, len(intensities[:, 0, 0])])
+    number_of_images = len(intensities[:, 0, 0])
+    plt.xlim([0, number_of_images])
     if output_path is not None:
         plt.savefig(output_path)
     else:
@@ -129,15 +135,19 @@ def debug_combine_and_plot_intensities(
         number_of_bands: int,
         number_of_panels: int,
         output_folder: Path,
-        suffix: str = "",
 ) -> None:
     intensities = np.zeros((number_of_images, number_of_panels, number_of_bands))
     for band in range(0, number_of_bands):
-        filename = f"band_{band}_intensities{suffix}.csv"
-        output_path = output_folder / filename
-        intensities[:, :, band] = np.genfromtxt(output_path, delimiter=",")
-    output_path = output_folder / f"intensities{suffix}.tif"
-    run_in_thread(show_intensities, True, intensities, output_path.as_posix())
+        filename = f"band_{band}_intensities.csv"
+        input_path = output_folder / filename
+        intensities[:, :, band] = np.genfromtxt(input_path, delimiter=",")
+    interpolated_intensities = np.zeros((number_of_images, number_of_panels, number_of_bands))
+    for band in range(0, number_of_bands):
+        filename = f"band_{band}_intensities_interpolated.csv"
+        input_path = output_folder / filename
+        interpolated_intensities[:, :, band] = np.genfromtxt(input_path, delimiter=",")
+    output_path = output_folder / f"intensities.tif"
+    run_in_thread(show_intensities, True, intensities, interpolated_intensities, output_path.as_posix())
 
 
 def debug_save_intensities(

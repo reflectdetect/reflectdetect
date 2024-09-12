@@ -117,10 +117,9 @@ def calculate_panel_size_in_pixels(
 
 def get_panel_intensity(intensity_values: NDArray[np.floating]) -> float:
     intensity_values = intensity_values[intensity_values > 0]
-    q75, q25 = np.percentile(intensity_values, [75, 25])
-    iqr = q75 - q25
-    lower_bound = q25 - 1.5 * iqr
-    upper_bound = q75 + 1.5 * iqr
+    q95, q5 = np.percentile(intensity_values, [95, 5])
+    lower_bound = q5
+    upper_bound = q95
     # remove outliers and mean
     intensity_values = intensity_values[intensity_values >= lower_bound]
     intensity_values = intensity_values[intensity_values <= upper_bound]
