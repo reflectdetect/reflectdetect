@@ -2,6 +2,7 @@ from pathlib import Path
 
 import fiona
 import geopandas as gpd
+import matplotlib
 import numpy as np
 import rasterio
 import rasterio.plot
@@ -13,14 +14,15 @@ from rasterio.mask import mask
 from rich.progress import Progress
 from shapely.geometry import Polygon
 
-from reflectdetect.constants import ORTHOPHOTO_FOLDER, PANEL_LOCATIONS_FILENAME
+from reflectdetect.constants import ORTHOPHOTO_FOLDER, PANEL_LOCATIONS_FILENAME, COMPRESSION_FACTOR
 from reflectdetect.utils.debug import ProgressBar
 from reflectdetect.utils.iterators import get_next
+from reflectdetect.utils.panel import get_panel_intensity
 from reflectdetect.utils.paths import get_output_path
 from reflectdetect.utils.polygons import shrink_shapely_polygon
 
 
-def is_panel_in_orthophoto(orthophoto_path: Path, panel: GeoDataFrame, no_data_value: int) -> bool:
+def is_panel_in_orthophoto(orthophoto_path: Path, panel: GeoDataFrame, shrink_factor: float, no_data_value: int) -> bool:
     """
     Checks if a panel is in an orthophoto based on its coordinates
     :param orthophoto_path: path to the orthophoto tiff file
@@ -29,12 +31,9 @@ def is_panel_in_orthophoto(orthophoto_path: Path, panel: GeoDataFrame, no_data_v
     """
     if panel.empty:
         raise Exception("Invalid panel location, no corner points included")
+
     with rasterio.open(orthophoto_path) as orthophoto:
         bounds = BoundingBox(*orthophoto.bounds)
-        panel_polygon = panel.union_all().convex_hull
-        out_image, out_transform = rasterio.mask.mask(
-            orthophoto, [panel_polygon], crop=True,
-        )
         orthophoto_polygon = Polygon(
             [
                 (bounds.left, bounds.bottom),
@@ -43,21 +42,33 @@ def is_panel_in_orthophoto(orthophoto_path: Path, panel: GeoDataFrame, no_data_v
                 (bounds.right, bounds.bottom),
             ]
         )
-        for band in out_image:
-            rasterio.plot.show(band)
+        # Check if all corner points of the panel are within the orthophoto bounds
+        if not bool(panel.within(orthophoto_polygon).all()):
+            return False
 
-        has_no_invalid_values = not np.any(out_image == no_data_value)
+        panel_polygon = panel.union_all().convex_hull
+        panel_polygon = shrink_shapely_polygon(panel_polygon, shrink_factor)
+        out_image, out_transform = rasterio.mask.mask(
+            orthophoto, [panel_polygon], crop=True, nodata=no_data_value
+        )
+        # Check if any of the bands include a no data value
+        if np.array([band[band == no_data_value].any() for band in out_image]).any():
+            print(orthophoto_path)
+            matplotlib.use('Tkagg')
+            rasterio.plot.show(out_image[0], cmap="grey")
+            return False
 
-    # Check if all corner points of the panel are within the orthophoto bounds
-    return bool(panel.within(orthophoto_polygon).all()) and has_no_invalid_values
+    return True
 
 
 def extract_using_geolocation(
-        photo: DatasetReader, panel_location: GeoDataFrame, shrink_factor: float
+        photo: DatasetReader, panel_location: GeoDataFrame, shrink_factor: float, no_data_value: int
 ) -> list[float]:
     """
     Extract the mean intensity values from an orthophoto inside a polygon give by 4 corner points of a panel
 
+    :param no_data_value: the value indicating that a part of the orthophoto is not data
+    (typically max of the datatype or 0)
     :param photo: the orthophoto to take the intensity values from
     :param panel_location: the 4 corner points in a geodataframe
     :param shrink_factor: factor to shrink the polygon by to avoid bleed or similar artifacts
@@ -70,7 +81,7 @@ def extract_using_geolocation(
         photo, [panel_polygon], crop=True
     )
 
-    return [panel_band[panel_band > 0].mean() for panel_band in out_image]
+    return [get_panel_intensity(panel_band, no_data_value) for panel_band in out_image]
 
 
 def save_bands(
@@ -85,7 +96,9 @@ def save_bands(
     # Combine bands back into one image
     with rasterio.open(output_path, "w", **meta) as dst:
         for band_index, band in enumerate(band_images):
-            dst.write_band(band_index + 1, band)
+            band[band < 0] = 0
+            scaled_to_int = np.array(band * COMPRESSION_FACTOR, dtype=np.uint16)
+            dst.write_band(band_index + 1, scaled_to_int)
 
 
 def get_orthophoto_paths(dataset: Path, orthophotos_folder: Path | None) -> list[Path]:

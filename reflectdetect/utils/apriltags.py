@@ -74,7 +74,7 @@ def pose_estimate_tags(
     return estimates
 
 
-def get_altitude_from_panels(
+def get_altitude_from_tags(
         tags: list[AprilTagDetection],
         path: Path,
         resolution: tuple[int, int],
