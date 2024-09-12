@@ -53,9 +53,6 @@ def is_panel_in_orthophoto(orthophoto_path: Path, panel: GeoDataFrame, shrink_fa
         )
         # Check if any of the bands include only no data value
         if np.array([(band == no_data_value).all() for band in out_image]).any():
-            print(orthophoto_path)
-            matplotlib.use('Tkagg')
-            rasterio.plot.show(out_image[0], cmap="grey")
             return False
 
     return True
