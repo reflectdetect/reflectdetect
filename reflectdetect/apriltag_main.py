@@ -59,8 +59,6 @@ from reflectdetect.utils.paths import get_output_path, default, is_tool_installe
 from reflectdetect.utils.polygons import shrink_shapely_polygon
 from reflectdetect.utils.thread import run_in_thread
 
-install(show_locals=False, suppress=[reflectdetect])
-
 
 class ApriltagArgumentParser(Tap):
     dataset: Path  # Path to the dataset folder
@@ -273,7 +271,6 @@ class AprilTagEngine:
         debug_tags = []
         debug_shrink_factors = []
         for tag in all_tags:
-            # TODO remove family from filter
             panels = list(
                 filter(lambda p: p.tag_id == tag.getId(), self.panel_properties)
             )
@@ -314,18 +311,19 @@ class AprilTagEngine:
                 )
                 panel_intensities[panel_index] = mean
         if self.debug:
-            output_path = get_output_path(
-                self.dataset, path, "panels.tif", "debug/panels"
-            )
-            run_in_thread(
-                debug_show_panels,
-                True,
-                img,
-                debug_tags,
-                debug_corners,
-                debug_shrink_factors,
-                output_path,
-            )
+            if len(debug_tags) > 0:
+                output_path = get_output_path(
+                    self.dataset, path, "panels.tif", "debug/panels"
+                )
+                run_in_thread(
+                    debug_show_panels,
+                    True,
+                    img,
+                    debug_tags,
+                    debug_corners,
+                    debug_shrink_factors,
+                    output_path,
+                )
         return panel_intensities
 
     def extract_intensities_from_apriltags(
@@ -422,6 +420,9 @@ def main() -> None:
 
     if not is_tool_installed("exiftool"):
         raise Exception("Exiftool is not installed. Follow the readme to install it")
+
+    install(show_locals=args.debug, suppress=[reflectdetect] if not args.debug else [])
+
     AprilTagEngine(args).start()
 
 

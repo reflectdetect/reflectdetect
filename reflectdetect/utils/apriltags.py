@@ -5,6 +5,7 @@ from pathlib import Path
 from typing import Any
 
 import numpy as np
+import rasterio
 from numpy.typing import NDArray
 from rich.progress import Progress
 from robotpy_apriltag import AprilTagDetection, AprilTagDetector, AprilTagPoseEstimator
@@ -43,7 +44,7 @@ def verify_detections(tag: AprilTagDetection, valid_ids: list[int]) -> bool:
 
 
 def detect_tags(
-    img: NDArray[Any], detector: AprilTagDetector, valid_ids: list[int]
+        img: NDArray[Any], detector: AprilTagDetector, valid_ids: list[int]
 ) -> list[AprilTagDetection]:
     """
     Detect apriltags in an image
@@ -57,7 +58,7 @@ def detect_tags(
 
 
 def pose_estimate_tags(
-    tags: list[AprilTagDetection], config: AprilTagPoseEstimator.Config
+        tags: list[AprilTagDetection], config: AprilTagPoseEstimator.Config
 ) -> list[Transform3d]:
     """
     Create a pose estimate for each given tag
@@ -74,10 +75,10 @@ def pose_estimate_tags(
 
 
 def get_altitude_from_panels(
-    tags: list[AprilTagDetection],
-    path: Path,
-    resolution: tuple[int, int],
-    tag_size: float,
+        tags: list[AprilTagDetection],
+        path: Path,
+        resolution: tuple[int, int],
+        tag_size: float,
 ) -> float:
     """
     Approximate the altitude of the drone taking the image by pose estimating the tags in the image
@@ -95,9 +96,9 @@ def get_altitude_from_panels(
 
 
 def get_pose_estimator_config(
-    path: Path,
-    resolution: tuple[int, int],
-    tag_size: float,
+        path: Path,
+        resolution: tuple[int, int],
+        tag_size: float,
 ) -> AprilTagPoseEstimator.Config:
     """
     Calculate the pose estimator configuration for the given image.
@@ -170,12 +171,12 @@ def build_batches_per_band(paths: list[Path]) -> list[list[Path]]:
 
 
 def get_panel(
-    tag: AprilTagDetection,
-    panel_size_pixel: tuple[int, int],
-    image_dimensions: tuple[int, int],
-    tag_smudge_factor: float,
-    tag_direction: str,
-    only_valid_panels: bool = True,
+        tag: AprilTagDetection,
+        panel_size_pixel: tuple[int, int],
+        image_dimensions: tuple[int, int],
+        tag_smudge_factor: float,
+        tag_direction: str,
+        only_valid_panels: bool = True,
 ) -> list[tuple[float, float]] | None:
     """
     Get the corners of a panel based on a apriltag to its side
@@ -204,8 +205,8 @@ def get_panel(
 
     tag_detection_size_pixel = np.linalg.norm(towards_panel)
     tag_size = (
-        tag_detection_size_pixel
-        * tag_detection_to_total_width_conversions[tag.getFamily()]
+            tag_detection_size_pixel
+            * tag_detection_to_total_width_conversions[tag.getFamily()]
     )
 
     towards_panel = towards_panel / np.linalg.norm(towards_panel)
@@ -234,10 +235,10 @@ def get_panel(
 
 
 def save_images(
-    dataset: Path,
-    paths: list[Path],
-    converted_images: list[NDArray[np.float64] | None],
-    progress: Progress | None = None,
+        dataset: Path,
+        paths: list[Path],
+        converted_images: list[NDArray[np.float64] | None],
+        progress: Progress | None = None,
 ) -> None:
     """
     This function saves the converted images as .tif files into a new "/transformed/" directory in the images folder
@@ -251,9 +252,16 @@ def save_images(
             if image is None:
                 pb.update()
                 continue
+            # TODO Use tiffile or exiftool to extract metadata
+            with rasterio.open(path) as original:
+                meta = original.meta
+            meta.update(
+                dtype=rasterio.uint16,
+            )
             output_path = get_output_path(
                 dataset, path, "reflectance.tif", "transformed"
             )
-            scaled_to_int = np.array(image * COMPRESSION_FACTOR, dtype=np.uint8)
-            imwrite(output_path, scaled_to_int)
+            image[image < 0] = 0
+            scaled_to_int = np.array(image * COMPRESSION_FACTOR, dtype=np.uint16)
+            imwrite(output_path, scaled_to_int, metadata=meta)
             pb.update()

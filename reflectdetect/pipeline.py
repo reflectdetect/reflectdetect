@@ -71,7 +71,7 @@ def interpolate(values: NDArray[np.float64]) -> NDArray[np.float64]:
 
 
 def convert(
-    band_image: NDArray[Any], coefficients: tuple[float, float]
+        band_image: NDArray[Any], coefficients: tuple[float, float], mask: NDArray[np.uint8] | None = None
 ) -> NDArray[np.float64]:
     """
     Uses coefficients of a linear function to convert a 2D image
@@ -81,14 +81,17 @@ def convert(
     :return: the band image with every datapoint being transformed by the linear function
     """
     # converts a photo based on a linear transformation.
-    return np.poly1d(coefficients)(band_image)
+    if mask is not None:
+        return np.where(mask, np.poly1d(coefficients)(band_image), np.nan)
+    else:
+        return np.poly1d(coefficients)(band_image)
 
 
 def interpolate_intensities(
-    intensities: NDArray[np.float64],
-    number_of_bands: int,
-    number_of_panels: int,
-    progress: Progress | None,
+        intensities: NDArray[np.float64],
+        number_of_bands: int,
+        number_of_panels: int,
+        progress: Progress | None,
 ) -> NDArray[np.float64]:
     """
     This function is used to piecewise linearly interpolate the intensity values to fill the `np.Nan` gaps in the data.
