@@ -51,8 +51,8 @@ def is_panel_in_orthophoto(orthophoto_path: Path, panel: GeoDataFrame, shrink_fa
         out_image, out_transform = rasterio.mask.mask(
             orthophoto, [panel_polygon], crop=True, nodata=no_data_value
         )
-        # Check if any of the bands include a no data value
-        if np.array([band[band == no_data_value].any() for band in out_image]).any():
+        # Check if any of the bands include only no data value
+        if np.array([(band == no_data_value).all() for band in out_image]).any():
             print(orthophoto_path)
             matplotlib.use('Tkagg')
             rasterio.plot.show(out_image[0], cmap="grey")
@@ -78,7 +78,7 @@ def extract_using_geolocation(
     panel_polygon = panel_location.union_all().convex_hull
     panel_polygon = shrink_shapely_polygon(panel_polygon, shrink_factor)
     out_image, out_transform = rasterio.mask.mask(
-        photo, [panel_polygon], crop=True
+        photo, [panel_polygon], crop=True, nodata=no_data_value
     )
 
     return [get_panel_intensity(panel_band, no_data_value) for panel_band in out_image]
