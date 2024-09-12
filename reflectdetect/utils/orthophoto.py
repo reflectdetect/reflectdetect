@@ -29,27 +29,19 @@ def is_panel_in_orthophoto(orthophoto_path: Path, panel: GeoDataFrame, no_data_v
     """
     if panel.empty:
         raise Exception("Invalid panel location, no corner points included")
+
     with rasterio.open(orthophoto_path) as orthophoto:
         bounds = BoundingBox(*orthophoto.bounds)
-        panel_polygon = panel.union_all().convex_hull
-        out_image, out_transform = rasterio.mask.mask(
-            orthophoto, [panel_polygon], crop=True,
-        )
-        orthophoto_polygon = Polygon(
-            [
-                (bounds.left, bounds.bottom),
-                (bounds.left, bounds.top),
-                (bounds.right, bounds.top),
-                (bounds.right, bounds.bottom),
-            ]
-        )
-        for band in out_image:
-            rasterio.plot.show(band)
-
-        has_no_invalid_values = not np.any(out_image == no_data_value)
-
+    orthophoto_polygon = Polygon(
+        [
+            (bounds.left, bounds.bottom),
+            (bounds.left, bounds.top),
+            (bounds.right, bounds.top),
+            (bounds.right, bounds.bottom),
+        ]
+    )
     # Check if all corner points of the panel are within the orthophoto bounds
-    return bool(panel.within(orthophoto_polygon).all()) and has_no_invalid_values
+    return bool(panel.within(orthophoto_polygon).all())
 
 
 def extract_using_geolocation(
