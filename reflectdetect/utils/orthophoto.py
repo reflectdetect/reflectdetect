@@ -2,6 +2,7 @@ from pathlib import Path
 
 import fiona
 import geopandas as gpd
+import matplotlib
 import numpy as np
 import rasterio
 import rasterio.plot
@@ -21,7 +22,7 @@ from reflectdetect.utils.paths import get_output_path
 from reflectdetect.utils.polygons import shrink_shapely_polygon
 
 
-def is_panel_in_orthophoto(orthophoto_path: Path, panel: GeoDataFrame) -> bool:
+def is_panel_in_orthophoto(orthophoto_path: Path, panel: GeoDataFrame, shrink_factor: float, no_data_value: int) -> bool:
     """
     Checks if a panel is in an orthophoto based on its coordinates
     :param orthophoto_path: path to the orthophoto tiff file
@@ -33,24 +34,41 @@ def is_panel_in_orthophoto(orthophoto_path: Path, panel: GeoDataFrame) -> bool:
 
     with rasterio.open(orthophoto_path) as orthophoto:
         bounds = BoundingBox(*orthophoto.bounds)
-    orthophoto_polygon = Polygon(
-        [
-            (bounds.left, bounds.bottom),
-            (bounds.left, bounds.top),
-            (bounds.right, bounds.top),
-            (bounds.right, bounds.bottom),
-        ]
-    )
-    # Check if all corner points of the panel are within the orthophoto bounds
-    return bool(panel.within(orthophoto_polygon).all())
+        orthophoto_polygon = Polygon(
+            [
+                (bounds.left, bounds.bottom),
+                (bounds.left, bounds.top),
+                (bounds.right, bounds.top),
+                (bounds.right, bounds.bottom),
+            ]
+        )
+        # Check if all corner points of the panel are within the orthophoto bounds
+        if not bool(panel.within(orthophoto_polygon).all()):
+            return False
+
+        panel_polygon = panel.union_all().convex_hull
+        panel_polygon = shrink_shapely_polygon(panel_polygon, shrink_factor)
+        out_image, out_transform = rasterio.mask.mask(
+            orthophoto, [panel_polygon], crop=True, nodata=no_data_value
+        )
+        # Check if any of the bands include a no data value
+        if np.array([band[band == no_data_value].any() for band in out_image]).any():
+            print(orthophoto_path)
+            matplotlib.use('Tkagg')
+            rasterio.plot.show(out_image[0], cmap="grey")
+            return False
+
+    return True
 
 
 def extract_using_geolocation(
-        photo: DatasetReader, panel_location: GeoDataFrame, shrink_factor: float
+        photo: DatasetReader, panel_location: GeoDataFrame, shrink_factor: float, no_data_value: int
 ) -> list[float]:
     """
     Extract the mean intensity values from an orthophoto inside a polygon give by 4 corner points of a panel
 
+    :param no_data_value: the value indicating that a part of the orthophoto is not data
+    (typically max of the datatype or 0)
     :param photo: the orthophoto to take the intensity values from
     :param panel_location: the 4 corner points in a geodataframe
     :param shrink_factor: factor to shrink the polygon by to avoid bleed or similar artifacts
@@ -63,7 +81,7 @@ def extract_using_geolocation(
         photo, [panel_polygon], crop=True
     )
 
-    return [get_panel_intensity(panel_band) for panel_band in out_image]
+    return [get_panel_intensity(panel_band, no_data_value) for panel_band in out_image]
 
 
 def save_bands(

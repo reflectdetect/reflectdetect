@@ -74,7 +74,7 @@ class GeolocationArgumentParser(Tap):
     default_panel_height: float | None = (
         None  # Height of the calibration panel in meters
     )
-    no_data_value: int = 65535  # The value in the tiff image to interpret as no-data
+    no_data_value: int = 0 #65535  # The value in the tiff image to interpret as no-data
 
     def configure(self) -> None:
         self.add_argument("dataset", nargs="?", default=".", type=Path)
@@ -235,7 +235,6 @@ class GeolocationEngine:
             self,
             paths: list[Path],
             intensities: NDArray[np.float64],
-            no_data_value: int,
     ) -> list[list[NDArray[np.float64]] | None]:
         """
         This function converts the intensity values to reflectance values.
@@ -269,7 +268,7 @@ class GeolocationEngine:
                         intensities_of_panels,
                         get_band_reflectance(self.panel_properties, band_index),
                     )
-                    converted_bands.append(convert(band, coefficients, band != no_data_value))
+                    converted_bands.append(convert(band, coefficients, band != self.no_data_value))
                 else:
                     # For loop did not break, therefore all bands were converted
                     converted_photos.append(converted_bands)
@@ -315,6 +314,7 @@ class GeolocationEngine:
                         orthophoto,
                         panel_location,
                         self.panel_properties[panel_index].shrink_factor,
+                        self.no_data_value
                     )
                 intensities[photo_index][panel_index] = panel_intensities_per_band
             self.progress.update(task, advance=1)
@@ -334,8 +334,9 @@ class GeolocationEngine:
             for path in self.orthophoto_paths:
                 panels_visible = np.array(
                     [
-                        is_panel_in_orthophoto(path, location)
-                        for location in self.panel_locations
+                        is_panel_in_orthophoto(path, location, self.panel_properties[panel_index].shrink_factor,
+                                               self.no_data_value)
+                        for panel_index, location in enumerate(self.panel_locations)
                     ]
                 )
                 number_of_paths_with_visibility += panels_visible.sum() > 0
@@ -394,7 +395,7 @@ class GeolocationEngine:
                     output_folder / "intensity",
                     "_interpolated",
                 )
-            c = self.convert_orthophotos_to_reflectance(batch, i, self.no_data_value)
+            c = self.convert_orthophotos_to_reflectance(batch, i)
             del i
             save_orthophotos(self.dataset, batch, c, self.progress)
             del c
