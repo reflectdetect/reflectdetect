@@ -334,7 +334,7 @@ class GeolocationEngine:
             for path in self.orthophoto_paths:
                 panels_visible = np.array(
                     [
-                        is_panel_in_orthophoto(path, location, self.no_data_value)
+                        is_panel_in_orthophoto(path, location)
                         for location in self.panel_locations
                     ]
                 )

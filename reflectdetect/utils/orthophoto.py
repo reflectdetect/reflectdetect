@@ -16,11 +16,12 @@ from shapely.geometry import Polygon
 from reflectdetect.constants import ORTHOPHOTO_FOLDER, PANEL_LOCATIONS_FILENAME, COMPRESSION_FACTOR
 from reflectdetect.utils.debug import ProgressBar
 from reflectdetect.utils.iterators import get_next
+from reflectdetect.utils.panel import get_panel_intensity
 from reflectdetect.utils.paths import get_output_path
 from reflectdetect.utils.polygons import shrink_shapely_polygon
 
 
-def is_panel_in_orthophoto(orthophoto_path: Path, panel: GeoDataFrame, no_data_value: int) -> bool:
+def is_panel_in_orthophoto(orthophoto_path: Path, panel: GeoDataFrame) -> bool:
     """
     Checks if a panel is in an orthophoto based on its coordinates
     :param orthophoto_path: path to the orthophoto tiff file
@@ -62,7 +63,7 @@ def extract_using_geolocation(
         photo, [panel_polygon], crop=True
     )
 
-    return [panel_band[panel_band > 0].mean() for panel_band in out_image]
+    return [get_panel_intensity(panel_band) for panel_band in out_image]
 
 
 def save_bands(

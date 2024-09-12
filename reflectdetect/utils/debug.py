@@ -36,7 +36,7 @@ def debug_show_geolocation(
         if visibility[index]
     ]
     with rasterio.open(path) as photo:
-        rasterio.plot.show(photo, ax=ax)
+        rasterio.plot.show(photo, ax=ax, cmap="grey")
 
     for index, corners in panel_polygons:
         x, y = corners.exterior.xy

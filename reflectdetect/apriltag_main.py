@@ -38,7 +38,7 @@ from reflectdetect.constants import (
 from reflectdetect.pipeline import interpolate, convert, fit
 from reflectdetect.utils.apriltags import (
     detect_tags,
-    get_altitude_from_panels,
+    get_altitude_from_tags,
     get_panel,
     get_detector_config,
     save_images,
@@ -53,7 +53,7 @@ from reflectdetect.utils.debug import (
 from reflectdetect.utils.exif import get_camera_properties
 from reflectdetect.utils.panel import (
     calculate_panel_size_in_pixels,
-    get_band_reflectance,
+    get_band_reflectance, get_panel_intensity,
 )
 from reflectdetect.utils.paths import get_output_path, default, is_tool_installed
 from reflectdetect.utils.polygons import shrink_shapely_polygon
@@ -255,7 +255,7 @@ class AprilTagEngine:
         img = cv2.imread(path.as_posix(), cv2.IMREAD_GRAYSCALE)
 
         all_tags = detect_tags(img, self.detector, self.all_ids)
-        altitude = get_altitude_from_panels(
+        altitude = get_altitude_from_tags(
             all_tags, path, (len(img[0]), len(img)), self.tag_size
         )
 
@@ -306,10 +306,8 @@ class AprilTagEngine:
                 polygon = shapely.Polygon(corners)
                 polygon = shrink_shapely_polygon(polygon, panel.shrink_factor)
                 panel_mask = rasterize([polygon], out_shape=img.shape)
-                mean: float = float(
-                    np.ma.MaskedArray(img, mask=~(panel_mask.astype(np.bool_))).mean()  # type: ignore
-                )
-                panel_intensities[panel_index] = mean
+                masked = np.ma.MaskedArray(img, mask=~(panel_mask.astype(np.bool_)))  # type: ignore
+                panel_intensities[panel_index] = get_panel_intensity(masked)
         if self.debug:
             if len(debug_tags) > 0:
                 output_path = get_output_path(

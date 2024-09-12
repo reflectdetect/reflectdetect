@@ -115,6 +115,18 @@ def calculate_panel_size_in_pixels(
     return panel_width_pixels, panel_height_pixels
 
 
+def get_panel_intensity(intensity_values: NDArray[np.floating]) -> float:
+    intensity_values = intensity_values[intensity_values > 0]
+    q75, q25 = np.percentile(intensity_values, [75, 25])
+    iqr = q75 - q25
+    lower_bound = q25 - 1.5 * iqr
+    upper_bound = q75 + 1.5 * iqr
+    # remove outliers and mean
+    intensity_values = intensity_values[intensity_values >= lower_bound]
+    intensity_values = intensity_values[intensity_values <= upper_bound]
+    return intensity_values.mean()
+
+
 def get_band_reflectance(
         panels_properties: list[ValidatedGeolocationPanelProperties] | list[ValidatedApriltagPanelProperties],
         band_index: int,
