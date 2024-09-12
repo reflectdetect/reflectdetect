@@ -13,7 +13,7 @@ from rasterio.mask import mask
 from rich.progress import Progress
 from shapely.geometry import Polygon
 
-from reflectdetect.constants import ORTHOPHOTO_FOLDER, PANEL_LOCATIONS_FILENAME
+from reflectdetect.constants import ORTHOPHOTO_FOLDER, PANEL_LOCATIONS_FILENAME, COMPRESSION_FACTOR
 from reflectdetect.utils.debug import ProgressBar
 from reflectdetect.utils.iterators import get_next
 from reflectdetect.utils.paths import get_output_path
@@ -77,7 +77,9 @@ def save_bands(
     # Combine bands back into one image
     with rasterio.open(output_path, "w", **meta) as dst:
         for band_index, band in enumerate(band_images):
-            dst.write_band(band_index + 1, band)
+            band[band < 0] = 0
+            scaled_to_int = np.array(band * COMPRESSION_FACTOR, dtype=np.uint16)
+            dst.write_band(band_index + 1, scaled_to_int)
 
 
 def get_orthophoto_paths(dataset: Path, orthophotos_folder: Path | None) -> list[Path]:
