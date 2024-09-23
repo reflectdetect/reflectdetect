@@ -6,6 +6,7 @@ from typing import Any
 
 import numpy as np
 import rasterio
+from exiftool import ExifToolHelper
 from numpy.typing import NDArray
 from rich.progress import Progress
 from robotpy_apriltag import AprilTagDetection, AprilTagDetector, AprilTagPoseEstimator
@@ -256,9 +257,8 @@ def save_images(
             if image is None:
                 pb.update()
                 continue
-            # TODO Use tiffile or exiftool to extract metadata
-            with rasterio.open(path) as original:
-                meta = original.meta
+            with ExifToolHelper() as et:
+                meta = run_in_thread(et.get_metadata, True, path.as_posix())[0]  # type: ignore
             meta.update(
                 dtype=rasterio.uint16,
             )

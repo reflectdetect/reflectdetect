@@ -1,12 +1,13 @@
 from pathlib import Path
 
-from exiftool import ExifToolHelper
 from matplotlib import pyplot as plt
+from rich.pretty import install
 from rich.progress import track
 from rich_argparse import RichHelpFormatter
 from tap import Tap
 
-from reflectdetect.manufacturer_utils import micasense_utils
+from reflectdetect.manufacturer.micasense import micasense_utils
+from reflectdetect.manufacturer.micasense.micasense_metadata import Metadata
 from reflectdetect.utils.apriltags import save_images
 from reflectdetect.utils.paths import is_tool_installed
 
@@ -17,10 +18,10 @@ class ConverterArgumentParser(Tap):
 
     def configure(self) -> None:
         self.add_argument("dataset", nargs="?", default=".", type=Path)
-        self.add_argument("-d", "--debug")
 
 
-if __name__ == '__main__':
+def main():
+    install()
     args = ConverterArgumentParser(
         formatter_class=RichHelpFormatter,
         description="Converts raw image to radiance to be then used with the reflectdetect tool",
@@ -36,16 +37,24 @@ if __name__ == '__main__':
     if not (Path(args.dataset) / "raw").exists():
         raise Exception("In the dataset folder there should be a folder called 'raw' for the image files")
     paths = sorted(list((Path(args.dataset) / "raw").glob("*.tif")))
-    converted_images = []
-    for path in track(paths, description="Converting raw images to radiance"):
-        image_raw = plt.imread(path)
-        with ExifToolHelper() as et:
-            metadata = run_in_thread(et.get_metadata, True, image_path.as_posix())[0]  # type: ignore
 
+    supported_manufacturers = ["micasense"]
+    if args.manufacturer not in supported_manufacturers:
+        raise Exception(f"Manufacturer no supported: {args.manufacturer} not in {supported_manufacturers}")
+    for path in track(paths, description="Converting raw images to radiance"):
+        converted_image = None
+        image_raw = plt.imread(path)
         if args.manufacturer == "micasense":
-            image_rad = micasense_utils.raw_image_to_radiance(metadata, image_raw)
-            image_rad_undistorted = micasense_utils.correct_lens_distortion(metadata, image_rad)
-            converted_images.append(image_rad_undistorted)
+            meta = Metadata(path.as_posix())
+            image_rad, _, _, _ = micasense_utils.raw_image_to_radiance(meta, image_raw)
+            image_rad_undistorted = micasense_utils.correct_lens_distortion(meta, image_rad)
+            converted_image = image_rad_undistorted
         if args.manufacturer == "generic":
             pass
-    save_images(args.dataset, paths, converted_images, None, "images", ".tif")
+        if converted_image is None:
+            raise Exception("Could not convert image")
+        save_images(args.dataset, [path], [converted_image], None, "images", ".tif")
+
+
+if __name__ == '__main__':
+    main()
