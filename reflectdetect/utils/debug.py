@@ -26,6 +26,7 @@ def debug_show_geolocation(
         visibility: list[bool],
         shrink_factors: list[float],
         output_path: Path | None = None,
+        dpi: int | None = None
 ) -> None:
     fig_2d = plt.figure()
     ax = fig_2d.subplots(1, 1)
@@ -52,7 +53,7 @@ def debug_show_geolocation(
         y = list(y) + [y[0]]
         ax.plot(x, y, linewidth=0.8, linestyle="dotted")
     if output_path is not None:
-        fig_2d.savefig(output_path, dpi=300)
+        fig_2d.savefig(output_path, dpi=dpi)
     else:
         fig_2d.show()
     plt.close(fig_2d)
@@ -60,16 +61,15 @@ def debug_show_geolocation(
 
 def debug_show_panels(
         img: NDArray[np.float64],
-        tags: list[AprilTagDetection],
-        corners_list: list[list[float]],
-        shrink_factors: list[float],
+        debug_panel_information: list[tuple[list[float], AprilTagDetection, float]],
         output_path: Path | None = None,
+        dpi: int | None = None
 ) -> None:
     fig_2d = plt.figure()
     ax = fig_2d.subplots(1, 1)
     ax.axis("off")
     ax.imshow(img, cmap="grey")
-    for tag, corners, shrink_factor in zip(tags, corners_list, shrink_factors):
+    for corners, tag, shrink_factor in debug_panel_information:
         ax.scatter(tag.getCenter().x, tag.getCenter().y)
         x, y = zip(*corners)
 
@@ -86,7 +86,7 @@ def debug_show_panels(
         ax.plot(x, y, linewidth=1, linestyle="dotted")
 
     if output_path is not None:
-        fig_2d.savefig(output_path)
+        fig_2d.savefig(output_path, dpi=dpi)
     else:
         fig_2d.show()
     plt.close(fig_2d)
@@ -95,7 +95,8 @@ def debug_show_panels(
 def show_intensities(
         intensities: NDArray[np.float64],
         interpolated_intensities: NDArray[np.float64],
-        output_path: str | None = None
+        output_path: str | None = None,
+        dpi: int | None = None
 ) -> None:
     number_of_bands = len(intensities[0, 0, :])
     fig, axes = plt.subplots(number_of_bands, sharex=True, figsize=(15, 15))
@@ -124,7 +125,7 @@ def show_intensities(
     number_of_images = len(intensities[:, 0, 0])
     plt.xlim([0, number_of_images])
     if output_path is not None:
-        plt.savefig(output_path)
+        plt.savefig(output_path, dpi=dpi)
     else:
         plt.show()
     plt.close(fig)
@@ -135,6 +136,7 @@ def debug_combine_and_plot_intensities(
         number_of_bands: int,
         number_of_panels: int,
         output_folder: Path,
+        dpi: int | None = None
 ) -> None:
     intensities = np.zeros((number_of_images, number_of_panels, number_of_bands))
     for band in range(0, number_of_bands):
@@ -147,7 +149,7 @@ def debug_combine_and_plot_intensities(
         input_path = output_folder / filename
         interpolated_intensities[:, :, band] = np.genfromtxt(input_path, delimiter=",")
     output_path = output_folder / f"intensities.tif"
-    run_in_thread(show_intensities, True, intensities, interpolated_intensities, output_path.as_posix())
+    run_in_thread(show_intensities, True, intensities, interpolated_intensities, output_path.as_posix(), dpi)
 
 
 def debug_save_intensities(
@@ -185,6 +187,36 @@ def debug_save_intensities_single_band(
         data = intensities[:, :].astype(str)
         data[data == "nan"] = ""
         np.savetxt(f, data, delimiter=",", fmt="%s")
+
+
+def debug_save_altitude(
+        altitude: float,
+        output_folder: Path,
+) -> None:
+    os.makedirs(output_folder, exist_ok=True)
+    output_path = output_folder / "altitudes.csv"
+    with open(output_path, "a+") as f:
+        f.write(str(altitude))
+        f.write("\n")
+
+def debug_plot_altitudes(
+        output_folder: Path,
+        dpi: int | None = None
+) -> None:
+    filename = f"altitudes.csv"
+    input_path = output_folder / filename
+    altitudes = np.genfromtxt(input_path, delimiter=",", dtype=np.float64)
+    output_path = output_folder / f"altitudes.tif"
+    fig, ax = plt.subplots(1, 1, figsize=(15, 15))
+    ax.set_ylim([0, np.max(altitudes) * 1.2])
+    ax.set_ylabel("Estimated Altitude")
+    ax.plot(altitudes)
+    plt.xlabel("Image index")
+    if output_path is not None:
+        plt.savefig(output_path, dpi=dpi)
+    else:
+        plt.show()
+    plt.close(fig)
 
 
 class ProgressBar:

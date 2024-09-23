@@ -48,7 +48,7 @@ from reflectdetect.utils.debug import (
     debug_combine_and_plot_intensities,
     debug_show_panels,
     debug_save_intensities_single_band,
-    ProgressBar,
+    ProgressBar, debug_save_altitude, debug_plot_altitudes,
 )
 from reflectdetect.utils.exif import get_camera_properties
 from reflectdetect.utils.panel import (
@@ -73,6 +73,7 @@ class ApriltagArgumentParser(Tap):
     default_panel_smudge_factor: float = DEFAULT_PANEL_SMUDGE_FACTOR  # This factor gets multiplied to the panel width and height to account for inaccuracy in lens exif information given by the manufacturer
     default_tag_smudge_factor: float = DEFAULT_TAG_SMUDGE_FACTOR  # This factor gets multiplied to distance between tag and panel, useful if the tag was placed to far from the panel
     debug: bool = False  # Prints logs and adds debug images into a /debug/ directory in the dataset folder
+    debug_dpi: int | None = None  # Overwrite the default dpi debug images are generated at
 
     def configure(self) -> None:
         self.add_argument("dataset", nargs="?", default=".", type=Path)
@@ -98,6 +99,7 @@ class AprilTagEngine:
         if not self.dataset.exists():
             raise Exception(f"Could not find specified dataset folder: {args.dataset}")
         self.debug = args.debug
+        self.debug_dpi = args.debug_dpi
         # Input Validation
 
         # Panel_properties file
@@ -252,7 +254,8 @@ class AprilTagEngine:
         altitude = get_altitude_from_tags(
             all_tags, path, (len(img[0]), len(img)), self.tag_size
         )
-
+        if self.debug:
+            debug_save_altitude(altitude, self.dataset / "debug")
         resolution = (len(img[0]), len(img))
         (
             focal_length_mm,
@@ -260,9 +263,7 @@ class AprilTagEngine:
             focal_plane_y_res,
             focal_plane_resolution_unit,
         ) = get_camera_properties(path)
-        debug_corners = []
-        debug_tags = []
-        debug_shrink_factors = []
+        debug_panel_information = []
         for tag in all_tags:
             panels = list(
                 filter(lambda p: p.tag_id == tag.getId(), self.panel_properties)
@@ -293,16 +294,18 @@ class AprilTagEngine:
                 continue
             else:
                 if self.debug:
-                    debug_corners.append(corners)
-                    debug_tags.append(tag)
-                    debug_shrink_factors.append(panel.shrink_factor)
+                    debug_panel_information.append((
+                        corners,
+                        tag,
+                        panel.shrink_factor
+                    ))
                 polygon = shapely.Polygon(corners)
                 polygon = shrink_shapely_polygon(polygon, panel.shrink_factor)
                 panel_mask = rasterize([polygon], out_shape=img.shape)
                 masked = np.ma.MaskedArray(img.astype(np.float32), mask=~(panel_mask.astype(np.bool_)))  # type: ignore
                 panel_intensities[panel_index] = get_panel_intensity(masked)
         if self.debug:
-            if len(debug_tags) > 0:
+            if len(debug_panel_information) > 0:
                 output_path = get_output_path(
                     self.dataset, path, "panels.tif", "debug/panels"
                 )
@@ -310,10 +313,9 @@ class AprilTagEngine:
                     debug_show_panels,
                     True,
                     img,
-                    debug_tags,
-                    debug_corners,
-                    debug_shrink_factors,
+                    debug_panel_information,
                     output_path,
+                    self.debug_dpi
                 )
         return panel_intensities
 
@@ -357,9 +359,10 @@ class AprilTagEngine:
 
         debug_output_folder = self.dataset / "debug"
         if self.debug:
-            for p in (debug_output_folder / "intensity").glob("*.csv"):
-                p.unlink()
-            for p in (debug_output_folder / "panels").glob("*.tif"):
+            paths_to_delete = list((debug_output_folder / "intensity").glob("*")) + list(
+                debug_output_folder.glob("*.csv")) + list(debug_output_folder.glob("*.tif")) + list(
+                (debug_output_folder / "panels").glob("*.tif"))
+            for p in paths_to_delete:
                 p.unlink()
 
         for band_index, batch in enumerate(batches):
@@ -390,7 +393,9 @@ class AprilTagEngine:
                 number_of_bands,
                 self.number_of_panels,
                 debug_output_folder / "intensity",
+                self.debug_dpi
             )
+            debug_plot_altitudes(self.dataset / "debug")
 
 
 def main() -> None:
