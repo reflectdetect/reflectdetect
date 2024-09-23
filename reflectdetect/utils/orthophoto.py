@@ -112,7 +112,7 @@ def get_orthophoto_paths(dataset: Path, orthophotos_folder: Path | None) -> list
     else:
         path = orthophotos_folder
 
-    return list(sorted([filepath for filepath in path.glob("*.tif")]))
+    return list(sorted(list(path.glob("*.tif"))))
 
 
 def load_panel_locations(

@@ -410,7 +410,7 @@ def main() -> None:
         formatter_class=RichHelpFormatter,
         description="Automatically detect reflection calibration panels in images and transform the given images to "
                     "reflectance",
-        epilog="If you have any questions, please contact",
+        epilog="If you have any questions, please contact us via the github repository issues",
     ).parse_args()
     if not is_tool_installed("exiftool"):
         raise Exception("Exiftool is not installed. Follow the readme to install it")

@@ -10,6 +10,7 @@ repository = "https://github.com/reflectdetect/reflectdetect"
 [tool.poetry.scripts]
 reflectdetect-apriltag = "reflectdetect.apriltag_main:main"
 reflectdetect-geolocation = "reflectdetect.geolocation_main:main"
+reflectdetect-converter = "reflectdetect.raw_to_radiance:main"
 
 [tool.poetry.dependencies]
 python = "^3.10"

@@ -340,7 +340,7 @@ class AprilTagEngine:
         else:
             path = images_folder
 
-        return list(sorted([filepath for filepath in path.glob("*.tif")]))
+        return list(sorted(list(path.glob("*.tif"))))
 
     def start(self) -> None:
         all_images_task = self.progress.add_task(
@@ -404,7 +404,7 @@ def main() -> None:
         formatter_class=RichHelpFormatter,
         description="Automatically detect reflection calibration panels in images and transform the given images to "
                     "reflectance",
-        epilog="If you have any questions, please contact",
+        epilog="If you have any questions, please contact us via the github repository issues",
     ).parse_args()
 
     if not is_tool_installed("exiftool"):

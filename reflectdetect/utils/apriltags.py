@@ -16,7 +16,7 @@ from reflectdetect.constants import COMPRESSION_FACTOR
 from reflectdetect.utils.debug import ProgressBar
 from reflectdetect.utils.exif import get_camera_properties
 from reflectdetect.utils.panel import calculate_sensor_size
-from reflectdetect.utils.paths import get_output_path
+from reflectdetect.utils.paths import get_output_path, default
 from reflectdetect.utils.thread import run_in_thread
 
 # The robotpy_apriltag.AprilTagDetector returns the inner apriltag square coordinates and not the whole apriltag area.
@@ -239,6 +239,8 @@ def save_images(
         paths: list[Path],
         converted_images: list[NDArray[np.float64] | None],
         progress: Progress | None = None,
+        output_folder: str | None = None,
+        ending: str | None = None
 ) -> None:
     """
     This function saves the converted images as .tif files into a new "/transformed/" directory in the images folder
@@ -246,6 +248,8 @@ def save_images(
     :param progress: optional progress bar
     :param paths: list of image paths
     :param converted_images: list of reflectance images
+    :param output_folder: Overwrite for the transformed directory name
+    :param ending: Overwrite for the file ending
     """
     with ProgressBar(progress, description="Saving images", total=len(paths)) as pb:
         for path, image in zip(paths, converted_images):
@@ -259,7 +263,7 @@ def save_images(
                 dtype=rasterio.uint16,
             )
             output_path = get_output_path(
-                dataset, path, "reflectance.tif", "transformed"
+                dataset, path, default(ending, "reflectance.tif"), default(output_folder, "transformed")
             )
             image[image < 0] = 0
             scaled_to_int = np.array(image * COMPRESSION_FACTOR, dtype=np.uint16)
