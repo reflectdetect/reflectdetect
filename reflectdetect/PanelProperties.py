@@ -1,6 +1,8 @@
 from typing import Any
 
 from pydantic import BaseModel
+from rich.console import Console
+from rich.table import Table
 
 
 class ApriltagPanelProperties(BaseModel):
@@ -66,7 +68,7 @@ class GeolocationPanelPropertiesFile(BaseModel):
 
 
 def validate_apriltag_panel_properties(
-    panels: list[ApriltagPanelProperties], default_properties: dict[str, Any]
+        panels: list[ApriltagPanelProperties], default_properties: dict[str, Any]
 ) -> list[ValidatedApriltagPanelProperties]:
     validated_panel_properties: list[ValidatedApriltagPanelProperties] = []
 
@@ -123,11 +125,12 @@ def validate_apriltag_panel_properties(
                 shrink_factor=shrink_factor,
             )
         )
+    print_panel_properties(validated_panel_properties)
     return validated_panel_properties
 
 
 def validate_geolocation_panel_properties(
-    panels: list[GeolocationPanelProperties], default_properties: dict[str, Any]
+        panels: list[GeolocationPanelProperties], default_properties: dict[str, Any]
 ) -> list[ValidatedGeolocationPanelProperties]:
     validated_panel_properties: list[ValidatedGeolocationPanelProperties] = []
 
@@ -174,4 +177,22 @@ def validate_geolocation_panel_properties(
                 layer_name=layer_name,
             )
         )
+    print_panel_properties(validated_panel_properties)
     return validated_panel_properties
+
+
+def print_panel_properties(
+        panel_properties: list[ValidatedApriltagPanelProperties] | list[ValidatedGeolocationPanelProperties]):
+    table = Table(title="Computed Panel Properties (File > CLI Arguments > Default Value)")
+    panel_properties = [prop.model_dump(exclude=set("bands")) for prop in panel_properties]
+    for key in panel_properties[0].keys():
+        table.add_column(key.capitalize(), justify="left", style="cyan", no_wrap=True)
+
+    # Add rows dynamically based on the values
+    for item in panel_properties:
+        row = [str(item[key]) for key in item.keys()]  # Convert all values to strings
+        table.add_row(*row)
+
+    # Print the table
+    console = Console()
+    console.print(table)

@@ -62,20 +62,11 @@ from reflectdetect.utils.thread import run_in_thread
 
 class ApriltagArgumentParser(Tap):
     dataset: Path  # Path to the dataset folder
-    panel_properties_file: str | None = (
-        None  # Path to file instead "panel_properties.json" in the dataset folder
-    )
-    images_folder: str | None = (
-        None  # Path to images folder instead "/images" in the dataset folder
-    )
+    panel_properties_file: str | None = None  # Path to file instead "panel_properties.json" in the dataset folder
+    images_folder: str | None = None  # Path to images folder instead "/images" in the dataset folder
     default_panel_width: float | None = None  # Width of the calibration panel in meters
-    default_panel_height: float | None = (
-        None  # Height of the calibration panel in meters
-    )
-    tag_size: float | None = (
-        None
-        # Size of the apriltags in meters (Only measure the primary detection area, see apriltag_area_measurement.ipynb)
-    )
+    default_panel_height: float | None = None  # Height of the calibration panel in meters
+    tag_size: float | None = None  # Size of the apriltags in meters (Only measure the primary detection area, see apriltag_area_measurement.ipynb)
     default_tag_direction: str = DEFAULT_TAG_DIRECTION  # (up, down, left, right) Direction of the panel with respect to the tag. Down direction is where the text is printed on the tag
     default_tag_family: str = DEFAULT_TAG_FAMILY  # Name of the apriltag family used
     default_shrink_factor: float = DEFAULT_SHRINK_FACTOR  # This factor gets multiplied to the detected panel area, to avoid artifacts like bleed
@@ -107,7 +98,6 @@ class AprilTagEngine:
         if not self.dataset.exists():
             raise Exception(f"Could not find specified dataset folder: {args.dataset}")
         self.debug = args.debug
-
         # Input Validation
 
         # Panel_properties file
@@ -183,7 +173,7 @@ class AprilTagEngine:
             # and one of the panels does not specify the value the default would be used for an Exception will be thrown
             # in the validate function below
             default_properties[prop_name] = default(
-                getattr(args, prop_name), getattr(panel_properties_file, prop_name)
+                getattr(panel_properties_file, prop_name), getattr(args, prop_name)
             )
         panel_properties: list[ValidatedApriltagPanelProperties] = (
             validate_apriltag_panel_properties(
@@ -195,6 +185,7 @@ class AprilTagEngine:
             raise Exception(
                 "Tag size not set via panel_properties file or CLI argument"
             )
+        print("Tag size:", tag_size, "m")
         return tag_size, panel_properties
 
     def load_panel_properties(
@@ -252,9 +243,12 @@ class AprilTagEngine:
             return converted_photos
 
     def extract_using_apriltags(self, path: Path) -> list[None | float]:
+        panel_intensities: list[float | None] = [None] * self.number_of_panels
         img = cv2.imread(path.as_posix(), cv2.IMREAD_GRAYSCALE)
 
         all_tags = detect_tags(img, self.detector, self.all_ids)
+        if len(all_tags) == 0:
+            return panel_intensities
         altitude = get_altitude_from_tags(
             all_tags, path, (len(img[0]), len(img)), self.tag_size
         )
@@ -266,7 +260,6 @@ class AprilTagEngine:
             focal_plane_y_res,
             focal_plane_resolution_unit,
         ) = get_camera_properties(path)
-        panel_intensities: list[float | None] = [None] * self.number_of_panels
         debug_corners = []
         debug_tags = []
         debug_shrink_factors = []
@@ -306,7 +299,7 @@ class AprilTagEngine:
                 polygon = shapely.Polygon(corners)
                 polygon = shrink_shapely_polygon(polygon, panel.shrink_factor)
                 panel_mask = rasterize([polygon], out_shape=img.shape)
-                masked = np.ma.MaskedArray(img, mask=~(panel_mask.astype(np.bool_)))  # type: ignore
+                masked = np.ma.MaskedArray(img.astype(np.float32), mask=~(panel_mask.astype(np.bool_)))  # type: ignore
                 panel_intensities[panel_index] = get_panel_intensity(masked)
         if self.debug:
             if len(debug_tags) > 0:

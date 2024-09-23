@@ -78,7 +78,7 @@ def extract_using_geolocation(
         photo, [panel_polygon], crop=True, nodata=no_data_value
     )
 
-    return [get_panel_intensity(panel_band, no_data_value) for panel_band in out_image]
+    return [get_panel_intensity(np.ma.masked_equal(panel_band, no_data_value)) for panel_band in out_image]
 
 
 def save_bands(

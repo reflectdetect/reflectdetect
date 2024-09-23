@@ -7,7 +7,7 @@ import numpy as np
 import rasterio
 import shapely
 from geopandas import GeoDataFrame
-from matplotlib import pyplot as plt, cm
+from matplotlib import pyplot as plt
 from numpy.typing import NDArray
 from rasterio import plot
 from rich.progress import Progress, TaskID
