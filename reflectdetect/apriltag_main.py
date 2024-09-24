@@ -4,6 +4,7 @@ from pathlib import Path
 import cv2
 import numpy as np
 import shapely
+from exiftool import ExifToolHelper
 from numpy.typing import NDArray
 from rasterio.features import rasterize
 from rich.progress import (
@@ -82,6 +83,7 @@ class ApriltagArgumentParser(Tap):
 
 class AprilTagEngine:
     def __init__(self, args: ApriltagArgumentParser):
+        self.et = ExifToolHelper(True, False, False)
         self.progress = Progress(
             SpinnerColumn(),
             TextColumn(
@@ -246,14 +248,16 @@ class AprilTagEngine:
 
     def extract_using_apriltags(self, path: Path) -> list[None | float]:
         panel_intensities: list[float | None] = [None] * self.number_of_panels
-        img = cv2.imread(path.as_posix(), cv2.IMREAD_GRAYSCALE)
+        img = cv2.imread(path.as_posix(), cv2.IMREAD_UNCHANGED)
+        max_value = np.max(img)
 
-        all_tags = detect_tags(img, self.detector, self.all_ids)
+        contrast_img = ((img / max_value) * 255).astype('uint8')
+        all_tags = detect_tags(contrast_img, self.detector, self.all_ids)
         if len(all_tags) == 0:
             return panel_intensities
-        altitude = get_altitude_from_tags(
-            all_tags, path, (len(img[0]), len(img)), self.tag_size
-        )
+        altitude = get_altitude_from_tags(self.et,
+                                          all_tags, path, (len(img[0]), len(img)), self.tag_size
+                                          )
         if self.debug:
             debug_save_altitude(altitude, self.dataset / "debug")
         resolution = (len(img[0]), len(img))
@@ -262,7 +266,7 @@ class AprilTagEngine:
             focal_plane_x_res,
             focal_plane_y_res,
             focal_plane_resolution_unit,
-        ) = get_camera_properties(path)
+        ) = get_camera_properties(self.et, path)
         debug_panel_information = []
         for tag in all_tags:
             panels = list(
@@ -346,8 +350,10 @@ class AprilTagEngine:
         all_images_task = self.progress.add_task(
             "Total Progress", total=len(self.images_paths)
         )
+        # Build batches
         batches = build_batches_per_band(self.images_paths)
         number_of_bands = len(batches)
+        # Validate number of bands in panel properties
         for index, panel in enumerate(self.panel_properties):
             if len(panel.bands) != number_of_bands:
                 raise Exception(
@@ -364,7 +370,7 @@ class AprilTagEngine:
                 (debug_output_folder / "panels").glob("*.tif"))
             for p in paths_to_delete:
                 p.unlink()
-
+        # Run workflow
         for band_index, batch in enumerate(batches):
             i = self.extract_intensities_from_apriltags(batch)
             os.system("cls||clear")
@@ -383,7 +389,7 @@ class AprilTagEngine:
             ) if self.debug else None
             c = self.convert_images_to_reflectance(batch, i, band_index)
             del i
-            save_images(self.dataset, batch, c, self.progress)
+            save_images(self.et, self.dataset, batch, c, self.progress)
             del c
             self.progress.update(all_images_task, advance=len(batch))
         if self.debug:

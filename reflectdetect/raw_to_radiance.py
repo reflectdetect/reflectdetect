@@ -1,11 +1,13 @@
 from pathlib import Path
 
+from exiftool import ExifToolHelper
 from matplotlib import pyplot as plt
 from rich.pretty import install
 from rich.progress import track
 from rich_argparse import RichHelpFormatter
 from tap import Tap
 
+from reflectdetect.constants import CONVERTED_FILE_ENDING
 from reflectdetect.manufacturer.micasense import micasense_utils
 from reflectdetect.manufacturer.micasense.micasense_metadata import Metadata
 from reflectdetect.utils.apriltags import save_images
@@ -30,7 +32,7 @@ def main():
 
     if not is_tool_installed("exiftool"):
         raise Exception("Exiftool is not installed. Follow the readme to install it")
-
+    et = ExifToolHelper(True, False, False)
     if not Path(args.dataset).exists():
         raise Exception("Dataset path does not exists")
 
@@ -53,7 +55,7 @@ def main():
             pass
         if converted_image is None:
             raise Exception("Could not convert image")
-        save_images(args.dataset, [path], [converted_image], None, "images", ".tif")
+        save_images(et, args.dataset, [path], [converted_image], None, "images", CONVERTED_FILE_ENDING)
 
 
 if __name__ == '__main__':

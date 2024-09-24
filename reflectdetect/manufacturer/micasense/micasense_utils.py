@@ -19,12 +19,15 @@ COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER
 IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
 CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 """
+from functools import cache
 
 import cv2
 import numpy as np
 
+from reflectdetect.manufacturer.micasense.micasense_metadata import Metadata
 
-def raw_image_to_radiance(meta, image_raw):
+
+def raw_image_to_radiance(meta: Metadata, image_raw):
     # get image dimensions
     image_raw = image_raw.T
     xDim = image_raw.shape[0]
@@ -51,8 +54,29 @@ def raw_image_to_radiance(meta, image_raw):
     # apply image correction methods to raw image
     # step 1 - row gradient correction, vignette & radiometric calibration:
     # compute the vignette map image
-    V, x, y = vignette_map(meta, xDim, yDim)
-
+    # V, x, y = vignette_map(meta, xDim, yDim)
+    #### USE A CUSTOM CACHED VERSION INSTEAD FOR SPEEDUP
+    if meta.size('XMP:VignettingCenter') > 0:
+        V, x, y = vignette_map_cached(
+            meta.size('XMP:VignettingCenter'),
+            meta.size('XMP:VignettingPolynomial2D'),
+            float(meta.get_item('XMP:VignettingCenter', 0)),
+            float(meta.get_item('XMP:VignettingCenter', 1)),
+            tuple([float(meta.get_item('XMP:VignettingPolynomial', i)) for i in
+                   range(meta.size('XMP:VignettingPolynomial'))]),
+            0, 0,
+            xDim,
+            yDim)
+    else:
+        V, x, y = vignette_map_cached(
+            meta.size('XMP:VignettingCenter'),
+            meta.size('XMP:VignettingPolynomial2D'),
+            0,
+            0,
+            0,
+            tuple(meta.vignette_polynomial2D()), tuple(meta.vignette_polynomial2Dexponents()),
+            xDim,
+            yDim)
     # row gradient correction
     R = 1.0 / (1.0 + a2 * y / exposure_time - a3 * y)
 
@@ -113,6 +137,42 @@ def vignette_map(meta, x_dim, y_dim):
         yv = y.T / y_dim
         k = meta.vignette_polynomial2D()
         e = meta.vignette_polynomial2Dexponents()
+        p2 = np.zeros_like(xv, dtype=float)
+        for i, c in enumerate(k):
+            ex = e[2 * i]
+            ey = e[2 * i + 1]
+            p2 += c * xv ** ex * yv ** ey
+        vignette = (1. / p2).T
+    return vignette, x, y
+
+
+@cache
+def vignette_map_cached(vignetting_center_size, vignetting_polynomial_2d_size, x_vignette, y_vignette,
+                        vignette_poly_list, k, e, x_dim, y_dim):
+    # get coordinate grid across image, seem swapped because of transposed vignette
+    x, y = np.meshgrid(np.arange(x_dim), np.arange(y_dim))
+    # meshgrid returns transposed arrays
+    x = x.T
+    y = y.T
+
+    # if we have a radial poly
+    if vignetting_center_size > 0:
+
+        # reverse list and append 1., so that we can call with numpy polyval
+        vignette_poly_list.reverse()
+        vignette_poly_list.append(1.)
+        vignette_poly = np.array(vignette_poly_list)
+
+        # compute matrix of distances from image center
+        r = np.hypot((x - x_vignette), (y - y_vignette))
+
+        # compute the vignette polynomial for each distance - we divide by the polynomial so that the
+        # corrected image is image_corrected = image_original * vignetteCorrection
+        vignette = 1. / np.polyval(vignette_poly, r)
+    elif vignetting_polynomial_2d_size > 0:  # 2d polynomial
+        xv = x.T / x_dim
+        yv = y.T / y_dim
+
         p2 = np.zeros_like(xv, dtype=float)
         for i, c in enumerate(k):
             ex = e[2 * i]
