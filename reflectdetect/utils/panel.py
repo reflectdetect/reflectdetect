@@ -115,7 +115,7 @@ def calculate_panel_size_in_pixels(
     return panel_width_pixels, panel_height_pixels
 
 
-def get_panel_intensity(intensity_values: np.ma.MaskedArray[np.floating]) -> float:
+def get_panel_intensity(intensity_values: np.ma.MaskedArray) -> float:
     if intensity_values.mask.all():
         # The whole array is masked
         return np.nan
@@ -128,7 +128,7 @@ def get_panel_intensity(intensity_values: np.ma.MaskedArray[np.floating]) -> flo
     intensity_values = intensity_values[intensity_values >= lower_bound]
     intensity_values = intensity_values[intensity_values <= upper_bound]
 
-    return np.nanmean(intensity_values)
+    return float(np.nanmean(intensity_values))
 
 
 def get_band_reflectance(

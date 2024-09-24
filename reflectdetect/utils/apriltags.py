@@ -70,7 +70,7 @@ def pose_estimate_tags(
     """
     pose_estimator = AprilTagPoseEstimator(config)
     estimates: list[Transform3d] = [
-        run_in_thread(pose_estimator.estimate, True, tag)  # type: ignore
+        run_in_thread(pose_estimator.estimate, True, tag) # type: ignore
         for tag in tags
     ]
     return estimates

@@ -22,7 +22,7 @@ class ConverterArgumentParser(Tap):
         self.add_argument("dataset", nargs="?", default=".", type=Path)
 
 
-def main():
+def main() -> None:
     install()
     args = ConverterArgumentParser(
         formatter_class=RichHelpFormatter,
@@ -39,7 +39,6 @@ def main():
     if not (Path(args.dataset) / "raw").exists():
         raise Exception("In the dataset folder there should be a folder called 'raw' for the image files")
     paths = sorted(list((Path(args.dataset) / "raw").glob("*.tif")))
-
     supported_manufacturers = ["micasense"]
     if args.manufacturer not in supported_manufacturers:
         raise Exception(f"Manufacturer no supported: {args.manufacturer} not in {supported_manufacturers}")
@@ -49,7 +48,7 @@ def main():
         if args.manufacturer == "micasense":
             meta = Metadata(path.as_posix())
             image_rad, _, _, _ = micasense_utils.raw_image_to_radiance(meta, image_raw)
-            image_rad_undistorted = micasense_utils.correct_lens_distortion(meta, image_rad)
+            image_rad_undistorted = micasense_utils.correct_lens_distortion(meta, image_rad)  # type: ignore
             converted_image = image_rad_undistorted
         if args.manufacturer == "generic":
             pass

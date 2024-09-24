@@ -182,14 +182,14 @@ def validate_geolocation_panel_properties(
 
 
 def print_panel_properties(
-        panel_properties: list[ValidatedApriltagPanelProperties] | list[ValidatedGeolocationPanelProperties]):
+        panel_properties: list[ValidatedApriltagPanelProperties] | list[ValidatedGeolocationPanelProperties]) -> None:
     table = Table(title="Computed Panel Properties (File > CLI Arguments > Default Value)")
-    panel_properties = [prop.model_dump(exclude=set("bands")) for prop in panel_properties]
-    for key in panel_properties[0].keys():
+    properties = [prop.model_dump(exclude=set("bands")) for prop in panel_properties]
+    for key in properties[0].keys():
         table.add_column(key.capitalize(), justify="left", style="cyan", no_wrap=True)
 
     # Add rows dynamically based on the values
-    for item in panel_properties:
+    for item in properties:
         row = [str(item[key]) for key in item.keys()]  # Convert all values to strings
         table.add_row(*row)
 

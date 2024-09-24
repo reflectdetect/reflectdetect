@@ -199,6 +199,7 @@ def debug_save_altitude(
         f.write(str(altitude))
         f.write("\n")
 
+
 def debug_plot_altitudes(
         output_folder: Path,
         dpi: int | None = None
@@ -206,16 +207,13 @@ def debug_plot_altitudes(
     filename = f"altitudes.csv"
     input_path = output_folder / filename
     altitudes = np.genfromtxt(input_path, delimiter=",", dtype=np.float64)
-    output_path = output_folder / f"altitudes.tif"
     fig, ax = plt.subplots(1, 1, figsize=(15, 15))
     ax.set_ylim([0, np.max(altitudes) * 1.2])
     ax.set_ylabel("Estimated Altitude")
     ax.plot(altitudes)
     plt.xlabel("Image index")
-    if output_path is not None:
-        plt.savefig(output_path, dpi=dpi)
-    else:
-        plt.show()
+    output_path = output_folder / f"altitudes.tif"
+    plt.savefig(output_path, dpi=dpi)
     plt.close(fig)
 
 
