@@ -237,7 +237,7 @@ class AprilTagEngine:
                     intensities_of_panels,
                     get_band_reflectance(self.panel_properties, band_index),
                 )
-                band = cv2.imread(path.as_posix(), cv2.IMREAD_GRAYSCALE)
+                band = cv2.imread(path.as_posix(), cv2.IMREAD_UNCHANGED)
                 converted_photos.append(convert(band, coefficients))
                 pb.update()
             if len(unconverted_photos) > 0:
