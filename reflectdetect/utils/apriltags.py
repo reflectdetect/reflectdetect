@@ -269,5 +269,5 @@ def save_images(
             scaled_to_int = np.array(image * COMPRESSION_FACTOR, dtype=np.uint16)
             imwrite(output_path, scaled_to_int)
             # Copy the exifdata from the original image to the new one
-            exiftool.execute(b"-tagsFromFile", path.as_posix(), output_path.as_posix())
+            exiftool.execute(b"-tagsFromFile -overwrite_original", path.as_posix(), output_path.as_posix())
             pb.update()

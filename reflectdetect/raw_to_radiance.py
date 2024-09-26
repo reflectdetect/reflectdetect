@@ -4,10 +4,12 @@ from exiftool import ExifToolHelper
 from matplotlib import pyplot as plt
 from rich.pretty import install
 from rich.progress import track
+from rich.prompt import IntPrompt
 from rich_argparse import RichHelpFormatter
 from tap import Tap
 
 from reflectdetect.constants import CONVERTED_FILE_ENDING
+from reflectdetect.manufacturer.generic import generic_utils
 from reflectdetect.manufacturer.micasense import micasense_utils
 from reflectdetect.manufacturer.micasense.micasense_metadata import Metadata
 from reflectdetect.utils.apriltags import save_images
@@ -39,19 +41,27 @@ def main() -> None:
     if not (Path(args.dataset) / "raw").exists():
         raise Exception("In the dataset folder there should be a folder called 'raw' for the image files")
     paths = sorted(list((Path(args.dataset) / "raw").glob("*.tif")))
-    supported_manufacturers = ["micasense"]
+
+    supported_manufacturers = ["micasense", "generic"]
+    print("Available manufactuers:", supported_manufacturers)
     if args.manufacturer not in supported_manufacturers:
         raise Exception(f"Manufacturer no supported: {args.manufacturer} not in {supported_manufacturers}")
+    print("Converting for manufacturer:", args.manufacturer)
+    bits_per_pixel = None
+    if args.manufacturer == "generic":
+        bits_per_pixel = IntPrompt.ask("Enter the bitdepth of the raw images",
+                                       default=16)
     for path in track(paths, description="Converting raw images to radiance"):
         converted_image = None
         image_raw = plt.imread(path)
+
         if args.manufacturer == "micasense":
             meta = Metadata(path.as_posix())
             image_rad, _, _, _ = micasense_utils.raw_image_to_radiance(meta, image_raw)
             image_rad_undistorted = micasense_utils.correct_lens_distortion(meta, image_rad)  # type: ignore
             converted_image = image_rad_undistorted
         if args.manufacturer == "generic":
-            pass
+            converted_image = generic_utils.raw_image_to_radiance(image_raw, bits_per_pixel)
         if converted_image is None:
             raise Exception("Could not convert image")
         save_images(et, args.dataset, [path], [converted_image], None, "images", CONVERTED_FILE_ENDING)
