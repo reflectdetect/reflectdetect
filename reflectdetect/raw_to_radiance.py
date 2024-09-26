@@ -15,6 +15,7 @@ from reflectdetect.manufacturer.micasense.micasense_metadata import Metadata
 from reflectdetect.utils.apriltags import save_images
 from reflectdetect.utils.paths import is_tool_installed
 
+supported_manufacturers = ["micasense", "generic"]
 
 class ConverterArgumentParser(Tap):
     manufacturer: str = "generic"
@@ -22,6 +23,7 @@ class ConverterArgumentParser(Tap):
 
     def configure(self) -> None:
         self.add_argument("dataset", nargs="?", default=".", type=Path)
+        self.add_argument("--manufacturer", choices=supported_manufacturers)
 
 
 def main() -> None:
@@ -42,7 +44,6 @@ def main() -> None:
         raise Exception("In the dataset folder there should be a folder called 'raw' for the image files")
     paths = sorted(list((Path(args.dataset) / "raw").glob("*.tif")))
 
-    supported_manufacturers = ["micasense", "generic"]
     print("Available manufactuers:", supported_manufacturers)
     if args.manufacturer not in supported_manufacturers:
         raise Exception(f"Manufacturer no supported: {args.manufacturer} not in {supported_manufacturers}")
