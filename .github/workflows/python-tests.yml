@@ -1,0 +1,48 @@
+# .github/workflows/python-tests.yml
+
+name: Python CI with Poetry and Coverage
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout the code
+        uses: actions/checkout@v3
+
+      - name: Set up Python 3.10
+        uses: actions/setup-python@v4
+        with:
+          python-version: 3.10
+
+      - name: Install Poetry
+        run: |
+          curl -sSL https://install.python-poetry.org | python3 -
+          echo "::add-path::${HOME}/.local/bin"
+
+      - name: Install dependencies using Poetry
+        run: |
+          poetry install
+
+      - name: Run tests and generate coverage report
+        run: |
+          poetry run pytest --cov=src --cov-report=xml --cov-report=html
+
+      - name: Generate coverage badge
+        run: |
+          poetry run python scripts/generate_coverage_badge.py > badge_url.txt
+          echo "$(cat badge_url.txt)"
+          sed -i 's|!\[coverage\](.*)|![coverage]($(cat badge_url.txt))|' README.md
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+          git add README.md
+          git commit -m "Update coverage badge"
+          git push
