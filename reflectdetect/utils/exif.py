@@ -15,6 +15,7 @@ def get_camera_properties(exiftool: ExifToolHelper, image_path: Path) -> tuple[A
      focal_length_mm, focal_plane_x_res, focal_plane_y_res, focal_plane_resolution_unit
     """
     metadata = run_in_thread(exiftool.get_metadata, True, image_path.as_posix())[0]  # type: ignore
+    #TODO: allow for other tags than micasense defaults
     return (
         metadata["EXIF:FocalLength"],
         metadata["EXIF:FocalPlaneXResolution"],

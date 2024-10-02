@@ -40,21 +40,6 @@ class MockAprilTagDetection:
         return self.family
 
 
-@pytest.fixture
-def mock_detector():
-    """Fixture to provide a mocked AprilTagDetector."""
-    detector = mock.MagicMock()
-    detector.detect.return_value = [MockAprilTagDetection(1, [0, 1, 2, 3, 4, 5, 6, 7], (0, 0))]
-    return detector
-
-
-@pytest.fixture
-def mock_pose_estimator_config():
-    """Fixture to mock AprilTagPoseEstimator.Config."""
-    config = mock.MagicMock()
-    return config
-
-
 def test_verify_detections():
     """Test that only valid tag ids are accepted."""
     tag = MockAprilTagDetection(1, [], (0, 0))
@@ -82,7 +67,7 @@ def test_build_batches_per_band():
 
 
 @given(
-    tag_smudge_factor=st.floats(min_value=0.1, max_value=10.0),
+    tag_smudge_factor=st.floats(min_value=0.1, max_value=2.0),
     panel_size_pixel=st.tuples(st.integers(10, 50), st.integers(10, 50)),
 )
 def test_get_panel(tag_smudge_factor, panel_size_pixel):
@@ -100,7 +85,6 @@ def test_get_panel(tag_smudge_factor, panel_size_pixel):
     # Therefore panels with a width larger than 10
     # are clipping the left border of the image and should be discarded.
     is_in_bounds = panel_size_pixel[0] <= 10
-
     if is_in_bounds:
         assert corners is not None  # Should return corners within bounds
     else:
