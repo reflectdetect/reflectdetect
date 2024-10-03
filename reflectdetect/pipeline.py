@@ -82,9 +82,14 @@ def convert(
     """
     # converts a photo based on a linear transformation.
     if mask is not None:
-        return np.where(mask, np.poly1d(coefficients)(band_image), np.nan)
+        result = np.where(mask, np.poly1d(coefficients)(band_image), np.nan)
     else:
-        return np.poly1d(coefficients)(band_image)
+        result = np.poly1d(coefficients)(band_image)
+
+    # Clip result values to be between 0 and 1 (reflectance)
+    result[result < 0] = 0
+    result[result > 1] = 1
+    return result
 
 
 def interpolate_intensities(

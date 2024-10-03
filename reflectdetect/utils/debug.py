@@ -29,9 +29,7 @@ def debug_show_geolocation(
         output_path: Path | None = None,
         dpi: int | None = None
 ) -> None:
-    fig_2d = plt.figure()
-    ax = fig_2d.subplots(1, 1)
-    ax.axis("off")
+    ax = full_frame()
     panel_polygons: list[tuple[int, Polygon]] = [
         (index, panel_location.union_all().convex_hull)
         for index, panel_location in enumerate(locations)
@@ -40,25 +38,36 @@ def debug_show_geolocation(
     with rasterio.open(path) as photo:
         rasterio.plot.show(photo, ax=ax, cmap="grey")
 
+    cmap = get_cmap('tab10')
     for index, corners in panel_polygons:
         x, y = corners.exterior.xy
 
         # Append the first point to the end to close the rectangle/polygon
         x = list(x) + [x[0]]
         y = list(y) + [y[0]]
-        ax.plot(x, y, linewidth=1)
+        ax.plot(x, y, linewidth=1, color=cmap(index%10))
         polygon = shrink_shapely_polygon(corners, shrink_factors[index])
         detection_corners = polygon.exterior.coords.xy
         x, y = detection_corners
         x = list(x) + [x[0]]
         y = list(y) + [y[0]]
-        ax.plot(x, y, linewidth=0.8, linestyle="dotted")
+        ax.plot(x, y, linewidth=1, linestyle="dotted", color=cmap(index%10))
     if output_path is not None:
-        fig_2d.savefig(output_path, dpi=dpi)
+        plt.savefig(output_path, dpi=dpi)
     else:
-        fig_2d.show()
-    plt.close(fig_2d)
+        plt.show()
+    plt.close()
 
+def full_frame(width=None, height=None):
+    import matplotlib as mpl
+    mpl.rcParams['savefig.pad_inches'] = 0
+    figsize = None if width is None else (width, height)
+    fig = plt.figure(figsize=figsize)
+    ax = plt.axes((0., 0., 1., 1.), frameon=False)
+    ax.get_xaxis().set_visible(False)
+    ax.get_yaxis().set_visible(False)
+    plt.autoscale(tight=True)
+    return ax
 
 def debug_show_panels(
         img: NDArray[np.float64],
@@ -66,16 +75,6 @@ def debug_show_panels(
         output_path: Path | None = None,
         dpi: int | None = None
 ) -> None:
-    def full_frame(width=None, height=None):
-        import matplotlib as mpl
-        mpl.rcParams['savefig.pad_inches'] = 0
-        figsize = None if width is None else (width, height)
-        fig = plt.figure(figsize=figsize)
-        ax = plt.axes((0., 0., 1., 1.), frameon=False)
-        ax.get_xaxis().set_visible(False)
-        ax.get_yaxis().set_visible(False)
-        plt.autoscale(tight=True)
-
     full_frame()
     plt.imshow(img, cmap="grey")
     cmap = get_cmap('tab10')

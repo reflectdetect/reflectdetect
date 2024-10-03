@@ -119,7 +119,7 @@ def get_panel_intensity(intensity_values: np.ma.MaskedArray) -> float:
     if intensity_values.mask.all():
         # The whole array is masked
         return np.nan
-
+    intensity_values = intensity_values.astype(np.float64)
     intensity_values = np.ma.filled(intensity_values, np.nan)
     q95, q5 = np.nanpercentile(intensity_values, [95, 5])
     lower_bound = q5

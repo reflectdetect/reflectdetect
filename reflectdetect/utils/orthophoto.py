@@ -1,8 +1,8 @@
+import warnings
 from pathlib import Path
 
 import fiona
 import geopandas as gpd
-import matplotlib
 import numpy as np
 import rasterio
 import rasterio.plot
@@ -22,7 +22,8 @@ from reflectdetect.utils.paths import get_output_path
 from reflectdetect.utils.polygons import shrink_shapely_polygon
 
 
-def is_panel_in_orthophoto(orthophoto_path: Path, panel: GeoDataFrame, shrink_factor: float, no_data_value: int) -> bool:
+def is_panel_in_orthophoto(orthophoto_path: Path, panel: GeoDataFrame, shrink_factor: float,
+                           no_data_value: int) -> bool:
     """
     Checks if a panel is in an orthophoto based on its coordinates
     :param orthophoto_path: path to the orthophoto tiff file
@@ -94,7 +95,10 @@ def save_bands(
     with rasterio.open(output_path, "w", **meta) as dst:
         for band_index, band in enumerate(band_images):
             band[band < 0] = 0
-            scaled_to_int = np.array(band * COMPRESSION_FACTOR, dtype=np.uint16)
+            with warnings.catch_warnings():
+                # Ignore "RuntimeWarning: invalid value encountered in cast"
+                warnings.filterwarnings("ignore", category=RuntimeWarning)
+                scaled_to_int = np.array(band * COMPRESSION_FACTOR, dtype=np.uint16)
             dst.write_band(band_index + 1, scaled_to_int)
 
 
