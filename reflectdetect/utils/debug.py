@@ -8,6 +8,7 @@ import rasterio
 import shapely
 from geopandas import GeoDataFrame
 from matplotlib import pyplot as plt
+from matplotlib.cm import get_cmap
 from numpy.typing import NDArray
 from rasterio import plot
 from rich.progress import Progress, TaskID
@@ -65,31 +66,40 @@ def debug_show_panels(
         output_path: Path | None = None,
         dpi: int | None = None
 ) -> None:
-    fig_2d = plt.figure()
-    ax = fig_2d.subplots(1, 1)
-    ax.axis("off")
-    ax.imshow(img, cmap="grey")
-    for corners, tag, shrink_factor in debug_panel_information:
-        ax.scatter(tag.getCenter().x, tag.getCenter().y)
+    def full_frame(width=None, height=None):
+        import matplotlib as mpl
+        mpl.rcParams['savefig.pad_inches'] = 0
+        figsize = None if width is None else (width, height)
+        fig = plt.figure(figsize=figsize)
+        ax = plt.axes((0., 0., 1., 1.), frameon=False)
+        ax.get_xaxis().set_visible(False)
+        ax.get_yaxis().set_visible(False)
+        plt.autoscale(tight=True)
+
+    full_frame()
+    plt.imshow(img, cmap="grey")
+    cmap = get_cmap('tab10')
+    for i, (corners, tag, shrink_factor) in enumerate(debug_panel_information):
+        plt.scatter(tag.getCenter().x, tag.getCenter().y, color=cmap(i % 10))
         x, y = zip(*corners)
 
         # Append the first point to the end to close the rectangle/polygon
         x = list(x) + [x[0]]
         y = list(y) + [y[0]]
-        ax.plot(x, y, linewidth=1)
+        plt.plot(x, y, linewidth=1, color=cmap(i % 10))
         polygon = shapely.Polygon(corners)
         polygon = shrink_shapely_polygon(polygon, shrink_factor)
         detection_corners = polygon.exterior.coords.xy
         x, y = detection_corners
         x = list(x) + [x[0]]
         y = list(y) + [y[0]]
-        ax.plot(x, y, linewidth=1, linestyle="dotted")
+        plt.plot(x, y, linewidth=1, linestyle="dotted", color=cmap(i % 10))
 
     if output_path is not None:
-        fig_2d.savefig(output_path, dpi=dpi)
+        plt.savefig(output_path, dpi=dpi)
     else:
-        fig_2d.show()
-    plt.close(fig_2d)
+        plt.show()
+    plt.close()
 
 
 def show_intensities(

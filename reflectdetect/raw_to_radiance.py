@@ -36,7 +36,7 @@ def main() -> None:
 
     if not is_tool_installed("exiftool"):
         raise Exception("Exiftool is not installed. Follow the readme to install it")
-    et = ExifToolHelper(True, False, False)
+    et = ExifToolHelper(True, True, True)
     if not Path(args.dataset).exists():
         raise Exception("Dataset path does not exists")
 

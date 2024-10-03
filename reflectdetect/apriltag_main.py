@@ -105,7 +105,7 @@ class AprilTagEngine:
         # Input Validation
 
         # Panel_properties file
-        self.tag_size, self.panel_properties = self.validate_panel_properties(args)
+        self.excludes, self.tag_size, self.panel_properties = self.validate_panel_properties(args)
         self.number_of_panels = len(self.panel_properties)
         self.progress.console.print(
             "Collected information of", self.number_of_panels, "panels"
@@ -142,7 +142,7 @@ class AprilTagEngine:
 
     def validate_panel_properties(
             self, args: ApriltagArgumentParser
-    ) -> tuple[float, list[ValidatedApriltagPanelProperties]]:
+    ) -> tuple[list[str], float, list[ValidatedApriltagPanelProperties]]:
         panel_properties_filepath = (
             Path(args.panel_properties_file)
             if args.panel_properties_file is not None
@@ -185,12 +185,13 @@ class AprilTagEngine:
             )
         )
         tag_size = default(args.tag_size, panel_properties_file.tag_size)
+        exclude = default(panel_properties_file.exclude, [])
         if tag_size is None:
             raise Exception(
                 "Tag size not set via panel_properties file or CLI argument"
             )
         print("Tag size:", tag_size, "m")
-        return tag_size, panel_properties
+        return exclude, tag_size, panel_properties
 
     def load_panel_properties(
             self, panel_properties_file: Path | None
@@ -248,6 +249,12 @@ class AprilTagEngine:
 
     def extract_using_apriltags(self, path: Path) -> list[None | float]:
         panel_intensities: list[float | None] = [None] * self.number_of_panels
+
+        for exclude in self.excludes:
+            if path.name.startswith(exclude):
+                print("Excluding", path.name)
+                return panel_intensities
+
         img = cv2.imread(path.as_posix(), cv2.IMREAD_UNCHANGED)
         max_value = np.max(img)
 

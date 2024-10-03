@@ -1,6 +1,7 @@
 import contextlib
 import io
 import re
+import warnings
 from pathlib import Path
 from typing import Any
 
@@ -19,7 +20,6 @@ from reflectdetect.utils.panel import calculate_sensor_size
 from reflectdetect.utils.paths import default
 from reflectdetect.utils.paths import get_output_path
 from reflectdetect.utils.thread import run_in_thread
-
 
 # The robotpy_apriltag.AprilTagDetector returns the inner apriltag square coordinates and not the whole apriltag area.
 # Therefore, the detection area has to be converted to the full apriltag area to get the accurate distance
@@ -69,10 +69,13 @@ def pose_estimate_tags(
     :return: the pose estimate
     """
     pose_estimator = AprilTagPoseEstimator(config)
-    estimates: list[Transform3d] = [
-        run_in_thread(pose_estimator.estimate, True, tag) # type: ignore
-        for tag in tags
-    ]
+    with warnings.catch_warnings():
+        # Ignore PoseEstimation Warning
+        warnings.filterwarnings("ignore", category=RuntimeWarning)
+        estimates: list[Transform3d] = [
+            run_in_thread(pose_estimator.estimate, True, tag)  # type: ignore
+            for tag in tags
+        ]
     return estimates
 
 
@@ -167,7 +170,7 @@ def build_batches_per_band(paths: list[Path]) -> list[list[Path]]:
             raise Exception("Could not extract band index from filename")
         band_index = int(match.group(1)) - 1
         if band_index > len(batches) or band_index < 0:
-            raise Exception("Problem with the sorting of the pats or regex")
+            raise Exception("Problem with the sorting of the paths or regex")
         if band_index == len(batches):
             batches.append([])
         batches[band_index].append(image_path)
@@ -269,5 +272,8 @@ def save_images(
             scaled_to_int = np.array(image * COMPRESSION_FACTOR, dtype=np.uint16)
             imwrite(output_path, scaled_to_int)
             # Copy the exifdata from the original image to the new one
-            exiftool.execute(b"-overwrite_original -tagsFromFile", path.as_posix(), output_path.as_posix())
+            assert output_path.exists()
+            assert path.exists()
+            run_in_thread(exiftool.execute, True, b"-overwrite_original", b"-tagsFromFile", path.as_posix(),
+                          output_path.as_posix())
             pb.update()

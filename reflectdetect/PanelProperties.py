@@ -4,6 +4,8 @@ from pydantic import BaseModel
 from rich.console import Console
 from rich.table import Table
 
+from reflectdetect.utils.paths import default
+
 
 class ApriltagPanelProperties(BaseModel):
     bands: list[float]
@@ -39,6 +41,7 @@ class ApriltagPanelPropertiesFile(BaseModel):
     default_panel_smudge_factor: float | None = None
     default_tag_smudge_factor: float | None = None
     default_shrink_factor: float | None = None
+    exclude: list[str] | None = None
 
 
 class GeolocationPanelProperties(BaseModel):
@@ -122,7 +125,7 @@ def validate_apriltag_panel_properties(
                 tag_smudge_factor=tag_smudge_factor,
                 panel_smudge_factor=panel_smudge_factor,
                 tag_direction=tag_direction,
-                shrink_factor=shrink_factor,
+                shrink_factor=shrink_factor
             )
         )
     print_panel_properties(validated_panel_properties)
