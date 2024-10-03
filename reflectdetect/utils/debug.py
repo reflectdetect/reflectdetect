@@ -219,7 +219,7 @@ def debug_plot_altitudes(
     altitudes = np.genfromtxt(input_path, delimiter=",", dtype=np.float64)
     fig, ax = plt.subplots(1, 1, figsize=(15, 15))
     ax.set_ylim([0, np.max(altitudes) * 1.2])
-    ax.set_ylabel("Estimated Altitude")
+    ax.set_ylabel("Estimated Altitude (m)")
     ax.plot(altitudes)
     plt.xlabel("Image index")
     output_path = output_folder / f"altitudes.tif"
