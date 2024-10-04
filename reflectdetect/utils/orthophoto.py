@@ -105,8 +105,8 @@ def save_bands(
 def get_orthophoto_paths(dataset: Path, orthophotos_folder: Path | None) -> list[Path]:
     """
     Gets all the .tiff images in a folder. Uses the canonical path in the dataset if no specific path is given
-    :param dataset:
-    :param orthophotos_folder:
+    :param dataset: path to the dataset folder
+    :param orthophotos_folder: name of the subfolder containing the orthophotos
     :return: list of path to the .tiff photos
     """
     if orthophotos_folder is None:
