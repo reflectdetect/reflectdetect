@@ -4,6 +4,8 @@ name: Python CI with Poetry and Coverage
 
 on:
   push:
+    branches:
+      - main
   pull_request:
     branches:
       - main
@@ -50,7 +52,6 @@ jobs:
           poetry run pytest --cov=reflectdetect --cov-report=xml --cov-report=html
 
       - name: Generate coverage badge
-        if: github.ref == 'refs/heads/master'
         run: |
           poetry run python scripts/generate_coverage_badge.py
           sed -i 's|Coverage-[0-9]\+%25|Coverage-'"$(cat badge_url.txt)"'%25|' README.md
