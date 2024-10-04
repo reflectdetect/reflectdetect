@@ -8,12 +8,7 @@ def get_coverage_percentage():
     return float(coverage) * 100
 
 
-def generate_badge(coverage):
-    badge_url = f"https://img.shields.io/badge/Coverage-{coverage}%25-brightgreen"
-    return badge_url
-
-
 if __name__ == "__main__":
     coverage = get_coverage_percentage()
-    badge_url = generate_badge(int(coverage))
-    print(f"Coverage Badge URL: {badge_url}")
+    with open('badge_url.txt', 'w', encoding='utf-8') as f:
+        f.write(str(int(coverage)))

@@ -5,7 +5,8 @@
 <h3 align="center">reflectdetect</h3>
 <p align="center">    An automated workflow for in-flight radiometric calibration of UAV imagery<br /></p>
 <p align="center">
-    <img src="https://img.shields.io/badge/Coverage-0%25-red" alt="Coverage">
+    <img alt="Coverage" src="https://img.shields.io/badge/Coverage-00%25-brightgreen
+">
   <a href="https://github.com/reflectdetect/reflectdetect/blob/main/LICENSE"><img src="https://img.shields.io/github/license/reflectdetect/reflectdetect" alt="License"></a>
   <a href="https://github.com/reflectdetect/reflectdetect/network/members"><img src="https://img.shields.io/github/forks/reflectdetect/reflectdetect?style=social" alt="GitHub forks"></a>
   <a href="https://github.com/reflectdetect/reflectdetect/stargazers"><img src="https://img.shields.io/github/stars/reflectdetect/reflectdetect?style=social" alt="GitHub stars"></a>

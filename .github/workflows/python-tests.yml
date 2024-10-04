@@ -4,8 +4,6 @@ name: Python CI with Poetry and Coverage
 
 on:
   push:
-    branches:
-      - main
   pull_request:
     branches:
       - main
@@ -13,10 +11,14 @@ on:
 jobs:
   test:
     runs-on: ubuntu-latest
-
+    permissions:
+          # Give the default GITHUB_TOKEN write permission to commit and push the
+          # added or changed files to the repository.
+          contents: write
     steps:
-      - name: Checkout the code
-        uses: actions/checkout@v3
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.head_ref }}
 
       - name: Set up Python 3.10
         uses: actions/setup-python@v5
@@ -50,12 +52,11 @@ jobs:
           poetry run pytest --cov=reflectdetect --cov-report=xml --cov-report=html
 
       - name: Generate coverage badge
+        if: github.ref == 'refs/heads/master'
         run: |
-          poetry run python scripts/generate_coverage_badge.py > badge_url.txt
-          echo "$(cat badge_url.txt)"
-          sed -i 's|!\[coverage\](.*)|![coverage]($(cat badge_url.txt))|' README.md
-          git config --global user.name "github-actions[bot]"
-          git config --global user.email "github-actions[bot]@users.noreply.github.com"
-          git add README.md
-          git commit -m "Update coverage badge"
-          git push
+          poetry run python scripts/generate_coverage_badge.py
+          sed -i 's|Coverage-[0-9]\+%25|Coverage-'"$(cat badge_url.txt)"'%25|' README.md
+
+      - uses: stefanzweifel/git-auto-commit-action@v5
+        with:
+          commit_message: skip-checks:true
