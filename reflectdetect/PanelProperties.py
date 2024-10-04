@@ -1,6 +1,10 @@
 from typing import Any
 
 from pydantic import BaseModel
+from rich.console import Console
+from rich.table import Table
+
+from reflectdetect.utils.paths import default
 
 
 class ApriltagPanelProperties(BaseModel):
@@ -37,6 +41,7 @@ class ApriltagPanelPropertiesFile(BaseModel):
     default_panel_smudge_factor: float | None = None
     default_tag_smudge_factor: float | None = None
     default_shrink_factor: float | None = None
+    exclude: list[str] | None = None
 
 
 class GeolocationPanelProperties(BaseModel):
@@ -66,7 +71,7 @@ class GeolocationPanelPropertiesFile(BaseModel):
 
 
 def validate_apriltag_panel_properties(
-    panels: list[ApriltagPanelProperties], default_properties: dict[str, Any]
+        panels: list[ApriltagPanelProperties], default_properties: dict[str, Any]
 ) -> list[ValidatedApriltagPanelProperties]:
     validated_panel_properties: list[ValidatedApriltagPanelProperties] = []
 
@@ -120,14 +125,15 @@ def validate_apriltag_panel_properties(
                 tag_smudge_factor=tag_smudge_factor,
                 panel_smudge_factor=panel_smudge_factor,
                 tag_direction=tag_direction,
-                shrink_factor=shrink_factor,
+                shrink_factor=shrink_factor
             )
         )
+    print_panel_properties(validated_panel_properties)
     return validated_panel_properties
 
 
 def validate_geolocation_panel_properties(
-    panels: list[GeolocationPanelProperties], default_properties: dict[str, Any]
+        panels: list[GeolocationPanelProperties], default_properties: dict[str, Any]
 ) -> list[ValidatedGeolocationPanelProperties]:
     validated_panel_properties: list[ValidatedGeolocationPanelProperties] = []
 
@@ -174,4 +180,22 @@ def validate_geolocation_panel_properties(
                 layer_name=layer_name,
             )
         )
+    print_panel_properties(validated_panel_properties)
     return validated_panel_properties
+
+
+def print_panel_properties(
+        panel_properties: list[ValidatedApriltagPanelProperties] | list[ValidatedGeolocationPanelProperties]) -> None:
+    table = Table(title="Computed Panel Properties (File > CLI Arguments > Default Value)")
+    properties = [prop.model_dump(exclude=set("bands")) for prop in panel_properties]
+    for key in properties[0].keys():
+        table.add_column(key.capitalize(), justify="left", style="cyan", no_wrap=True)
+
+    # Add rows dynamically based on the values
+    for item in properties:
+        row = [str(item[key]) for key in item.keys()]  # Convert all values to strings
+        table.add_row(*row)
+
+    # Print the table
+    console = Console()
+    console.print(table)

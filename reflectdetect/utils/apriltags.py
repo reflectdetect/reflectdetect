@@ -1,26 +1,28 @@
 import contextlib
 import io
 import re
+import warnings
 from pathlib import Path
 from typing import Any
 
 import numpy as np
-import rasterio
+from exiftool import ExifToolHelper
 from numpy.typing import NDArray
 from rich.progress import Progress
 from robotpy_apriltag import AprilTagDetection, AprilTagDetector, AprilTagPoseEstimator
 from tifffile import imwrite
 from wpimath.geometry import Transform3d
 
-from reflectdetect.constants import COMPRESSION_FACTOR
+from reflectdetect.constants import COMPRESSION_FACTOR, CONVERTED_FILE_ENDING
 from reflectdetect.utils.debug import ProgressBar
 from reflectdetect.utils.exif import get_camera_properties
 from reflectdetect.utils.panel import calculate_sensor_size
+from reflectdetect.utils.paths import default
 from reflectdetect.utils.paths import get_output_path
 from reflectdetect.utils.thread import run_in_thread
 
 # The robotpy_apriltag.AprilTagDetector returns the inner apriltag square coordinates and not the whole apriltag area.
-# Therefore the detection area has to be converted to the full apriltag area to get the accurate distance
+# Therefore, the detection area has to be converted to the full apriltag area to get the accurate distance
 # from the center of the tag to the edge of the panel
 tag_detection_to_total_width_conversions = {
     "tag16h5": 1.33,
@@ -67,14 +69,18 @@ def pose_estimate_tags(
     :return: the pose estimate
     """
     pose_estimator = AprilTagPoseEstimator(config)
-    estimates: list[Transform3d] = [
-        run_in_thread(pose_estimator.estimate, True, tag)  # type: ignore
-        for tag in tags
-    ]
+    with warnings.catch_warnings():
+        # Ignore PoseEstimation Warning
+        warnings.filterwarnings("ignore", category=RuntimeWarning)
+        estimates: list[Transform3d] = [
+            run_in_thread(pose_estimator.estimate, True, tag)  # type: ignore
+            for tag in tags
+        ]
     return estimates
 
 
 def get_altitude_from_tags(
+        exiftool: ExifToolHelper,
         tags: list[AprilTagDetection],
         path: Path,
         resolution: tuple[int, int],
@@ -89,13 +95,14 @@ def get_altitude_from_tags(
     :param tag_size: size of the tags (detection area, not total area)
     :return:  the approximate height of the drone taking the image
     """
-    config = get_pose_estimator_config(path, resolution, tag_size)
+    config = get_pose_estimator_config(exiftool, path, resolution, tag_size)
     with contextlib.redirect_stdout(io.StringIO()):
         estimates = pose_estimate_tags(tags, config)
     return float(np.mean([estimate.translation().z for estimate in estimates]))
 
 
 def get_pose_estimator_config(
+        exiftool: ExifToolHelper,
         path: Path,
         resolution: tuple[int, int],
         tag_size: float,
@@ -113,7 +120,7 @@ def get_pose_estimator_config(
         focal_plane_x_res,
         focal_plane_y_res,
         focal_plane_resolution_unit,
-    ) = get_camera_properties(path)
+    ) = get_camera_properties(exiftool, path)
     horizontal_focal_length_pixels = focal_length_mm * focal_plane_x_res
     vertical_focal_length_pixels = focal_length_mm * focal_plane_y_res
 
@@ -155,7 +162,7 @@ def build_batches_per_band(paths: list[Path]) -> list[list[Path]]:
     # TODO also add visibility batching
     batches: list[list[Path]] = []
     # Regular expression to match file names and capture the base and suffix
-    pattern = re.compile(r".*_(\d+)\.tif$")  # TODO better path parsing generalization
+    pattern = re.compile(fr".*_(\d+)_{CONVERTED_FILE_ENDING}$")  # TODO better path parsing generalization
 
     for image_path in paths:
         match = pattern.match(image_path.name)
@@ -163,7 +170,7 @@ def build_batches_per_band(paths: list[Path]) -> list[list[Path]]:
             raise Exception("Could not extract band index from filename")
         band_index = int(match.group(1)) - 1
         if band_index > len(batches) or band_index < 0:
-            raise Exception("Problem with the sorting of the pats or regex")
+            raise Exception("Problem with the sorting of the paths or regex")
         if band_index == len(batches):
             batches.append([])
         batches[band_index].append(image_path)
@@ -235,10 +242,13 @@ def get_panel(
 
 
 def save_images(
+        exiftool: ExifToolHelper,
         dataset: Path,
         paths: list[Path],
         converted_images: list[NDArray[np.float64] | None],
         progress: Progress | None = None,
+        output_folder: str | None = None,
+        ending: str | None = None,
 ) -> None:
     """
     This function saves the converted images as .tif files into a new "/transformed/" directory in the images folder
@@ -246,22 +256,22 @@ def save_images(
     :param progress: optional progress bar
     :param paths: list of image paths
     :param converted_images: list of reflectance images
+    :param output_folder: Overwrite for the transformed directory name
+    :param ending: Overwrite for the file ending
     """
     with ProgressBar(progress, description="Saving images", total=len(paths)) as pb:
+        path: Path
         for path, image in zip(paths, converted_images):
             if image is None:
                 pb.update()
                 continue
-            # TODO Use tiffile or exiftool to extract metadata
-            with rasterio.open(path) as original:
-                meta = original.meta
-            meta.update(
-                dtype=rasterio.uint16,
-            )
             output_path = get_output_path(
-                dataset, path, "reflectance.tif", "transformed"
+                dataset, path, default(ending, "reflectance.tif"), default(output_folder, "transformed")
             )
             image[image < 0] = 0
             scaled_to_int = np.array(image * COMPRESSION_FACTOR, dtype=np.uint16)
-            imwrite(output_path, scaled_to_int, metadata=meta)
+            imwrite(output_path, scaled_to_int)
+            # Copy the exifdata from the original image to the new one
+            run_in_thread(exiftool.execute, True, b"-overwrite_original", b"-tagsFromFile", path.as_posix(),
+                          output_path.as_posix())
             pb.update()

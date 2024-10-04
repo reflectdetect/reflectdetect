@@ -7,7 +7,8 @@ import numpy as np
 import rasterio
 import shapely
 from geopandas import GeoDataFrame
-from matplotlib import pyplot as plt, cm
+from matplotlib import pyplot as plt
+from matplotlib.cm import get_cmap
 from numpy.typing import NDArray
 from rasterio import plot
 from rich.progress import Progress, TaskID
@@ -26,10 +27,9 @@ def debug_show_geolocation(
         visibility: list[bool],
         shrink_factors: list[float],
         output_path: Path | None = None,
+        dpi: int | None = None
 ) -> None:
-    fig_2d = plt.figure()
-    ax = fig_2d.subplots(1, 1)
-    ax.axis("off")
+    ax = full_frame()
     panel_polygons: list[tuple[int, Polygon]] = [
         (index, panel_location.union_all().convex_hull)
         for index, panel_location in enumerate(locations)
@@ -38,64 +38,74 @@ def debug_show_geolocation(
     with rasterio.open(path) as photo:
         rasterio.plot.show(photo, ax=ax, cmap="grey")
 
+    cmap = get_cmap('tab10')
     for index, corners in panel_polygons:
         x, y = corners.exterior.xy
 
         # Append the first point to the end to close the rectangle/polygon
         x = list(x) + [x[0]]
         y = list(y) + [y[0]]
-        ax.plot(x, y, linewidth=1)
+        ax.plot(x, y, linewidth=1, color=cmap(index%10))
         polygon = shrink_shapely_polygon(corners, shrink_factors[index])
         detection_corners = polygon.exterior.coords.xy
         x, y = detection_corners
         x = list(x) + [x[0]]
         y = list(y) + [y[0]]
-        ax.plot(x, y, linewidth=0.8, linestyle="dotted")
+        ax.plot(x, y, linewidth=1, linestyle="dotted", color=cmap(index%10))
     if output_path is not None:
-        fig_2d.savefig(output_path, dpi=300)
+        plt.savefig(output_path, dpi=dpi)
     else:
-        fig_2d.show()
-    plt.close(fig_2d)
+        plt.show()
+    plt.close()
 
+def full_frame(width=None, height=None):
+    import matplotlib as mpl
+    mpl.rcParams['savefig.pad_inches'] = 0
+    figsize = None if width is None else (width, height)
+    fig = plt.figure(figsize=figsize)
+    ax = plt.axes((0., 0., 1., 1.), frameon=False)
+    ax.get_xaxis().set_visible(False)
+    ax.get_yaxis().set_visible(False)
+    plt.autoscale(tight=True)
+    return ax
 
 def debug_show_panels(
         img: NDArray[np.float64],
-        tags: list[AprilTagDetection],
-        corners_list: list[list[float]],
-        shrink_factors: list[float],
+        debug_panel_information: list[tuple[list[float], AprilTagDetection, float]],
         output_path: Path | None = None,
+        dpi: int | None = None
 ) -> None:
-    fig_2d = plt.figure()
-    ax = fig_2d.subplots(1, 1)
-    ax.axis("off")
-    ax.imshow(img, cmap="grey")
-    for tag, corners, shrink_factor in zip(tags, corners_list, shrink_factors):
-        ax.scatter(tag.getCenter().x, tag.getCenter().y)
+    full_frame()
+    plt.imshow(img, cmap="grey")
+    cmap = get_cmap('tab10')
+    for i, (corners, tag, shrink_factor) in enumerate(debug_panel_information):
+        plt.scatter(tag.getCenter().x, tag.getCenter().y, color=cmap(i % 10))
         x, y = zip(*corners)
 
         # Append the first point to the end to close the rectangle/polygon
         x = list(x) + [x[0]]
         y = list(y) + [y[0]]
-        ax.plot(x, y, linewidth=1)
+        plt.plot(x, y, linewidth=1, color=cmap(i % 10))
         polygon = shapely.Polygon(corners)
         polygon = shrink_shapely_polygon(polygon, shrink_factor)
         detection_corners = polygon.exterior.coords.xy
         x, y = detection_corners
         x = list(x) + [x[0]]
         y = list(y) + [y[0]]
-        ax.plot(x, y, linewidth=1, linestyle="dotted")
+        plt.plot(x, y, linewidth=1, linestyle="dotted", color=cmap(i % 10))
 
     if output_path is not None:
-        fig_2d.savefig(output_path)
+        plt.savefig(output_path, dpi=dpi)
     else:
-        fig_2d.show()
-    plt.close(fig_2d)
+        plt.show()
+    plt.close()
 
 
 def show_intensities(
         intensities: NDArray[np.float64],
         interpolated_intensities: NDArray[np.float64],
-        output_path: str | None = None
+        output_path: str | None = None,
+        dpi: int | None = None
 ) -> None:
     number_of_bands = len(intensities[0, 0, :])
     fig, axes = plt.subplots(number_of_bands, sharex=True, figsize=(15, 15))
@@ -124,7 +134,7 @@ def show_intensities(
     number_of_images = len(intensities[:, 0, 0])
     plt.xlim([0, number_of_images])
     if output_path is not None:
-        plt.savefig(output_path)
+        plt.savefig(output_path, dpi=dpi)
     else:
         plt.show()
     plt.close(fig)
@@ -135,6 +145,7 @@ def debug_combine_and_plot_intensities(
         number_of_bands: int,
         number_of_panels: int,
         output_folder: Path,
+        dpi: int | None = None
 ) -> None:
     intensities = np.zeros((number_of_images, number_of_panels, number_of_bands))
     for band in range(0, number_of_bands):
@@ -147,7 +158,7 @@ def debug_combine_and_plot_intensities(
         input_path = output_folder / filename
         interpolated_intensities[:, :, band] = np.genfromtxt(input_path, delimiter=",")
     output_path = output_folder / f"intensities.tif"
-    run_in_thread(show_intensities, True, intensities, interpolated_intensities, output_path.as_posix())
+    run_in_thread(show_intensities, True, intensities, interpolated_intensities, output_path.as_posix(), dpi)
 
 
 def debug_save_intensities(
@@ -185,6 +196,34 @@ def debug_save_intensities_single_band(
         data = intensities[:, :].astype(str)
         data[data == "nan"] = ""
         np.savetxt(f, data, delimiter=",", fmt="%s")
+
+
+def debug_save_altitude(
+        altitude: float,
+        output_folder: Path,
+) -> None:
+    os.makedirs(output_folder, exist_ok=True)
+    output_path = output_folder / "altitudes.csv"
+    with open(output_path, "a+") as f:
+        f.write(str(altitude))
+        f.write("\n")
+
+
+def debug_plot_altitudes(
+        output_folder: Path,
+        dpi: int | None = None
+) -> None:
+    filename = f"altitudes.csv"
+    input_path = output_folder / filename
+    altitudes = np.genfromtxt(input_path, delimiter=",", dtype=np.float64)
+    fig, ax = plt.subplots(1, 1, figsize=(15, 15))
+    ax.set_ylim([0, np.max(altitudes) * 1.2])
+    ax.set_ylabel("Estimated Altitude (m)")
+    ax.plot(altitudes)
+    plt.xlabel("Image index")
+    output_path = output_folder / f"altitudes.tif"
+    plt.savefig(output_path, dpi=dpi)
+    plt.close(fig)
 
 
 class ProgressBar:

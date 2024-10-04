@@ -58,23 +58,16 @@ rasterio_logging.disable()
 
 class GeolocationArgumentParser(Tap):
     dataset: Path  # Path to the dataset folder
-    panel_locations_file: str | None = (
-        None  # Path to file instead "geolocations.gpk" in the dataset folder
-    )
-    panel_properties_file: str | None = (
-        None  # Path to file instead "panel_properties.json" in the dataset folder
-    )
-    orthophotos_folder: str | None = (
-        None  # Path to orthophotos folder instead "/orthophotos" in the dataset folder
-    )
+    panel_locations_file: str | None = None  # Path to file instead "geolocations.gpk" in the dataset folder
+    panel_properties_file: str | None = None  # Path to file instead "panel_properties.json" in the dataset folder
+    orthophotos_folder: str | None = None  # Path to orthophotos folder instead "/orthophotos" in the dataset folder
     debug: bool = False  # Prints logs and adds debug images into a /debug/ directory in the dataset folder
     default_shrink_factor: float = DEFAULT_SHRINK_FACTOR  # This factor gets multiplied to the detected panel area, to avoid artifacts like bleed
     default_panel_smudge_factor: float = DEFAULT_PANEL_SMUDGE_FACTOR  # This factor gets multiplied to the panel width and height to account for inaccuracy in lens exif information given by the manufacturer
     default_panel_width: float | None = None  # Width of the calibration panel in meters
-    default_panel_height: float | None = (
-        None  # Height of the calibration panel in meters
-    )
-    no_data_value: int = 0 #65535  # The value in the tiff image to interpret as no-data
+    default_panel_height: float | None = None  # Height of the calibration panel in meters
+    no_data_value: int = 0  # 65535  # The value in the tiff image to interpret as no-data
+    debug_dpi: int | None = None  # Overwrite the default dpi debug images are generated at
 
     def configure(self) -> None:
         self.add_argument("dataset", nargs="?", default=".", type=Path)
@@ -100,6 +93,7 @@ class GeolocationEngine:
         if not self.dataset.exists():
             raise Exception(f"Could not find specified dataset folder: {args.dataset}")
         self.debug = args.debug
+        self.debug_dpi = args.debug_dpi
         self.no_data_value = args.no_data_value
         # Validate Panel_properties file
         self.panel_properties: list[ValidatedGeolocationPanelProperties] = (
@@ -406,6 +400,7 @@ class GeolocationEngine:
                 self.number_of_bands,
                 self.number_of_panels,
                 output_folder / "intensity",
+                self.debug_dpi
             )
 
 
@@ -415,7 +410,7 @@ def main() -> None:
         formatter_class=RichHelpFormatter,
         description="Automatically detect reflection calibration panels in images and transform the given images to "
                     "reflectance",
-        epilog="If you have any questions, please contact",
+        epilog="If you have any questions, please contact us via the github repository issues",
     ).parse_args()
     if not is_tool_installed("exiftool"):
         raise Exception("Exiftool is not installed. Follow the readme to install it")

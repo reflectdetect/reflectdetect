@@ -1,8 +1,8 @@
+import warnings
 from pathlib import Path
 
 import fiona
 import geopandas as gpd
-import matplotlib
 import numpy as np
 import rasterio
 import rasterio.plot
@@ -22,7 +22,8 @@ from reflectdetect.utils.paths import get_output_path
 from reflectdetect.utils.polygons import shrink_shapely_polygon
 
 
-def is_panel_in_orthophoto(orthophoto_path: Path, panel: GeoDataFrame, shrink_factor: float, no_data_value: int) -> bool:
+def is_panel_in_orthophoto(orthophoto_path: Path, panel: GeoDataFrame, shrink_factor: float,
+                           no_data_value: int) -> bool:
     """
     Checks if a panel is in an orthophoto based on its coordinates
     :param orthophoto_path: path to the orthophoto tiff file
@@ -78,7 +79,7 @@ def extract_using_geolocation(
         photo, [panel_polygon], crop=True, nodata=no_data_value
     )
 
-    return [get_panel_intensity(panel_band, no_data_value) for panel_band in out_image]
+    return [get_panel_intensity(np.ma.masked_equal(panel_band, no_data_value)) for panel_band in out_image]
 
 
 def save_bands(
@@ -94,15 +95,18 @@ def save_bands(
     with rasterio.open(output_path, "w", **meta) as dst:
         for band_index, band in enumerate(band_images):
             band[band < 0] = 0
-            scaled_to_int = np.array(band * COMPRESSION_FACTOR, dtype=np.uint16)
+            with warnings.catch_warnings():
+                # Ignore "RuntimeWarning: invalid value encountered in cast"
+                warnings.filterwarnings("ignore", category=RuntimeWarning)
+                scaled_to_int = np.array(band * COMPRESSION_FACTOR, dtype=np.uint16)
             dst.write_band(band_index + 1, scaled_to_int)
 
 
 def get_orthophoto_paths(dataset: Path, orthophotos_folder: Path | None) -> list[Path]:
     """
     Gets all the .tiff images in a folder. Uses the canonical path in the dataset if no specific path is given
-    :param dataset:
-    :param orthophotos_folder:
+    :param dataset: path to the dataset folder
+    :param orthophotos_folder: name of the subfolder containing the orthophotos
     :return: list of path to the .tiff photos
     """
     if orthophotos_folder is None:
@@ -112,7 +116,7 @@ def get_orthophoto_paths(dataset: Path, orthophotos_folder: Path | None) -> list
     else:
         path = orthophotos_folder
 
-    return list(sorted([filepath for filepath in path.glob("*.tif")]))
+    return list(sorted(list(path.glob("*.tif"))))
 
 
 def load_panel_locations(
