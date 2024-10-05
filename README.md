@@ -5,7 +5,7 @@
 <h3 align="center">reflectdetect</h3>
 <p align="center">    An automated workflow for in-flight radiometric calibration of UAV imagery<br /></p>
 <p align="center">
-    <img alt="Coverage" src="https://img.shields.io/badge/Coverage-30%25-brightgreen">
+    <img alt="Coverage" src="https://img.shields.io/badge/Coverage-30%25-brightgreen"/>
   <a href="https://github.com/reflectdetect/reflectdetect/blob/main/LICENSE"><img src="https://img.shields.io/github/license/reflectdetect/reflectdetect" alt="License"></a>
   <a href="https://github.com/reflectdetect/reflectdetect/network/members"><img src="https://img.shields.io/github/forks/reflectdetect/reflectdetect?style=social" alt="GitHub forks"></a>
   <a href="https://github.com/reflectdetect/reflectdetect/stargazers"><img src="https://img.shields.io/github/stars/reflectdetect/reflectdetect?style=social" alt="GitHub stars"></a>
@@ -15,9 +15,10 @@
 ·
 <a href="https://github.com/reflectdetect/reflectdetect/issues">Request Feature</a>
 </p>
+<p>
 <a href="https://reflectdetect.readthedocs.io">Documentation</a>
 </p>
-<a href="https://ifzgoettingen-my.sharepoint.com/:f:/g/personal/heim_ifz-goettingen_de/EmSDi-poSitJpDbd4Xrrhj8BF-9x5LMSKSMOvJbj5OqmXg?e=g0oss6">Example Data</a>
+<a href="https://ifzgoettingen-my.sharepoint.com/:f:/g/personal/heim_ifz-goettingen_de/EmSDi-poSitJpDbd4Xrrhj8BF-9x5LMSKSMOvJbj5OqmXg?e=g0oss6">Download Example Datasets</a>
 
 ## Overview
 
@@ -50,7 +51,7 @@ calibration of UAV imagery".
    We used a [Device Name](#) in our testing, save the data in a `panel_locations.gpkg` file.
 4. **Fly your drone mission, capturing images.**
 5. **Rectifying and geo-reference the images**
-   <br>We used [Software Name](#) in our testing
+   <br>We used [Metashape](https://www.agisoft.com/) in our testing
 6. **Run reflectdetect**:
    <br>Convert the orthophotos to reflectance data.
 
@@ -60,9 +61,9 @@ calibration of UAV imagery".
    For the bands you will capture images in, either
    from the manufacturer (for commercial panels) or using a field spectrometer (for DIY panels). Save these values in
    a `panel_properties.json` file.
-2. **Print an AprilTag for each panel**
+2. **Print an AprilTag for each panel, see [Official AprilTag Repo](https://github.com/AprilRobotics/apriltag-imgs/tree/master/tag25h9)**
 3. **Field Setup**
-   <br>Position the calibration panels and place the AprilTags according to the placement guide.
+   <br>Position the calibration panels and place the AprilTags according to the [placement guide](#gallery).
 4. **Fly your drone mission, capturing images.**
 6. **Run reflectdetect**:
    <br>Convert the images to reflectance data.
@@ -218,7 +219,6 @@ Find the information about running each workflow in their respective files:
 - [x] Customize parameters on a per panel basis
 - [ ] Add dataset verification script
 - [x] Remove 5% of outliers in panel intensities value
-- [ ] Provide pdfs for apriltag printouts in `apriltag_printouts`
 
 # Contributing
 
@@ -230,8 +230,9 @@ We welcome and encourage contributions! If you'd like to get involved, please fe
 
 We'll review your PR as soon as possible. Thank you for contributing!
 
-<!--# Gallery -->
-
+# Gallery
+### Apriltag Placement Guide
+![Placement Guide](./images/placement_guide.png)
   <!--TODO: Add a good image of the panels]-->
   <!--TODO: Add a good image of the apriltags]-->
   <!--TODO: Add a good image of the captured images]-->
