@@ -29,7 +29,7 @@ def debug_show_geolocation(
         output_path: Path | None = None,
         dpi: int | None = None
 ) -> None:
-    ax = full_frame()
+    ax = _full_frame()
     panel_polygons: list[tuple[int, Polygon]] = [
         (index, panel_location.union_all().convex_hull)
         for index, panel_location in enumerate(locations)
@@ -58,7 +58,7 @@ def debug_show_geolocation(
         plt.show()
     plt.close()
 
-def full_frame(width=None, height=None):
+def _full_frame(width=None, height=None):
     import matplotlib as mpl
     mpl.rcParams['savefig.pad_inches'] = 0
     figsize = None if width is None else (width, height)
@@ -75,7 +75,7 @@ def debug_show_panels(
         output_path: Path | None = None,
         dpi: int | None = None
 ) -> None:
-    full_frame()
+    _full_frame()
     plt.imshow(img, cmap="grey")
     cmap = get_cmap('tab10')
     for i, (corners, tag, shrink_factor) in enumerate(debug_panel_information):
