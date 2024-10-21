@@ -15,8 +15,8 @@ def fit(x: NDArray[np.float64], y: NDArray[np.float64]) -> tuple[float, float]:
     :param y: 1D float array
     :return: slope and intercept of the linear function
     """
-    slope, intersect = np.polyfit(x, y, 1)
-    return slope, intersect
+    slope = (x * y).sum() / (x * x).sum()
+    return slope, 0.0
 
 
 def interpolate(values: NDArray[np.float64]) -> NDArray[np.float64]:
