@@ -273,5 +273,6 @@ def save_images(
             imwrite(output_path, scaled_to_int)
             # Copy the exifdata from the original image to the new one
             run_in_thread(exiftool.execute, True, b"-overwrite_original", b"-tagsFromFile", path.as_posix(),
+                          b"-exif", b"-IPTC", b"-xmp", b"-composite", b"-all:all",
                           output_path.as_posix())
             pb.update()

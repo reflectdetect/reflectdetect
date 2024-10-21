@@ -23,7 +23,7 @@ class ConverterArgumentParser(Tap):
 
     def configure(self) -> None:
         self.add_argument("dataset", nargs="?", default=".", type=Path)
-        self.add_argument("--manufacturer", choices=supported_manufacturers)
+        self.add_argument("--manufacturer", "-m", choices=supported_manufacturers)
 
 
 def main() -> None:
