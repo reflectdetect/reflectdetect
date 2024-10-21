@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "reflectdetect"
-version = "v0.1.11"
+version = "v0.1.12"
 description = "An automated workflow for in-flight radiometric calibration of UAV imagery"
 authors = ["Luca Francis <lucajoshua.francis@stud.uni-goettingen.de>"]
 license = "GPL-3.0-or-later"
