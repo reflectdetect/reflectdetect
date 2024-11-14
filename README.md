@@ -19,6 +19,10 @@
 <a href="https://reflectdetect.readthedocs.io">Documentation</a>
 </p>
 <a href="https://ifzgoettingen-my.sharepoint.com/:f:/g/personal/heim_ifz-goettingen_de/EmSDi-poSitJpDbd4Xrrhj8BF-9x5LMSKSMOvJbj5OqmXg?e=g0oss6">Download Example Datasets</a>
+</p>
+<a href="[https://reflectdetect.readthedocs.io](https://github.com/reflectdetect/reflectdetect/blob/main/README.md#installation)">How to install?</a>
+
+
 
 ## Overview
 
