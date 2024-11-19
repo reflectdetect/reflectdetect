@@ -236,6 +236,8 @@ We'll review your PR as soon as possible. Thank you for contributing!
 
 # AI Usage Card
 
+We used AI tools as follows: [AI Usage Card](https://ifzgoettingen-my.sharepoint.com/:b:/g/personal/heim_ifz-goettingen_de/Ed4LdB0RuX9OmMEGOajw_TsBSw8e9H565nfjgPqyUYP6Fw?e=XL8usx) 
+
 # References
 
 # License
