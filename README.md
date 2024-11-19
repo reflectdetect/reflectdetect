@@ -9,6 +9,7 @@
   <a href="https://github.com/reflectdetect/reflectdetect/blob/main/LICENSE"><img src="https://img.shields.io/github/license/reflectdetect/reflectdetect" alt="License"></a>
   <a href="https://github.com/reflectdetect/reflectdetect/network/members"><img src="https://img.shields.io/github/forks/reflectdetect/reflectdetect?style=social" alt="GitHub forks"></a>
   <a href="https://github.com/reflectdetect/reflectdetect/stargazers"><img src="https://img.shields.io/github/stars/reflectdetect/reflectdetect?style=social" alt="GitHub stars"></a>
+<a href="https://doi.org/10.5281/zenodo.14184975"><img src="https://zenodo.org/badge/792282783.svg" alt="DOI"></a>
 </p>
 <p>
 <a href="https://github.com/reflectdetect/reflectdetect/issues">Report Bug</a>
