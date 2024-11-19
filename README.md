@@ -45,12 +45,13 @@ Welcome to the official repository for the paper, "ReflectDetect: A software too
 1. **Know your calibration panel reflectance factors**  
 For each of your calibration panel, obtain the reflectance factor and ensure that it has a flat response according to the bands of your camera system. This information can be obtain from the manufacturer (for commercial panels) or by using a field spectrometer (for DIY panels). Save these values in a `panel_properties.json` file (see [example data](https://ifzgoettingen-my.sharepoint.com/:f:/g/personal/heim_ifz-goettingen_de/EmSDi-poSitJpDbd4Xrrhj8BF-9x5LMSKSMOvJbj5OqmXg?e=g0oss6)).
 2. **Position the calibration panels in the field**
-3. **Capture the locations of the panel corners**  
-   We used a [Ardusimple RTK Calibrated Surveyor Kit](https://www.ardusimple.com/product/rtk-calibrated-surveyor-kit/) in our testing, save the data in a `panel_locations.gpkg` file.
-4. **Fly your drone mission, capturing images.**
-5. **Rectifying and geo-reference the images**
+During placement, avoid that the panel(s) is/are shaded by adjacent plant or objects. Placing the panels in the center of your mapping area will increase the number of images that contain the panels.
+4. **Capture the locations of the panel corners**  
+We used an [Ardusimple RTK Calibrated Surveyor Kit](https://www.ardusimple.com/product/rtk-calibrated-surveyor-kit/) in our testing, save the data in a `panel_locations.gpkg` file (see [example data](https://ifzgoettingen-my.sharepoint.com/:f:/g/personal/heim_ifz-goettingen_de/EmSDi-poSitJpDbd4Xrrhj8BF-9x5LMSKSMOvJbj5OqmXg?e=g0oss6)).
+5. **Fly your drone mission, capturing images.**
+6. **Rectifying and geo-reference the images**
    <br>We used [Metashape](https://www.agisoft.com/) in our testing
-6. **Run reflectdetect**:
+7. **Run reflectdetect**:
    <br>Convert the orthophotos to reflectance data.
 
 ### Workflow 2: AprilTag-Based Calibration
