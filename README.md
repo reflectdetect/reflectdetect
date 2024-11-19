@@ -26,23 +26,19 @@
 
 ## Overview
 
-Welcome to the official repository for the paper, "Application Note: An automated workflow for in-flight radiometric
-calibration of UAV imagery".
+Welcome to the official repository for the paper, "ReflectDetect: A software tool for AprilTag-guided in-flight radiometric calibration for UAV snapshot multi-cameras".
 
 <!-- TODO: Properly cite paper -->
 
 ### Abstract
-
-> UAVs equipped with optical sensors have transformed remote sensing in vegetation science
-> by providing high-resolution, on-demand data, enhancing studies in forestry,
-> agriculture, and environmental monitoring.
-> However, accurate radiometric calibration of UAV imagery remains challenging due to environmental variability
-> and the limitations of existing methods, such as the common single gray reference panel, which is prone to errors.
-> reflectdetect, an open-source tool, addresses these challenges
-> by automating radiometric calibration using geotagging and AprilTag detection.
-> This dual-module approach ensures reliable calibration under varying conditions, reduces human error, and increases
-> efficiency through a user-friendly CLI.
-> reflectdetect's modular design supports future enhancements and broader applicability across research fields.
+> Unmanned Aerial Vehicles (UAVs) equipped with optical sensors have transformed remote sensing in vegetation science by providing high-resolution,
+> on-demand data, enhancing studies in forestry, agriculture, and environmental monitoring. However, accurate radiometric calibration of UAV imagery
+> remains challenging. A common practice, using a single calibration target while holding the UAV-mounted camera close above it, is being criticized
+> as the hemisphere is invisibly shaded and the reference images are not collected under flight conditions. ReflectDetect addresses these challenges
+> by allowing in-flight radiometric calibration through automated detection via two different approaches: 1) a geotagging approach leveraging
+> high-precision coordinates of the reflectance targets and 2) AprilTag-based detection, a visual fiducial system frequently used in robotics.
+> ReflectDetect is available through a user-friendly command-line interface and open-source. It now enables users to design new in-flight calibration
+> studies to eventually improve radiometric calibration in applied UAV remote sensing.
 
 ### Workflow 1: Geolocation-Based Calibration
 
