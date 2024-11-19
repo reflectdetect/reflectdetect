@@ -1,6 +1,6 @@
 <br />
 <p align="center">
-<a><img src="https://raw.githubusercontent.com/reflectdetect/reflectdetect/main/images/logo-small.png" alt="reflectdetect" width="128" height="128" title="reflectdetect" style="border-radius: 50%;"></a>
+<a><img src="https://raw.githubusercontent.com/reflectdetect/reflectdetect/main/images/reflectdetect_logo.png" alt="reflectdetect" width="128" height="128" title="reflectdetect" style="border-radius: 50%;"></a>
 </p>
 <h3 align="center">reflectdetect</h3>
 <p align="center">    An automated workflow for in-flight radiometric calibration of UAV imagery<br /></p>
