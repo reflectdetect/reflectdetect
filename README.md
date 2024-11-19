@@ -229,7 +229,10 @@ We'll review your PR as soon as possible. Thank you for contributing!
 
 # Gallery
 ### Apriltag Placement Guide
-![Placement Guide](./images/placement_guide.png)
+![Placement Guide](./images/placement_small.png)
+///caption
+Align mid-sections of each calibration panel and AprilTag. We kept the tag family label at the opposite side of the calibration panel. 
+///
   <!--TODO: Add a good image of the panels]-->
   <!--TODO: Add a good image of the apriltags]-->
   <!--TODO: Add a good image of the captured images]-->
