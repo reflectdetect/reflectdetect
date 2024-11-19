@@ -57,9 +57,7 @@ We used an [Ardusimple RTK Calibrated Surveyor Kit](https://www.ardusimple.com/p
 ### Workflow 2: AprilTag-Based Calibration
 
 1. **Gather Panel Reflectance Data**  
-   For the bands you will capture images in, either
-   from the manufacturer (for commercial panels) or using a field spectrometer (for DIY panels). Save these values in
-   a `panel_properties.json` file.
+For each of your calibration panel, obtain the reflectance factor and ensure that it has a flat response according to the bands of your camera system. This information can be obtain from the manufacturer (for commercial panels) or by using a field spectrometer (for DIY panels). Save these values in a `panel_properties.json` file (see [example data](https://ifzgoettingen-my.sharepoint.com/:f:/g/personal/heim_ifz-goettingen_de/EmSDi-poSitJpDbd4Xrrhj8BF-9x5LMSKSMOvJbj5OqmXg?e=g0oss6)).
 2. **Print an AprilTag for each panel, see [Official AprilTag Repo](https://github.com/AprilRobotics/apriltag-imgs/tree/master/tag25h9)**
 3. **Field Setup**
    <br>Position the calibration panels and place the AprilTags according to the [placement guide](#gallery).
