@@ -3,7 +3,7 @@
 <a><img src="https://raw.githubusercontent.com/reflectdetect/reflectdetect/main/images/reflectdetect_logo.png" alt="reflectdetect" width="250" height="250" title="reflectdetect" style="border-radius: 50%;"></a>
 </p>
 <h3 align="center">ReflectDetect</h3>
-<p align="center">    An automated workflow for in-flight radiometric calibration of UAV imagery<br /></p>
+<p align="center">    An innovative, fully automated command line software for in-flight radiometric calibration of UAV-mounted 2D snapshot multi-camera imagery<br /></p>
 <p align="center">
     <img alt="Coverage" src="https://img.shields.io/badge/Coverage-30%25-brightgreen"/>
   <a href="https://github.com/reflectdetect/reflectdetect/blob/main/LICENSE"><img src="https://img.shields.io/github/license/reflectdetect/reflectdetect" alt="License"></a>
