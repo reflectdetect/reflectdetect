@@ -42,13 +42,11 @@ Welcome to the official repository for the paper, "ReflectDetect: A software too
 
 ### Workflow 1: Geolocation-Based Calibration
 
-1. **Gather Panel Reflectance Data**  
-   For the bands you will capture images in, either
-   from the manufacturer (for commercial panels) or using a field spectrometer (for DIY panels). Save these values in
-   a `panel_properties.json` file.
+1. **Know your calibration panel reflectance factors**  
+For each of your calibration panel, obtain the reflectance factor and ensure that it has a flat response according to the bands of your camera system. This information can be obtain from the manufacturer (for commercial panels) or by using a field spectrometer (for DIY panels). Save these values in a `panel_properties.json` file.
 2. **Position the calibration panels in the field**
 3. **Capture the locations of the panel corners**  
-   We used a [Device Name](#) in our testing, save the data in a `panel_locations.gpkg` file.
+   We used a [Ardusimple RTK Calibrated Surveyor Kit](https://www.ardusimple.com/product/rtk-calibrated-surveyor-kit/) in our testing, save the data in a `panel_locations.gpkg` file.
 4. **Fly your drone mission, capturing images.**
 5. **Rectifying and geo-reference the images**
    <br>We used [Metashape](https://www.agisoft.com/) in our testing
