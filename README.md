@@ -217,6 +217,8 @@ Find the information about running each workflow in their respective files:
 - [x] Customize parameters on a per panel basis
 - [ ] Add dataset verification script
 - [x] Remove 5% of outliers in panel intensities value
+- [ ] Allow running the calibration across multiple flight missions.
+- [ ] Add absolute calibration functions and adjustments for more camera manufacturers. 
 
 # Contributing
 
