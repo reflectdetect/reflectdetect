@@ -45,7 +45,9 @@ Welcome to the official repository for the paper, "ReflectDetect: A software too
 
 1. **Know your calibration panel reflectance factors**  
 For each of your calibration panel, obtain the reflectance factor and ensure that it has a flat response according to the bands of your camera system. This information can be obtain from the manufacturer (for commercial panels) or by using a field spectrometer (for DIY panels). Save these values in a `panel_properties.json` file (see [example data](https://ifzgoettingen-my.sharepoint.com/:f:/g/personal/heim_ifz-goettingen_de/EmSDi-poSitJpDbd4Xrrhj8BF-9x5LMSKSMOvJbj5OqmXg?e=g0oss6)).
-2. **Position the calibration panels in the field**
+In case you would like to build your own calibration panels, the following publication provides basic information on that topic:
+> C. Wang and S. W. Myint, "A Simplified Empirical Line Method of Radiometric Calibration for Small Unmanned Aircraft Systems-Based Remote Sensing," in IEEE Journal of Selected Topics in Applied Earth >  Observations and Remote Sensing, vol. 8, no. 5, pp. 1876-1885, May 2015, doi: 10.1109/JSTARS.2015.2422716.
+3. **Position the calibration panels in the field**
 During placement, avoid that the panel(s) is/are shaded by adjacent plant or objects. Placing the panels in the center of your mapping area will increase the number of images that contain the panels.
 4. **Capture the locations of the panel corners**  
 We used an [Ardusimple RTK Calibrated Surveyor Kit](https://www.ardusimple.com/product/rtk-calibrated-surveyor-kit/) in our testing, save the data in a `panel_locations.gpkg` file (see [example data](https://ifzgoettingen-my.sharepoint.com/:f:/g/personal/heim_ifz-goettingen_de/EmSDi-poSitJpDbd4Xrrhj8BF-9x5LMSKSMOvJbj5OqmXg?e=g0oss6)).
