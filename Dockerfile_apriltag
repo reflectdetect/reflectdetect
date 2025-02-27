@@ -1,0 +1,37 @@
+FROM python:3.10.15-bullseye
+
+ARG DEBIAN_FRONTEND=noninteractive
+
+# Install required dependencies for system and Poetry
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends \
+        ffmpeg \
+        libimage-exiftool-perl \
+        libsm6 \
+        libxext6 \
+        curl \
+        git \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install Poetry
+RUN curl -sSL https://install.python-poetry.org | python3 -
+ENV PATH="/root/.local/bin:$PATH"
+
+# Set up the working directory
+WORKDIR /app
+
+# Copy project files
+COPY pyproject.toml poetry.lock /app/
+COPY reflectdetect /app/reflectdetect
+
+# Install robotpy with extra url to get a specific dependency
+RUN python3 -m pip install --extra-index-url=https://wpilib.jfrog.io/artifactory/api/pypi/wpilib-python-release-2024/simple robotpy-apriltag
+# Install dependencies
+RUN poetry config virtualenvs.create false \
+    && poetry install --no-interaction --no-ansi
+
+# Set the entry point to your CLI tool
+ENTRYPOINT ["reflectdetect-apriltag"]
+
+# Default command processes a folder
+CMD ["/data"]

@@ -10,7 +10,7 @@ repository = "https://github.com/reflectdetect/reflectdetect"
 [tool.poetry.scripts]
 reflectdetect-apriltag = "reflectdetect.apriltag_main:main"
 reflectdetect-geolocation = "reflectdetect.geolocation_main:main"
-reflectdetect-converter = "reflectdetect.raw_to_radiance:main"
+reflectdetect-converter = "reflectdetect.converter_main:main"
 
 [tool.poetry.dependencies]
 python = "^3.10"
@@ -20,7 +20,7 @@ typed-argument-parser = "^1.10.1"
 opencv-python = "^4.10.0.84"
 shapely = "^2.0.6"
 pyexiftool = "^0.5.6"
-robotpy-apriltag = "^2024.3.2.1"
+robotpy-apriltag = "^2025.3.1.1"
 fiona = "^1.9.6"
 geopandas = "^1.0.1"
 matplotlib = "^3.9.2"

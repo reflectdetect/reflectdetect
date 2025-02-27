@@ -82,8 +82,20 @@ For each of your calibration panel, obtain the reflectance factor and ensure tha
   For example, `IMG_0052_6.tif` indicates the 6th band.
 
 - **Orthophoto / Photo**: An image where all bands are combined and geo-referenced.
+## Docker Installation
+[Install](https://docs.docker.com/engine/install/) Docker (for example using [Docker Desktop](https://docs.docker.com/desktop/))
 
-## Installation
+Build the 3 different CLI tools using docker:
+- `docker build -t reflectdetect-apriltag-image -f Dockerfile_apriltag .`
+- `docker build -t reflectdetect-converter-image -f Dockerfile_converter .`
+- `docker build -t reflectdetect-geolocation-image -f Dockerfile_geolocation .`
+
+Run a CLI tool using docker after building:
+- `docker run -v /path/to/your/dataset:/data reflectdetect-apriltag-image`
+- `docker run -v /path/to/your/dataset:/data reflectdetect-apriltag-image`
+- `docker run -v /path/to/your/dataset:/data reflectdetect-apriltag-image`
+
+## Manual Installation
 
 ### Installing Python
 

@@ -1,3 +1,4 @@
+*.whl
 debug_*
 badge_url.txt
 
