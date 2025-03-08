@@ -39,9 +39,9 @@ cd C:\Users\username\Desktop\dataset_folder
 Run the converted while specifying the manufacturer of your camera. Check supported manufacturers
 using `reflectdetect-converter -h`.
 If your manufacturer is not supported choose `generic`
-
+To, for example, convert the example_apriltag_dataset, use the following command
 ```bash
-reflectdetect-converter --manufacturer generic
+reflectdetect-converter --manufacturer micasense
 ```
 
 The radiance images should now be ready for conversion in the `images` subfolder.
