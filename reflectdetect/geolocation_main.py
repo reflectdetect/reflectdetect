@@ -1,3 +1,4 @@
+import json
 import logging
 import warnings
 from pathlib import Path
@@ -222,8 +223,9 @@ class GeolocationEngine:
             path = self.dataset / PANEL_PROPERTIES_FILENAME
         else:
             path = panel_properties_file
-
-        return GeolocationPanelPropertiesFile.parse_file(path)
+        with open(path) as f:
+            data = json.load(f)
+        return GeolocationPanelPropertiesFile.model_validate_json(json.dumps(data))
 
     def convert_orthophotos_to_reflectance(
             self,
@@ -308,7 +310,8 @@ class GeolocationEngine:
                         orthophoto,
                         panel_location,
                         self.panel_properties[panel_index].shrink_factor,
-                        self.no_data_value
+                        self.no_data_value,
+                        orthophoto_path
                     )
                 intensities[photo_index][panel_index] = panel_intensities_per_band
             self.progress.update(task, advance=1)

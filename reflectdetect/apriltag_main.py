@@ -1,3 +1,4 @@
+import json
 import os
 from pathlib import Path
 
@@ -49,7 +50,7 @@ from reflectdetect.utils.debug import (
     debug_combine_and_plot_intensities,
     debug_show_panels,
     debug_save_intensities_single_band,
-    ProgressBar, debug_save_altitude, debug_plot_altitudes,
+    ProgressBar, debug_save_altitude, debug_plot_altitudes, debug_show_masked_array,
 )
 from reflectdetect.utils.exif import get_camera_properties
 from reflectdetect.utils.panel import (
@@ -118,7 +119,7 @@ class AprilTagEngine:
         if images_folder is not None:
             if not images_folder.exists():
                 raise Exception(
-                    f"Could not find specified images folder: {args.images_folder}"
+                    f"Could not find specified images folder: {args.images_folder}. Did you forget to use reflectdetect_converter to convert the /raw/ folder to a /images/ folder?"
                 )
         else:
             if not (self.dataset / IMAGES_FOLDER).exists():
@@ -201,7 +202,9 @@ class AprilTagEngine:
         else:
             path = panel_properties_file
 
-        return ApriltagPanelPropertiesFile.parse_file(path)
+        with open(path) as f:
+            data = json.load(f)
+        return ApriltagPanelPropertiesFile.model_validate_json(json.dumps(data))
 
     def convert_images_to_reflectance(
             self, paths: list[Path], intensities: NDArray[np.float64], band_index: int
@@ -314,6 +317,11 @@ class AprilTagEngine:
                 polygon = shrink_shapely_polygon(polygon, panel.shrink_factor)
                 panel_mask = rasterize([polygon], out_shape=img.shape)
                 masked = np.ma.MaskedArray(img.astype(np.float32), mask=~(panel_mask.astype(np.bool_)))  # type: ignore
+                if self.debug:
+                    output_path = get_output_path(
+                        self.dataset, path, "panels.tif", "debug/masked_panels"
+                    )
+                    debug_show_masked_array(masked, output_path, self.debug_dpi)
                 panel_intensities[panel_index] = get_panel_intensity(masked)
         if self.debug:
             if len(debug_panel_information) > 0:

@@ -9,6 +9,7 @@ import shapely
 from geopandas import GeoDataFrame
 from matplotlib import pyplot as plt
 from matplotlib.cm import get_cmap
+from numpy.ma.core import MaskedArray
 from numpy.typing import NDArray
 from rasterio import plot
 from rich.progress import Progress, TaskID
@@ -19,6 +20,23 @@ from reflectdetect.utils.polygons import shrink_shapely_polygon
 from reflectdetect.utils.thread import run_in_thread
 
 matplotlib.use("Agg")
+
+
+def debug_show_masked_array(masked: MaskedArray,output_path: Path | None = None,
+        dpi: int | None = None):
+    _full_frame()
+    plt.imshow(masked, cmap="grey", interpolation='none')
+    cmap = get_cmap('tab10')
+
+    # Overlay the mask with hatching
+    plt.contourf(masked.mask, levels=[0.5, 1], colors=cmap(0), hatches=['///'])
+
+    if output_path is not None:
+        os.makedirs(output_path.parent, exist_ok=True)
+        plt.savefig(output_path, dpi=dpi)
+    else:
+        plt.show()
+    plt.close()
 
 
 def debug_show_geolocation(

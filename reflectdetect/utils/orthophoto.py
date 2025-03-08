@@ -1,11 +1,13 @@
 import warnings
 from pathlib import Path
+from random import random
 
 import fiona
 import geopandas as gpd
 import numpy as np
 import rasterio
 import rasterio.plot
+from exiftool import exiftool, ExifToolHelper
 from geopandas import GeoDataFrame
 from numpy.typing import NDArray
 from rasterio import DatasetReader
@@ -15,12 +17,12 @@ from rich.progress import Progress
 from shapely.geometry import Polygon
 
 from reflectdetect.constants import ORTHOPHOTO_FOLDER, PANEL_LOCATIONS_FILENAME, COMPRESSION_FACTOR
-from reflectdetect.utils.debug import ProgressBar
+from reflectdetect.utils.debug import ProgressBar, debug_show_masked_array
 from reflectdetect.utils.iterators import get_next
 from reflectdetect.utils.panel import get_panel_intensity
 from reflectdetect.utils.paths import get_output_path
 from reflectdetect.utils.polygons import shrink_shapely_polygon
-
+from dateutil.parser import parse
 
 def is_panel_in_orthophoto(orthophoto_path: Path, panel: GeoDataFrame, shrink_factor: float,
                            no_data_value: int) -> bool:
@@ -53,14 +55,19 @@ def is_panel_in_orthophoto(orthophoto_path: Path, panel: GeoDataFrame, shrink_fa
             orthophoto, [panel_polygon], crop=True, nodata=no_data_value
         )
         # Check if any of the bands include only no data value
-        if np.array([(band == no_data_value).all() for band in out_image]).any():
-            return False
+        for panel_band in out_image:
+            masked = np.ma.masked_equal(panel_band, no_data_value)
+            masked_count = np.ma.count_masked(masked)
+            total_count = panel_band.size
+            masked_percentage = (masked_count / total_count)
+            if masked_percentage > .7:
+                return False
 
     return True
 
 
 def extract_using_geolocation(
-        photo: DatasetReader, panel_location: GeoDataFrame, shrink_factor: float, no_data_value: int
+        photo: DatasetReader, panel_location: GeoDataFrame, shrink_factor: float, no_data_value: int, debug_orthophoto_path: Path
 ) -> list[float]:
     """
     Extract the mean intensity values from an orthophoto inside a polygon give by 4 corner points of a panel
@@ -78,8 +85,14 @@ def extract_using_geolocation(
     out_image, out_transform = rasterio.mask.mask(
         photo, [panel_polygon], crop=True, nodata=no_data_value
     )
+    intensity_values = []
+    for panel_index, panel_band in enumerate(out_image):
+        masked = np.ma.masked_equal(panel_band, no_data_value)
+        debug_show_masked_array(masked, Path(f"{debug_orthophoto_path.parent.parent}/debug/masked_panels/{debug_orthophoto_path.stem}_{panel_index}.png"), 100)
+        intensity = get_panel_intensity(masked)
+        intensity_values.append(intensity)
 
-    return [get_panel_intensity(np.ma.masked_equal(panel_band, no_data_value)) for panel_band in out_image]
+    return intensity_values
 
 
 def save_bands(
@@ -115,8 +128,13 @@ def get_orthophoto_paths(dataset: Path, orthophotos_folder: Path | None) -> list
             raise ValueError(f"No images folder found at {path}.")
     else:
         path = orthophotos_folder
-
-    return list(sorted(list(path.glob("*.tif"))))
+    images_paths = list(path.glob("*.tif"))
+    et = ExifToolHelper()
+    def attach_date(path: Path):
+        exif = et.get_metadata(path)[0]
+        date = exif.get("EXIF:CreateDate")
+        return parse(date)
+    return list(sorted(images_paths, key=attach_date))
 
 
 def load_panel_locations(
