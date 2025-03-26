@@ -33,6 +33,7 @@ import exiftool
 import pytz
 
 
+
 class Metadata(object):
     """ Container for Micasense image metadata"""
 
@@ -62,12 +63,12 @@ class Metadata(object):
             assert len(self.exif) > 0
             val = self.exif[0][item]
             if index is not None:
-                try:
-                    if isinstance(val, unicode):
-                        val = val.encode('ascii', 'ignore')
-                except NameError:
-                    # throws on python 3 where unicode is undefined
-                    pass
+                # try:
+                #     if isinstance(val, unicode):
+                #         val = val.encode('ascii', 'ignore')
+                # except NameError:
+                #     # throws on python 3 where unicode is undefined
+                #     pass
                 if isinstance(val, str) and len(val.split(',')) > 1:
                     val = val.split(',')
                 val = val[index]
@@ -83,12 +84,12 @@ class Metadata(object):
     def size(self, item):
         """get the size (length) of a metadata item"""
         val = self.get_item(item)
-        try:
-            if isinstance(val, unicode):
-                val = val.encode('ascii', 'ignore')
-        except NameError:
-            # throws on python 3 where unicode is undefined
-            pass
+        # try:
+        #     if isinstance(val, unicode):
+        #         val = val.encode('ascii', 'ignore')
+        # except NameError:
+        #     # throws on python 3 where unicode is undefined
+        #     pass
         if isinstance(val, str) and len(val.split(',')) > 1:
             val = val.split(',')
         if val is not None:

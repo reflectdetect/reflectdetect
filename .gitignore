@@ -1,3 +1,5 @@
+poetry.lock
+.idea
 *.whl
 debug_*
 badge_url.txt

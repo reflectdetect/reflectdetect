@@ -4,4 +4,7 @@
     <option name="sdkName" value="reflectdetect" />
   </component>
   <component name="ProjectRootManager" version="2" project-jdk-name="Python 3.10 (reflectdetect)" project-jdk-type="Python SDK" />
+  <component name="PythonCompatibilityInspectionAdvertiser">
+    <option name="version" value="3" />
+  </component>
 </project>
