@@ -13,7 +13,7 @@ def get_filename(path: Path) -> str:
 
 
 def get_output_path(
-    dataset: Path, filepath: Path, new_ending: str, folder: str
+        dataset: Path, filepath: Path, new_ending: str, folder: str
 ) -> Path:
     """
     Gets the output path of a new file based on a filepath.

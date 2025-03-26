@@ -4,7 +4,7 @@ from typing import Callable, Any, Optional
 
 
 def run_in_thread(
-    func: Callable[..., Any], throw_exceptions: bool = True, *args: Any, **kwargs: Any
+        func: Callable[..., Any], throw_exceptions: bool = True, *args: Any, **kwargs: Any
 ) -> Optional[Any]:
     """
     Runs a function in a separate thread, suppresses its output, and ignores any exceptions.

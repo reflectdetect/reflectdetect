@@ -17,6 +17,7 @@ from reflectdetect.utils.paths import is_tool_installed
 
 supported_manufacturers = ["micasense", "generic"]
 
+
 class ConverterArgumentParser(Tap):
     manufacturer: str = "generic"
     dataset: Path  # Path to the dataset folder

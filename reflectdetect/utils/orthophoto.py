@@ -67,7 +67,8 @@ def is_panel_in_orthophoto(orthophoto_path: Path, panel: GeoDataFrame, shrink_fa
 
 
 def extract_using_geolocation(
-        photo: DatasetReader, panel_location: GeoDataFrame, shrink_factor: float, no_data_value: int, debug_orthophoto_path: Path
+        photo: DatasetReader, panel_location: GeoDataFrame, shrink_factor: float, no_data_value: int,
+        debug_orthophoto_path: Path
 ) -> list[float]:
     """
     Extract the mean intensity values from an orthophoto inside a polygon give by 4 corner points of a panel
@@ -88,7 +89,9 @@ def extract_using_geolocation(
     intensity_values = []
     for panel_index, panel_band in enumerate(out_image):
         masked = np.ma.masked_equal(panel_band, no_data_value)
-        debug_show_masked_array(masked, Path(f"{debug_orthophoto_path.parent.parent}/debug/masked_panels/{debug_orthophoto_path.stem}_{panel_index}.png"), 100)
+        debug_show_masked_array(masked, Path(
+            f"{debug_orthophoto_path.parent.parent}/debug/masked_panels/{debug_orthophoto_path.stem}_{panel_index}.png"),
+                                100)
         intensity = get_panel_intensity(masked)
         intensity_values.append(intensity)
 
@@ -115,7 +118,7 @@ def save_bands(
             dst.write_band(band_index + 1, scaled_to_int)
 
 
-def get_orthophoto_paths(dataset: Path, orthophotos_folder: Path | None, et = ExifToolHelper()) -> list[Path]:
+def get_orthophoto_paths(dataset: Path, orthophotos_folder: Path | None, et=ExifToolHelper()) -> list[Path]:
     """
     Gets all the .tiff images in a folder. Uses the canonical path in the dataset if no specific path is given
     :param et: ExiftoolHelper
@@ -130,10 +133,12 @@ def get_orthophoto_paths(dataset: Path, orthophotos_folder: Path | None, et = Ex
     else:
         path = orthophotos_folder
     images_paths = list(path.glob("*.tif"))
+
     def attach_date(path: Path):
         exif = et.get_metadata(path)[0]
         date = exif.get("EXIF:CreateDate")
         return parse(date)
+
     return list(sorted(images_paths, key=attach_date))
 
 

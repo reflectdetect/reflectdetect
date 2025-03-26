@@ -12,6 +12,7 @@ def mock_exiftool():
     mock_exiftool = MagicMock()
     return mock_exiftool
 
+
 def test_get_camera_properties(mock_exiftool):
     """Test extraction of camera properties from EXIF data."""
     # Define a fake image path

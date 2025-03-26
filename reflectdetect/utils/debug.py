@@ -22,8 +22,8 @@ from reflectdetect.utils.thread import run_in_thread
 matplotlib.use("Agg")
 
 
-def debug_show_masked_array(masked: MaskedArray,output_path: Path | None = None,
-        dpi: int | None = None):
+def debug_show_masked_array(masked: MaskedArray, output_path: Path | None = None,
+                            dpi: int | None = None):
     _full_frame()
     plt.imshow(masked, cmap="grey", interpolation='none')
     cmap = get_cmap('tab10')
@@ -63,18 +63,19 @@ def debug_show_geolocation(
         # Append the first point to the end to close the rectangle/polygon
         x = list(x) + [x[0]]
         y = list(y) + [y[0]]
-        ax.plot(x, y, linewidth=1, color=cmap(index%10))
+        ax.plot(x, y, linewidth=1, color=cmap(index % 10))
         polygon = shrink_shapely_polygon(corners, shrink_factors[index])
         detection_corners = polygon.exterior.coords.xy
         x, y = detection_corners
         x = list(x) + [x[0]]
         y = list(y) + [y[0]]
-        ax.plot(x, y, linewidth=1, linestyle="dotted", color=cmap(index%10))
+        ax.plot(x, y, linewidth=1, linestyle="dotted", color=cmap(index % 10))
     if output_path is not None:
         plt.savefig(output_path, dpi=dpi)
     else:
         plt.show()
     plt.close()
+
 
 def _full_frame(width=None, height=None):
     import matplotlib as mpl
@@ -86,6 +87,7 @@ def _full_frame(width=None, height=None):
     ax.get_yaxis().set_visible(False)
     plt.autoscale(tight=True)
     return ax
+
 
 def debug_show_panels(
         img: NDArray[np.float64],
