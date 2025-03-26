@@ -31,6 +31,8 @@ rich = "^13"
 rich-argparse = "^1"
 
 [tool.poetry.group.dev.dependencies]
+ipywidgets = "^8.1.5"
+prettytable = "^3.16.0"
 mypy = "^1.11.2"
 sphinx-rtd-theme = "^3"
 pytest = "^8.3.3"

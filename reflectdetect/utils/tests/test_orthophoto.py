@@ -29,9 +29,10 @@ def mock_exiftool():
     """Fixture to mock ExifToolHelper."""
     mock_exiftool = MagicMock()
 
+    # noinspection PyUnusedLocal
     def mock_get_metadata(*args, **kwargs):
         path = args[0]
-        if path.name == "photo1.tif":
+        if Path(path).name == "photo1.tif":
             return [{"EXIF:CreateDate": "2025-03-26T10:10:35Z"}]
         else:
             return [{"EXIF:CreateDate": "2025-03-27T11:15:40Z"}]

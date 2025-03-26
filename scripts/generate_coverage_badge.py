@@ -1,11 +1,11 @@
-import xml.etree.ElementTree as ET
+import xml.etree.ElementTree
 
 
 def get_coverage_percentage():
-    tree = ET.parse('coverage.xml')
+    tree = xml.etree.ElementTree.parse('coverage.xml')
     root = tree.getroot()
-    coverage = root.attrib['line-rate']
-    return float(coverage) * 100
+    cov = root.attrib['line-rate']
+    return float(cov) * 100
 
 
 if __name__ == "__main__":

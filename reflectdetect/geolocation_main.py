@@ -311,7 +311,7 @@ class GeolocationEngine:
                         panel_location,
                         self.panel_properties[panel_index].shrink_factor,
                         self.no_data_value,
-                        orthophoto_path
+                        orthophoto_path if self.debug else None,
                     )
                 intensities[photo_index][panel_index] = panel_intensities_per_band
             self.progress.update(task, advance=1)

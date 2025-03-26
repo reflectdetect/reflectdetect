@@ -16,6 +16,7 @@ from reflectdetect.utils.apriltags import (
 
 
 # Mocking AprilTagDetection and related objects
+# noinspection PyUnusedLocal
 class MockAprilTagDetection:
     def __init__(self, tag_id, corners, center, family="tag36h11"):
         self.tag_id = tag_id
@@ -44,9 +45,11 @@ def test_verify_detections():
     """Test that only valid tag ids are accepted."""
     tag = MockAprilTagDetection(1, [], (0, 0))
     valid_ids = [1, 2, 3]
+    # noinspection PyTypeChecker
     assert verify_detections(tag, valid_ids) is True
 
     tag = MockAprilTagDetection(4, [], (0, 0))
+    # noinspection PyTypeChecker
     assert verify_detections(tag, valid_ids) is False
 
 
@@ -73,6 +76,7 @@ def test_build_batches_per_band():
 def test_get_panel(tag_smudge_factor, panel_size_pixel):
     """Test getting panel corners from a tag detection."""
     tag = MockAprilTagDetection(1, [0, 0, 10, 0, 10, 10, 0, 10], (5, 5))
+    # noinspection PyTypeChecker
     corners = get_panel(
         tag,
         panel_size_pixel=panel_size_pixel,

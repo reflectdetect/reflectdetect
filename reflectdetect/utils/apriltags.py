@@ -89,6 +89,7 @@ def get_altitude_from_tags(
     """
     Approximate the altitude of the drone taking the image by pose estimating the tags in the image
     and meaning the height
+    :param exiftool: an exiftool helper instance
     :param tags: the tags to pose estimate
     :param path: path to the image
     :param resolution: resolution of the image
@@ -110,6 +111,7 @@ def get_pose_estimator_config(
     """
     Calculate the pose estimator configuration for the given image.
     Camera properties will be extracted from the exif data
+    :param exiftool: an exiftool helper instance
     :param path: path to the image
     :param resolution: resolution of the image
     :param tag_size: size of the apriltag in meters (detection area, not total area)
@@ -186,7 +188,7 @@ def get_panel(
         only_valid_panels: bool = True,
 ) -> list[tuple[float, float]] | None:
     """
-    Get the corners of a panel based on a apriltag to its side
+    Get the corners of a panel based on an apriltag to its side
     :param tag: the apriltag that was detected in the image
     :param panel_size_pixel: the size of the panel in the image
     :param image_dimensions: the dimensions of the image
@@ -203,12 +205,14 @@ def get_panel(
 
     if tag_direction == "up":
         towards_panel = tag_corners[2] - tag_corners[1]
-    if tag_direction == "down":
+    elif tag_direction == "down":
         towards_panel = tag_corners[1] - tag_corners[2]
-    if tag_direction == "left":
+    elif tag_direction == "left":
         towards_panel = tag_corners[1] - tag_corners[0]
-    if tag_direction == "right":
+    elif tag_direction == "right":
         towards_panel = tag_corners[0] - tag_corners[1]
+    else:
+        raise Exception(f"Unknown direction {tag_direction}")
 
     tag_detection_size_pixel = np.linalg.norm(towards_panel)
     tag_size = (
@@ -252,6 +256,7 @@ def save_images(
 ) -> None:
     """
     This function saves the converted images as .tif files into a new "/transformed/" directory in the images folder
+    :param exiftool: an ExifToolHelper instance
     :param dataset: path to the dataset to save the images to
     :param progress: optional progress bar
     :param paths: list of image paths

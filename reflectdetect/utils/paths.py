@@ -3,15 +3,6 @@ from pathlib import Path
 from typing import Any
 
 
-def get_filename(path: Path) -> str:
-    """
-    Get only the filename without the file ending from a path
-    :param path: The path the filename will be extracted from
-    :return: The extracted filename
-    """
-    return path.as_posix().split("/")[-1].split(".")[0]
-
-
 def get_output_path(
         dataset: Path, filepath: Path, new_ending: str, folder: str
 ) -> Path:
@@ -25,7 +16,7 @@ def get_output_path(
     :param folder: subfolder of the dataset to but the new file into
     :return: a path of the new file
     """
-    filename = get_filename(filepath) + "_" + new_ending
+    filename = filepath.stem + "_" + new_ending
     output_folder = dataset / folder
     os.makedirs(output_folder, exist_ok=True)
     return output_folder / filename

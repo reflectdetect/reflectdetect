@@ -81,7 +81,7 @@ def _full_frame(width=None, height=None):
     import matplotlib as mpl
     mpl.rcParams['savefig.pad_inches'] = 0
     figsize = None if width is None else (width, height)
-    fig = plt.figure(figsize=figsize)
+    plt.figure(figsize=figsize)
     ax = plt.axes((0., 0., 1., 1.), frameon=False)
     ax.get_xaxis().set_visible(False)
     ax.get_yaxis().set_visible(False)
@@ -200,7 +200,7 @@ def debug_save_intensities(
                 else intensities[:, :, band].astype(str)
             )
             data[data == "nan"] = ""
-            np.savetxt(f, data, delimiter=",", fmt="%s")
+            np.savetxt(f.name, data, delimiter=",", fmt="%s")
 
 
 def debug_save_intensities_single_band(
@@ -215,7 +215,7 @@ def debug_save_intensities_single_band(
         f.write("\n")
         data = intensities[:, :].astype(str)
         data[data == "nan"] = ""
-        np.savetxt(f, data, delimiter=",", fmt="%s")
+        np.savetxt(f.name, data, delimiter=",", fmt="%s")
 
 
 def debug_save_altitude(

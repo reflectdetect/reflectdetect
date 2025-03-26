@@ -78,6 +78,7 @@ def convert(
 
     :param band_image: 2D image of intensity values
     :param coefficients: slope and intercept of a linear function
+    :param mask: optional mask image
     :return: the band image with every datapoint being transformed by the linear function
     """
     # converts a photo based on a linear transformation.
@@ -109,6 +110,7 @@ def interpolate_intensities(
     :param number_of_bands: number of bands in the images
     :rtype: ndarray[Any, dtype[np.float64]]
     :param intensities: intensity values matrix of shape (photo, panel, band) with some values being np.NaN.
+    :param progress: optional progress bar to be updated
     :return: The interpolated intensity values
     """
     with ProgressBar(progress, "Interpolating", total=number_of_panels) as pb:

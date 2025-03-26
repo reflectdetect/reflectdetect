@@ -30,6 +30,9 @@ def is_panel_in_orthophoto(orthophoto_path: Path, panel: GeoDataFrame, shrink_fa
     Checks if a panel is in an orthophoto based on its coordinates
     :param orthophoto_path: path to the orthophoto tiff file
     :param panel: geodataframe containing the coordinates of the panel
+    :param shrink_factor: the shrink factor to use when extracting from the detected panel
+    to determine whether enough of the panel is visible and not no-data
+    :param no_data_value: the nodata value used in the tiff file
     :return: whether the coordinates are in the bounds of the orthophoto
     """
     if panel.empty:
@@ -68,7 +71,7 @@ def is_panel_in_orthophoto(orthophoto_path: Path, panel: GeoDataFrame, shrink_fa
 
 def extract_using_geolocation(
         photo: DatasetReader, panel_location: GeoDataFrame, shrink_factor: float, no_data_value: int,
-        debug_orthophoto_path: Path
+        debug_orthophoto_path: Path | None = None
 ) -> list[float]:
     """
     Extract the mean intensity values from an orthophoto inside a polygon give by 4 corner points of a panel
@@ -78,6 +81,7 @@ def extract_using_geolocation(
     :param photo: the orthophoto to take the intensity values from
     :param panel_location: the 4 corner points in a geodataframe
     :param shrink_factor: factor to shrink the polygon by to avoid bleed or similar artifacts
+    :param debug_orthophoto_path: path to the folder to save the debug images to. Pass None to not save debug images
     :return: the mean intensity at that location for each band of the orthophoto
     """
     # Extracts the mean intensity per band at the panel location
@@ -89,9 +93,10 @@ def extract_using_geolocation(
     intensity_values = []
     for panel_index, panel_band in enumerate(out_image):
         masked = np.ma.masked_equal(panel_band, no_data_value)
-        debug_show_masked_array(masked, Path(
-            f"{debug_orthophoto_path.parent.parent}/debug/masked_panels/{debug_orthophoto_path.stem}_{panel_index}.png"),
-                                100)
+        if debug_orthophoto_path is not None:
+            debug_show_masked_array(masked, Path(
+                f"{debug_orthophoto_path.parent.parent}/debug/masked_panels/{debug_orthophoto_path.stem}_{panel_index}.png"),
+                                    100)
         intensity = get_panel_intensity(masked)
         intensity_values.append(intensity)
 
@@ -134,8 +139,8 @@ def get_orthophoto_paths(dataset: Path, orthophotos_folder: Path | None, et=Exif
         path = orthophotos_folder
     images_paths = list(path.glob("*.tif"))
 
-    def attach_date(path: Path):
-        exif = et.get_metadata(path)[0]
+    def attach_date(image_path: Path):
+        exif = et.get_metadata(image_path.as_posix())[0]
         date = exif.get("EXIF:CreateDate")
         return parse(date)
 
@@ -211,9 +216,10 @@ def save_orthophotos(
 ) -> None:
     """
     This function saves the converted photos as .tif files into a new "/transformed/" directory in the images folder
-    :param progress: a optional progress bar to be updated
+    :param dataset: path to the dataset folder
     :param paths: list of orthophoto paths
     :param converted_photos: list of reflectance photos, each photo is a list of bands,
+    :param progress: an optional progress bar to be updated
     each band is a ndarray of shape (width, height)
     """
     with ProgressBar(progress, "Saving orthophotos", len(converted_photos)) as pb:

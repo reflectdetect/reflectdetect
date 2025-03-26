@@ -143,6 +143,8 @@ def vignette_map(meta, x_dim, y_dim):
             ey = e[2 * i + 1]
             p2 += c * xv ** ex * yv ** ey
         vignette = (1. / p2).T
+    else:
+        raise Exception('Unknown vignetting polynomial')
     return vignette, x, y
 
 
@@ -179,6 +181,8 @@ def vignette_map_cached(vignetting_center_size, vignetting_polynomial_2d_size, x
             ey = e[2 * i + 1]
             p2 += c * xv ** ex * yv ** ey
         vignette = (1. / p2).T
+    else:
+        raise Exception('Unknown vignetting polynomial')
     return vignette, x, y
 
 
@@ -232,6 +236,6 @@ def correct_lens_distortion(meta, image):
                                              np.eye(3),
                                              new_cam_mat,
                                              (w, h),
-                                             cv2.CV_32F)  # cv2.CV_32F for 32 bit floats
+                                             cv2.CV_32F)  # cv2.CV_32F for 32-bit floats
     # compute the undistorted 16 bit image
     return cv2.remap(image, map1, map2, cv2.INTER_LINEAR)
