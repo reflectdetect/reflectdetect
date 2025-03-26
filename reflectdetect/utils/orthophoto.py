@@ -123,7 +123,7 @@ def save_bands(
             dst.write_band(band_index + 1, scaled_to_int)
 
 
-def get_orthophoto_paths(dataset: Path, orthophotos_folder: Path | None, et=ExifToolHelper()) -> list[Path]:
+def get_orthophoto_paths(dataset: Path, orthophotos_folder: Path | None, et:ExifToolHelper | None) -> list[Path]:
     """
     Gets all the .tiff images in a folder. Uses the canonical path in the dataset if no specific path is given
     :param et: ExiftoolHelper
@@ -131,6 +131,8 @@ def get_orthophoto_paths(dataset: Path, orthophotos_folder: Path | None, et=Exif
     :param orthophotos_folder: name of the subfolder containing the orthophotos
     :return: list of path to the .tiff photos
     """
+    if et is None:
+        et = ExifToolHelper()
     if orthophotos_folder is None:
         path = dataset / ORTHOPHOTO_FOLDER
         if not path.exists():
