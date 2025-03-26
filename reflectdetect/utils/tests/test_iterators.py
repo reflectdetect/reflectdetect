@@ -1,5 +1,3 @@
-import pytest
-from itertools import tee, islice, zip_longest
 from reflectdetect.utils.iterators import get_next
 
 

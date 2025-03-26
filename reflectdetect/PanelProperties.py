@@ -4,8 +4,6 @@ from pydantic import BaseModel
 from rich.console import Console
 from rich.table import Table
 
-from reflectdetect.utils.paths import default
-
 
 class ApriltagPanelProperties(BaseModel):
     bands: list[float]

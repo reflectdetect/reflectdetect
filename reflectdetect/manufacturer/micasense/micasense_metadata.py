@@ -25,13 +25,12 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 # Support strings in Python 2 and 3
 from __future__ import unicode_literals
 
-import math
 import os
 from datetime import datetime, timedelta
 
 import exiftool
+import math
 import pytz
-
 
 
 class Metadata(object):
