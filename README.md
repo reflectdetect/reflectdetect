@@ -5,7 +5,7 @@
 <h3 align="center">ReflectDetect</h3>
 <p align="center">    An innovative, fully automated command line software for in-flight radiometric calibration of UAV-mounted 2D snapshot multi-camera imagery<br /></p>
 <p align="center">
-    <img alt="Coverage" src="https://img.shields.io/badge/Coverage-30%25-brightgreen"/>
+    <img alt="Coverage" src="https://img.shields.io/badge/Coverage-31%25-brightgreen"/>
   <a href="https://github.com/reflectdetect/reflectdetect/blob/main/LICENSE"><img src="https://img.shields.io/github/license/reflectdetect/reflectdetect" alt="License"></a>
   <a href="https://github.com/reflectdetect/reflectdetect/network/members"><img src="https://img.shields.io/github/forks/reflectdetect/reflectdetect?style=social" alt="GitHub forks"></a>
   <a href="https://github.com/reflectdetect/reflectdetect/stargazers"><img src="https://img.shields.io/github/stars/reflectdetect/reflectdetect?style=social" alt="GitHub stars"></a>
