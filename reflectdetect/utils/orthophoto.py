@@ -1,3 +1,4 @@
+import datetime
 import warnings
 from pathlib import Path
 
@@ -114,7 +115,7 @@ def save_bands(
     """
     # Combine bands back into one image
     with rasterio.open(output_path, "w", **meta) as dst:
-        for band_index, band in enumerate(band_images):
+        for band_index, band in enumerate(band_images):  # type: int, NDArray[np.float64] | None
             band[band < 0] = 0
             with warnings.catch_warnings():
                 # Ignore "RuntimeWarning: invalid value encountered in cast"
@@ -123,7 +124,8 @@ def save_bands(
             dst.write_band(band_index + 1, scaled_to_int)
 
 
-def get_orthophoto_paths(dataset: Path, orthophotos_folder: Path | None, et:ExifToolHelper | None) -> list[Path]:
+def get_orthophoto_paths(dataset: Path, orthophotos_folder: Path | None, et: ExifToolHelper | None = None) -> list[
+    Path]:
     """
     Gets all the .tiff images in a folder. Uses the canonical path in the dataset if no specific path is given
     :param et: ExiftoolHelper
@@ -139,9 +141,9 @@ def get_orthophoto_paths(dataset: Path, orthophotos_folder: Path | None, et:Exif
             raise ValueError(f"No images folder found at {path}.")
     else:
         path = orthophotos_folder
-    images_paths = list(path.glob("*.tif"))
+    images_paths: list[Path] = list(path.glob("*.tif"))
 
-    def attach_date(image_path: Path):
+    def attach_date(image_path: Path) -> datetime.datetime:
         exif = et.get_metadata(image_path.as_posix())[0]
         date = exif.get("EXIF:CreateDate")
         return parse(date)
@@ -225,7 +227,7 @@ def save_orthophotos(
     each band is a ndarray of shape (width, height)
     """
     with ProgressBar(progress, "Saving orthophotos", len(converted_photos)) as pb:
-        for path, photo in zip(paths, converted_photos):
+        for path, photo in zip(paths, converted_photos):  # type: Path, NDArray[np.float64] | None
             if photo is None:
                 continue
             output_path = get_output_path(

@@ -8,6 +8,7 @@ import rasterio
 import shapely
 from geopandas import GeoDataFrame
 from matplotlib import pyplot as plt
+from matplotlib.axes import Axes
 from matplotlib.cm import get_cmap
 from numpy.ma.core import MaskedArray
 from numpy.typing import NDArray
@@ -77,7 +78,7 @@ def debug_show_geolocation(
     plt.close()
 
 
-def _full_frame(width=None, height=None):
+def _full_frame(width: int | None = None, height: int | None = None) -> Axes:
     import matplotlib as mpl
     mpl.rcParams['savefig.pad_inches'] = 0
     figsize = None if width is None else (width, height)
@@ -98,7 +99,8 @@ def debug_show_panels(
     _full_frame()
     plt.imshow(img, cmap="grey")
     cmap = get_cmap('tab10')
-    for i, (corners, tag, shrink_factor) in enumerate(debug_panel_information):
+    for i, (corners, tag, shrink_factor) in enumerate(
+            debug_panel_information):  # type: int, (list[float], AprilTagDetection, float)
         plt.scatter(tag.getCenter().x, tag.getCenter().y, color=cmap(i % 10))
         x, y = zip(*corners)
 

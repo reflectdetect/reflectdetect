@@ -52,7 +52,7 @@ warn_unreachable = true
 pretty = true
 ignore_missing_imports=true
 plugins = "numpy.typing.mypy_plugin"
-exclude = "reflectdetect/manufacturer/"
+exclude = ["reflectdetect/manufacturer/", "reflectdetect/utils/test"]
 [tool.ruff.format]
 docstring-code-format = true
 docstring-code-line-length = 20

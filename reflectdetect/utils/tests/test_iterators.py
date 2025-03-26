@@ -1,10 +1,10 @@
 from reflectdetect.utils.iterators import get_next
 
 
-def test_get_next():
+def test_get_next() -> None:
     # Test with default window size (1)
     iterable = [1, 2, 3, 4]
-    result = list(get_next(iterable))
+    result: list[tuple[int, int]] = list(get_next(iterable))
     assert result == [(1, 2), (2, 3), (3, 4), (4, None)], "Failed with window size 1"
 
     # Test with custom window size (2)

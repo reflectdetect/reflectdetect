@@ -132,7 +132,7 @@ class AprilTagEngine:
             "Found", len(self.images_paths), "images"
         ) if self.debug else None
 
-        self.all_ids = list(set([p.tag_id for p in self.panel_properties]))
+        self.all_ids: list[int] = list(set([p.tag_id for p in self.panel_properties]))
 
         self.progress.console.print("Loading detector...") if self.debug else None
         self.detector = AprilTagDetector()
@@ -227,7 +227,7 @@ class AprilTagEngine:
         ) as pb:
             unconverted_photos = []
             converted_photos: list[NDArray[np.float64] | None] = []
-            for image_index, path in enumerate(paths):
+            for image_index, path in enumerate(paths):  # type: (int, Path)
                 intensities_of_panels = intensities[image_index, :]
                 if np.isnan(intensities_of_panels).any():
                     # If for some reason not all intensities are present, we save the indices for debugging purposes
@@ -279,7 +279,7 @@ class AprilTagEngine:
         ) = get_camera_properties(self.et, path)
         debug_panel_information = []
         for tag in all_tags:
-            panels = list(
+            panels: list[ValidatedApriltagPanelProperties] = list(
                 filter(lambda p: p.tag_id == tag.getId(), self.panel_properties)
             )
             if not len(panels) == 1:
@@ -345,6 +345,7 @@ class AprilTagEngine:
                 self.progress, "Extracting intensities", total=len(batch)
         ) as pb:
             intensities = np.zeros((len(batch), self.number_of_panels))
+            path: Path
             for img_index, path in enumerate(batch):
                 panel_intensities = self.extract_using_apriltags(path)
                 intensities[img_index] = panel_intensities
@@ -369,7 +370,8 @@ class AprilTagEngine:
         batches = build_batches_per_band(self.images_paths)
         number_of_bands = len(batches)
         # Validate number of bands in panel properties
-        for index, panel in enumerate(self.panel_properties):
+
+        for index, panel in enumerate(self.panel_properties):  # type: (int, ValidatedApriltagPanelProperties)
             if len(panel.bands) != number_of_bands:
                 raise Exception(
                     f"Panel {index}: Number of bands does not match number of bands in the panel specification"
@@ -380,12 +382,13 @@ class AprilTagEngine:
 
         debug_output_folder = self.dataset / "debug"
         if self.debug:
-            paths_to_delete = list((debug_output_folder / "intensity").glob("*")) + list(
+            paths_to_delete: list[Path] = list((debug_output_folder / "intensity").glob("*")) + list(
                 debug_output_folder.glob("*.csv")) + list(debug_output_folder.glob("*.tif")) + list(
                 (debug_output_folder / "panels").glob("*.tif"))
             for p in paths_to_delete:
                 p.unlink()
         # Run workflow
+        batch: list[Path]
         for band_index, batch in enumerate(batches):
             i = self.extract_intensities_from_apriltags(batch)
             os.system("cls||clear")

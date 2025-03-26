@@ -265,8 +265,7 @@ def save_images(
     :param ending: Overwrite for the file ending
     """
     with ProgressBar(progress, description="Saving images", total=len(paths)) as pb:
-        path: Path
-        for path, image in zip(paths, converted_images):
+        for path, image in zip(paths, converted_images):  # type: Path, NDArray[np.float64] | None
             if image is None:
                 pb.update()
                 continue

@@ -43,13 +43,13 @@ def main() -> None:
 
     if not (Path(args.dataset) / "raw").exists():
         raise Exception("In the dataset folder there should be a folder called 'raw' for the image files")
-    paths = sorted(list((Path(args.dataset) / "raw").glob("*.tif")))
+    paths: list[Path] = sorted(list((Path(args.dataset) / "raw").glob("*.tif")))
 
     print("Available manufactuers:", supported_manufacturers)
     if args.manufacturer not in supported_manufacturers:
         raise Exception(f"Manufacturer no supported: {args.manufacturer} not in {supported_manufacturers}")
     print("Converting for manufacturer:", args.manufacturer)
-    bits_per_pixel = None
+    bits_per_pixel: int
     if args.manufacturer == "generic":
         bits_per_pixel = IntPrompt.ask("Enter the bitdepth of the raw images",
                                        default=16)

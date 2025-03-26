@@ -130,7 +130,7 @@ class GeolocationEngine:
             "Found", self.number_of_photos, "photos"
         ) if self.debug else None
 
-        for index, panel in enumerate(self.panel_properties):
+        for index, panel in enumerate(self.panel_properties):  # type: int, ValidatedGeolocationPanelProperties
             if len(panel.bands) != self.number_of_bands:
                 raise Exception(
                     f"Panel {index}: Number of bands does not match number of bands in the panel specification"
@@ -246,11 +246,12 @@ class GeolocationEngine:
         unconverted_photos = []
         converted_photos: list[list[NDArray[np.float64]] | None] = []
         with ProgressBar(self.progress, "Converting photos", len(paths)) as pb:
-            for photo_index, orthophoto_path in enumerate(paths):
+            for photo_index, orthophoto_path in enumerate(paths):  # type: (int, Path)
                 converted_bands = []
                 orthophoto: DatasetReader
                 with rasterio.open(orthophoto_path) as orthophoto:
-                    photo = orthophoto.read(masked=True, )
+                    photo: NDArray = orthophoto.read(masked=True, )
+                band: NDArray[np.float64]
                 for band_index, band in enumerate(photo):
                     intensities_of_panels = intensities[photo_index, :, band_index]
                     if np.isnan(intensities_of_panels).any():
@@ -296,7 +297,9 @@ class GeolocationEngine:
         intensities = np.zeros(
             (len(batch_of_orthophotos), len(self.panel_locations), self.number_of_bands)
         )
+        orthophoto_path: Path
         for photo_index, orthophoto_path in enumerate(batch_of_orthophotos):
+            panel_location: GeoDataFrame
             for panel_index, panel_location in enumerate(self.panel_locations):
                 if not paths_with_visibility[orthophoto_path][panel_index]:
                     intensities[photo_index][panel_index] = np.full(

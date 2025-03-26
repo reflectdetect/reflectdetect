@@ -1,5 +1,7 @@
 from pathlib import Path
+from typing import Any
 from unittest import mock
+from unittest.mock import MagicMock
 
 import numpy as np
 import pytest
@@ -18,42 +20,42 @@ from reflectdetect.utils.apriltags import (
 # Mocking AprilTagDetection and related objects
 # noinspection PyUnusedLocal
 class MockAprilTagDetection:
-    def __init__(self, tag_id, corners, center, family="tag36h11"):
+    def __init__(self, tag_id: Any, corners: Any, center: Any, family: str = "tag36h11") -> None:
         self.tag_id = tag_id
         self.corners = corners
         self.center = center
-        self.family = family
+        self.family: str = family
 
-    def getId(self):
+    def getId(self) -> Any:
         return self.tag_id
 
-    def getCorners(self, default):
+    def getCorners(self, default: Any) -> Any:
         return self.corners
 
-    def getCenter(self):
+    def getCenter(self) -> Any:
         class Center(object):
             x = self.center[0]
             y = self.center[1]
 
         return Center()
 
-    def getFamily(self):
+    def getFamily(self) -> str:
         return self.family
 
 
-def test_verify_detections():
+def test_verify_detections() -> None:
     """Test that only valid tag ids are accepted."""
-    tag = MockAprilTagDetection(1, [], (0, 0))
+    tag = MockAprilTagDetection(1, [], (0, 0))  # type: ignore
     valid_ids = [1, 2, 3]
     # noinspection PyTypeChecker
-    assert verify_detections(tag, valid_ids) is True
+    assert verify_detections(tag, valid_ids) is True  # type: ignore
 
-    tag = MockAprilTagDetection(4, [], (0, 0))
+    tag = MockAprilTagDetection(4, [], (0, 0))  # type: ignore
     # noinspection PyTypeChecker
-    assert verify_detections(tag, valid_ids) is False
+    assert verify_detections(tag, valid_ids) is False  # type: ignore
 
 
-def test_build_batches_per_band():
+def test_build_batches_per_band() -> None:
     """Test if batches are built correctly based on file naming."""
     paths = [
         Path("image_1_radiance.tif"),
@@ -73,12 +75,12 @@ def test_build_batches_per_band():
     tag_smudge_factor=st.floats(min_value=0.1, max_value=2.0),
     panel_size_pixel=st.tuples(st.integers(10, 50), st.integers(10, 50)),
 )
-def test_get_panel(tag_smudge_factor, panel_size_pixel):
+def test_get_panel(tag_smudge_factor: float, panel_size_pixel: tuple[int, int]) -> None:
     """Test getting panel corners from a tag detection."""
-    tag = MockAprilTagDetection(1, [0, 0, 10, 0, 10, 10, 0, 10], (5, 5))
+    tag = MockAprilTagDetection(1, [0, 0, 10, 0, 10, 10, 0, 10], (5, 5))  # type: ignore
     # noinspection PyTypeChecker
     corners = get_panel(
-        tag,
+        tag,  # type: ignore
         panel_size_pixel=panel_size_pixel,
         image_dimensions=(100, 100),
         tag_smudge_factor=tag_smudge_factor,
@@ -96,7 +98,7 @@ def test_get_panel(tag_smudge_factor, panel_size_pixel):
 
 
 @mock.patch("reflectdetect.utils.apriltags.imwrite")
-def test_save_images(mock_imwrite, tmp_path):
+def test_save_images(mock_imwrite: MagicMock, tmp_path: Path) -> None:
     """Test saving images with a mock EXIF tool."""
     dataset = tmp_path / "dataset"
     dataset.mkdir()

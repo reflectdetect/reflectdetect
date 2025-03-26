@@ -72,8 +72,7 @@ def validate_apriltag_panel_properties(
         panels: list[ApriltagPanelProperties], default_properties: dict[str, Any]
 ) -> list[ValidatedApriltagPanelProperties]:
     validated_panel_properties: list[ValidatedApriltagPanelProperties] = []
-
-    for index, panel in enumerate(panels):
+    for index, panel in enumerate(panels):  # type: (int, ApriltagPanelProperties)
 
         def set_with_default(value: Any | None, name: str) -> Any:
             result = (
@@ -134,8 +133,7 @@ def validate_geolocation_panel_properties(
         panels: list[GeolocationPanelProperties], default_properties: dict[str, Any]
 ) -> list[ValidatedGeolocationPanelProperties]:
     validated_panel_properties: list[ValidatedGeolocationPanelProperties] = []
-
-    for index, panel in enumerate(panels):
+    for index, panel in enumerate(panels):  # type: (int, GeolocationPanelProperties)
 
         def set_with_default(value: Any | None, name: str) -> Any:
             result = (
