@@ -1,13 +1,13 @@
 import warnings
 from pathlib import Path
-from random import random
 
 import fiona
 import geopandas as gpd
 import numpy as np
 import rasterio
 import rasterio.plot
-from exiftool import exiftool, ExifToolHelper
+from dateutil.parser import parse
+from exiftool import ExifToolHelper
 from geopandas import GeoDataFrame
 from numpy.typing import NDArray
 from rasterio import DatasetReader
@@ -22,7 +22,7 @@ from reflectdetect.utils.iterators import get_next
 from reflectdetect.utils.panel import get_panel_intensity
 from reflectdetect.utils.paths import get_output_path
 from reflectdetect.utils.polygons import shrink_shapely_polygon
-from dateutil.parser import parse
+
 
 def is_panel_in_orthophoto(orthophoto_path: Path, panel: GeoDataFrame, shrink_factor: float,
                            no_data_value: int) -> bool:
@@ -115,9 +115,10 @@ def save_bands(
             dst.write_band(band_index + 1, scaled_to_int)
 
 
-def get_orthophoto_paths(dataset: Path, orthophotos_folder: Path | None) -> list[Path]:
+def get_orthophoto_paths(dataset: Path, orthophotos_folder: Path | None, et = ExifToolHelper()) -> list[Path]:
     """
     Gets all the .tiff images in a folder. Uses the canonical path in the dataset if no specific path is given
+    :param et: ExiftoolHelper
     :param dataset: path to the dataset folder
     :param orthophotos_folder: name of the subfolder containing the orthophotos
     :return: list of path to the .tiff photos
@@ -129,7 +130,6 @@ def get_orthophoto_paths(dataset: Path, orthophotos_folder: Path | None) -> list
     else:
         path = orthophotos_folder
     images_paths = list(path.glob("*.tif"))
-    et = ExifToolHelper()
     def attach_date(path: Path):
         exif = et.get_metadata(path)[0]
         date = exif.get("EXIF:CreateDate")

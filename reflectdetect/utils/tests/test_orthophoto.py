@@ -1,13 +1,11 @@
 from pathlib import Path
 from unittest import mock
-from unittest.mock import patch, MagicMock
+from unittest.mock import MagicMock
 
 import geopandas as gpd
 import numpy as np
 import pytest
-import rasterio
 from geopandas import GeoDataFrame
-from rasterio._base import Affine
 from rasterio.transform import from_origin
 from shapely.geometry import Polygon
 
@@ -15,8 +13,6 @@ from reflectdetect.constants import ORTHOPHOTO_FOLDER
 # Import the functions from your module
 from reflectdetect.utils.orthophoto import (
     is_panel_in_orthophoto,
-    extract_using_geolocation,
-    save_bands,
     get_orthophoto_paths,
     load_panel_locations,
     build_batches_per_full_visibility,
@@ -26,6 +22,22 @@ from reflectdetect.utils.orthophoto import (
 # Constants used in the tests
 NO_DATA_VALUE = -9999
 SHRINK_FACTOR = 0.9
+
+
+@pytest.fixture
+def mock_exiftool():
+    """Fixture to mock ExifToolHelper."""
+    mock_exiftool = MagicMock()
+
+    def mock_get_metadata(*args, **kwargs):
+        path = args[0]
+        if path.name == "photo1.tif":
+            return [{"EXIF:CreateDate": "2025-03-26T10:10:35Z"}]
+        else:
+            return [{"EXIF:CreateDate": "2025-03-27T11:15:40Z"}]
+
+    mock_exiftool.get_metadata.side_effect = mock_get_metadata
+    return mock_exiftool
 
 
 @pytest.fixture
@@ -95,7 +107,8 @@ def test_is_panel_in_orthophoto_outside(mock_rasterio_open, mock_panel):
     )
     assert result is False
 
-def test_get_orthophoto_paths(tmp_path):
+
+def test_get_orthophoto_paths(tmp_path, mock_exiftool):
     """Test retrieving orthophoto paths."""
     # Create fake orthophoto files
     orthophoto_folder = tmp_path / 'orthophotos'
@@ -103,13 +116,13 @@ def test_get_orthophoto_paths(tmp_path):
     (orthophoto_folder / 'photo1.tif').touch()
     (orthophoto_folder / 'photo2.tif').touch()
 
-    paths = get_orthophoto_paths(tmp_path, orthophoto_folder)
+    paths = get_orthophoto_paths(tmp_path, orthophoto_folder, mock_exiftool)
     assert len(paths) == 2
     assert all(path.suffix == '.tif' for path in paths)
     assert paths[0] == orthophoto_folder / 'photo1.tif'
 
 
-def test_get_orthophoto_paths_default(tmp_path):
+def test_get_orthophoto_paths_default(tmp_path, mock_exiftool):
     """Test retrieving orthophoto paths with default folder."""
     # Create default orthophoto folder
     orthophoto_folder = tmp_path / ORTHOPHOTO_FOLDER
@@ -117,7 +130,7 @@ def test_get_orthophoto_paths_default(tmp_path):
     (orthophoto_folder / 'photo1.tif').touch()
     (orthophoto_folder / 'photo2.tif').touch()
 
-    paths = get_orthophoto_paths(tmp_path, None)
+    paths = get_orthophoto_paths(tmp_path, None, mock_exiftool)
     assert len(paths) == 2
     assert paths[0] == orthophoto_folder / 'photo1.tif'
 
