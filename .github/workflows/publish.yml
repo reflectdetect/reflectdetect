@@ -10,8 +10,6 @@ jobs:
     permissions:
       contents: write
     steps:
-      - run: pipx install poetry
-      - run: poetry install
       - name: PyPI Poetry Publish (No Cache)
         uses: Tingel24/pypi-poetry-publish-no-cache@v0.0.1
         with:
