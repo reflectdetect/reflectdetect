@@ -10,8 +10,10 @@ jobs:
     permissions:
       contents: write
     steps:
-      - name: Publish PyPi package
-        uses: code-specialist/pypi-poetry-publish@v1
+      - run: pipx install poetry
+      - run: poetry install
+      - name: PyPI Poetry Publish (No Cache)
+        uses: Tingel24/pypi-poetry-publish-no-cache@v0.0.1
         with:
           ACCESS_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           PUBLISH_REGISTRY_PASSWORD: ${{ secrets.PUBLISH_REGISTRY_PASSWORD }}
