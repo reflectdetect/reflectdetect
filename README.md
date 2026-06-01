@@ -19,7 +19,7 @@
 <p>
 <a href="https://reflectdetect.readthedocs.io">Documentation</a>
 </p>
-<a href="https://ifzgoettingen-my.sharepoint.com/:f:/g/personal/heim_ifz-goettingen_de/EmSDi-poSitJpDbd4Xrrhj8BF-9x5LMSKSMOvJbj5OqmXg?e=g0oss6">Download Example Datasets</a>
+<a href="https://www.dropbox.com/scl/fo/61lcbzlvfw1plhwnhwp0h/ANMs7GVnmMYejvoO6xGoJGo?rlkey=cstc8s2n09r9u374lw6zj0bhb&st=7bi8nbvs&dl=0">Download Example Datasets</a>
 <a href="https://github.com/reflectdetect/reflectdetect/blob/main/README.md#installation">How to install?</a>
 
 
@@ -43,13 +43,13 @@ Welcome to the official repository for the paper, "ReflectDetect: A software too
 ### Workflow 1: Geolocation-Based Calibration
 
 1. **Know your calibration panel reflectance factors**  
-For each of your calibration panel, obtain the reflectance factor and ensure that it has a flat response according to the bands of your camera system. This information can be obtain from the manufacturer (for commercial panels) or by using a field spectrometer (for DIY panels). Save these values in a `panel_properties.json` file (see [example data](https://ifzgoettingen-my.sharepoint.com/:f:/g/personal/heim_ifz-goettingen_de/EmSDi-poSitJpDbd4Xrrhj8BF-9x5LMSKSMOvJbj5OqmXg?e=g0oss6)).
+For each of your calibration panel, obtain the reflectance factor and ensure that it has a flat response according to the bands of your camera system. This information can be obtain from the manufacturer (for commercial panels) or by using a field spectrometer (for DIY panels). Save these values in a `panel_properties.json` file (see [example data](https://www.dropbox.com/scl/fo/61lcbzlvfw1plhwnhwp0h/ANMs7GVnmMYejvoO6xGoJGo?rlkey=cstc8s2n09r9u374lw6zj0bhb&st=7bi8nbvs&dl=0)).
 In case you would like to build your own calibration panels, the following publication provides basic information on that topic:
     > C. Wang and S. W. Myint, "A Simplified Empirical Line Method of Radiometric Calibration for Small Unmanned Aircraft Systems-Based Remote Sensing," in IEEE Journal of Selected Topics in Applied Earth >  Observations and Remote Sensing, vol. 8, no. 5, pp. 1876-1885, May 2015, doi: [10.1109/JSTARS.2015.2422716](https://doi.org/10.1109/JSTARS.2015.2422716).
 2. **Position the calibration panels in the field**
 During placement, avoid that the panel(s) is/are shaded by adjacent plant or objects. Placing the panels in the center of your mapping area will increase the number of images that contain the panels.
 3. **Capture the locations of the panel corners**  
-We used an [Ardusimple RTK Calibrated Surveyor Kit](https://www.ardusimple.com/product/rtk-calibrated-surveyor-kit/) in our testing, save the data in a `panel_locations.gpkg` file (see [example data](https://ifzgoettingen-my.sharepoint.com/:f:/g/personal/heim_ifz-goettingen_de/EmSDi-poSitJpDbd4Xrrhj8BF-9x5LMSKSMOvJbj5OqmXg?e=g0oss6)).
+We used an [Ardusimple RTK Calibrated Surveyor Kit](https://www.ardusimple.com/product/rtk-calibrated-surveyor-kit/) in our testing, save the data in a `panel_locations.gpkg` file (see [example data](https://www.dropbox.com/scl/fo/61lcbzlvfw1plhwnhwp0h/ANMs7GVnmMYejvoO6xGoJGo?rlkey=cstc8s2n09r9u374lw6zj0bhb&st=7bi8nbvs&dl=0)).
 4. **Fly your drone mission, capturing images.**
 5. **Rectifying and geo-reference the images**
    <br>We used [Metashape](https://www.agisoft.com/) in our testing
@@ -59,7 +59,7 @@ We used an [Ardusimple RTK Calibrated Surveyor Kit](https://www.ardusimple.com/p
 ### Workflow 2: AprilTag-Based Calibration
 
 1. **Gather Panel Reflectance Data**  
-For each of your calibration panel, obtain the reflectance factor and ensure that it has a flat response according to the bands of your camera system. This information can be obtain from the manufacturer (for commercial panels) or by using a field spectrometer (for DIY panels). Save these values in a `panel_properties.json` file (see [example data](https://ifzgoettingen-my.sharepoint.com/:f:/g/personal/heim_ifz-goettingen_de/EmSDi-poSitJpDbd4Xrrhj8BF-9x5LMSKSMOvJbj5OqmXg?e=g0oss6)).
+For each of your calibration panel, obtain the reflectance factor and ensure that it has a flat response according to the bands of your camera system. This information can be obtain from the manufacturer (for commercial panels) or by using a field spectrometer (for DIY panels). Save these values in a `panel_properties.json` file (see [example data](https://www.dropbox.com/scl/fo/61lcbzlvfw1plhwnhwp0h/ANMs7GVnmMYejvoO6xGoJGo?rlkey=cstc8s2n09r9u374lw6zj0bhb&st=7bi8nbvs&dl=0)).
 2. **Print an AprilTag for each panel, see [Official AprilTag Repo](https://github.com/AprilRobotics/apriltag-imgs/tree/master/tag25h9)**
 3. **Field Setup**
    <br>Position the calibration panels and place the AprilTags according to the [placement guide](#gallery).
@@ -254,7 +254,7 @@ We'll review your PR as soon as possible. Thank you for contributing!
 
 # AI Usage Card
 
-We used AI tools as follows: [AI Usage Card](https://ifzgoettingen-my.sharepoint.com/:b:/g/personal/heim_ifz-goettingen_de/Ed4LdB0RuX9OmMEGOajw_TsBSw8e9H565nfjgPqyUYP6Fw?e=XL8usx) 
+We used AI tools as follows: [AI Usage Card](https://www.dropbox.com/scl/fo/61lcbzlvfw1plhwnhwp0h/ANMs7GVnmMYejvoO6xGoJGo?rlkey=cstc8s2n09r9u374lw6zj0bhb&st=7bi8nbvs&dl=0) 
 
 # References
 
